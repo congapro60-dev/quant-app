@@ -1,0 +1,6 @@
+streamlit
+pandas
+numpy
+statsmodels
+vnstock3
+squarify
