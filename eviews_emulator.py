@@ -14,30 +14,45 @@ def parse_and_execute_command(command, data_df):
     parts = command.split()
     cmd_type = parts[0].upper()
     
+    # Create a mapping for case-insensitive column lookup
+    # e.g., 'y': 'Y', 'vnindex': 'VNINDEX'
+    col_map = {c.upper(): c for c in data_df.columns}
+    
     if cmd_type in ['LS', 'OLS']:
         if len(parts) < 3:
             return {"error": "Lệnh LS cần ít nhất 1 biến phụ thuộc và 1 biến độc lập. Ví dụ: LS Y C X"}
             
-        dependent_var = parts[1]
-        independent_vars = parts[2:]
+        dependent_var_input = parts[1].upper()
+        independent_vars_input = [v.upper() for v in parts[2:]]
         
         # Verify columns exist
-        if dependent_var not in data_df.columns:
-            return {"error": f"Không tìm thấy biến phụ thuộc '{dependent_var}' trong dữ liệu."}
+        if dependent_var_input not in col_map:
+            return {"error": f"Không tìm thấy biến phụ thuộc '{parts[1]}' trong dữ liệu."}
+            
+        dependent_var = col_map[dependent_var_input]
+        
+        if dependent_var_input in independent_vars_input:
+            return {"error": f"Biến phụ thuộc '{parts[1]}' không được xuất hiện trong danh sách biến độc lập."}
             
         X_data = pd.DataFrame(index=data_df.index)
-        for var in independent_vars:
-            if var.upper() == 'C':
+        for var_input, orig_input in zip(independent_vars_input, parts[2:]):
+            if var_input == 'C':
                 X_data['C'] = 1.0 # Constant
-            elif var in data_df.columns:
-                X_data[var] = data_df[var]
+            elif var_input in col_map:
+                X_data[col_map[var_input]] = data_df[col_map[var_input]]
             else:
-                return {"error": f"Không tìm thấy biến độc lập '{var}' trong dữ liệu."}
+                return {"error": f"Không tìm thấy biến độc lập '{orig_input}' trong dữ liệu."}
                 
         # Drop NaN values for regression
         temp_df = pd.concat([data_df[dependent_var], X_data], axis=1).dropna()
         y = temp_df[dependent_var]
-        X = temp_df[independent_vars]
+        
+        # Prevent issues with duplicate columns if user types something like LS Y C X X
+        X = temp_df.loc[:, ~temp_df.columns.duplicated()]
+        
+        # Remove dependent variable from X to be absolutely sure, though we already checked
+        X_vars_only = [c for c in X.columns if c != dependent_var]
+        X = X[X_vars_only]
         
         # Convert C column name for statsmodels compatibility if it exists
         if 'C' in X.columns:
@@ -58,9 +73,10 @@ def parse_and_execute_command(command, data_df):
             var_name = var_name.strip()
             formula = formula.strip()
             
-            # Very basic evaluation using pandas eval
-            data_df[var_name] = data_df.eval(formula)
-            return {"success": True, "message": f"Đã tạo/cập nhật biến '{var_name}' thành công.", "data": data_df}
+            # Use a copy to avoid in-place modification if eval fails
+            new_df = data_df.copy()
+            new_df[var_name] = new_df.eval(formula)
+            return {"success": True, "message": f"Đã tạo/cập nhật biến '{var_name}' thành công.", "data": new_df}
         except Exception as e:
             return {"error": f"Lỗi khi tính toán biến mới: {str(e)}"}
             
@@ -94,7 +110,7 @@ def format_eviews_output(res_dict):
     ssr = results.ssr # Sum squared resid
     se_regression = np.sqrt(ssr / results.df_resid) if results.df_resid > 0 else np.nan
     mean_dep = results.model.endog.mean()
-    sd_dep = results.model.endog.std()
+    sd_dep = results.model.endog.std(ddof=1) # Eviews uses ddof=1 (sample standard deviation)
     
     # Durbin-Watson
     from statsmodels.stats.stattools import durbin_watson

@@ -2,5 +2,10 @@ streamlit
 pandas
 numpy
 statsmodels
-vnstock3
-squarify
+vnstock
+plotly
+scipy
+openpyxl
+xlrd
+google-generativeai
+anthropic

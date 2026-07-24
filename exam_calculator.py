@@ -10,7 +10,8 @@ def calc_return_formula():
 
 def calc_returns_data(prices_series):
     # Log return formula as in the PDF: ln(St / St-1)
-    returns = np.log(prices_series / prices_series.shift(1)).dropna()
+    safe = prices_series.copy().where(prices_series > 0)  # zero/negative -> NaN
+    returns = np.log(safe / safe.shift(1)).dropna()
     return returns
 
 def calc_sim_risks_formula():
