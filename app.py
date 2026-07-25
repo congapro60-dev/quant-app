@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime, timedelta
 from data_loader import fetch_data, calculate_returns
-from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice
+from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm
+from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -189,6 +190,65 @@ def render_live_prices():
             c.metric(t, f"{cur:,.2f}", f"{pct:+.2f}%")
         elif len(series) >= 1:
             c.metric(t, f"{series.iloc[-1]:,.2f}")
+
+
+def interpret_regression_vn(res):
+    m = res.get('results')
+    if m is None:
+        return None
+    dep = res.get('dep_var', 'Y')
+    r2 = float(getattr(m, 'rsquared', float('nan')))
+    r2a = float(getattr(m, 'rsquared_adj', float('nan')))
+    fp = getattr(m, 'f_pvalue', None)
+    params, pvals = m.params, m.pvalues
+    try:
+        dw = float(durbin_watson(m.resid))
+    except Exception:
+        dw = None
+
+    L = ["**1. Mức độ phù hợp của mô hình**"]
+    L.append(f"- R² = **{r2:.4f}** → mô hình giải thích khoảng **{r2*100:.1f}%** biến động của **{dep}** "
+             f"(R² hiệu chỉnh = {r2a:.4f}).")
+    if fp is not None:
+        if fp < 0.05:
+            L.append(f"- Kiểm định F: p = {fp:.4g} < 0.05 → **mô hình có ý nghĩa tổng thể** (ít nhất một biến độc lập thực sự tác động).")
+        else:
+            L.append(f"- Kiểm định F: p = {fp:.4g} ≥ 0.05 → mô hình **chưa có ý nghĩa tổng thể**, nên cân nhắc đổi biến.")
+
+    L.append("**2. Ý nghĩa các hệ số**")
+    for name in params.index:
+        coef, pv = float(params[name]), float(pvals[name])
+        sig = "**có ý nghĩa** (p<0.05)" if pv < 0.05 else "không có ý nghĩa (p≥0.05)"
+        if str(name).lower() in ('const', 'c'):
+            L.append(f"- Hằng số (C): {coef:.4f}, p = {pv:.4g} → {sig}.")
+        else:
+            direction = "đồng biến" if coef > 0 else "nghịch biến"
+            L.append(f"- **{name}**: hệ số = {coef:.4f} ({direction}), p = {pv:.4g} → {sig}. "
+                     f"Khi {name} tăng 1 đơn vị, {dep} thay đổi {coef:+.4f} đơn vị (các yếu tố khác không đổi).")
+
+    L.append("**3. Chẩn đoán mô hình**")
+    if dw is not None:
+        if dw < 1.5:
+            dwt = "có dấu hiệu **tự tương quan dương** (phần dư liên hệ chuỗi)"
+        elif dw > 2.5:
+            dwt = "có dấu hiệu **tự tương quan âm**"
+        else:
+            dwt = "**không có tự tương quan** đáng kể"
+        L.append(f"- Durbin-Watson = {dw:.3f} → {dwt}.")
+    L.append("- Xem thêm Jarque-Bera (chuẩn tắc phần dư) và VIF (đa cộng tuyến) ở bảng kết quả phía trên.")
+
+    nonconst = [n for n in params.index if str(n).lower() not in ('const', 'c')]
+    if len(nonconst) == 1:
+        b = float(params[nonconst[0]])
+        if b > 1:
+            cls = "**năng động** (β>1): biến động mạnh hơn thị trường — rủi ro & kỳ vọng cao."
+        elif 0 < b < 1:
+            cls = "**phòng thủ** (0<β<1): biến động yếu hơn thị trường — an toàn hơn."
+        else:
+            cls = "ngược chiều thị trường (β≤0): hiếm gặp, nên kiểm tra lại dữ liệu."
+        L.append(f"**4. Góc nhìn SIM** — Beta = {b:.3f} → cổ phiếu thuộc nhóm {cls}")
+    L.append("\n> ⚠️ Đây là diễn giải học thuật trên dữ liệu quá khứ, không phải khuyến nghị mua/bán.")
+    return "\n".join(L)
 
 
 # ---------- TAB 1: SIM ----------
@@ -431,17 +491,47 @@ with tab4:
                     "Nhập lệnh Eviews (VD: LS Y C X1 X2, GENR Z = X1 + X2):", key="eviews_cmd")
                 run_now = st.button("▶️ Chạy lệnh", use_container_width=True)
 
+            deep_ai = st.checkbox("🤖 Kèm phân tích chuyên sâu bằng AI (cần API key ở sidebar)")
+
             if run_now:
                 if not command_to_run:
                     st.warning("Vui lòng chọn hoặc nhập lệnh trước.")
                 else:
                     with st.spinner("Đang xử lý..."):
                         res = parse_and_execute_command(command_to_run, st.session_state.eviews_data)
-                        if "data" in res:
-                            st.session_state.eviews_data = res["data"]
-                        st.markdown("##### 📤 Output (Kết quả)")
-                        html_output = format_eviews_output(res)
-                        st.components.v1.html(html_output, height=450, scrolling=True)
+                    if "data" in res:
+                        st.session_state.eviews_data = res["data"]
+                    if res.get("error"):
+                        st.error(res["error"])
+                    st.markdown("##### 📤 Output (Kết quả)")
+                    html_output = format_eviews_output(res)
+                    st.components.v1.html(html_output, height=450, scrolling=True)
+
+                    narrative = interpret_regression_vn(res)
+                    if narrative:
+                        st.markdown("##### 🧠 Diễn giải kết quả (tự động)")
+                        st.markdown(narrative)
+                        if deep_ai:
+                            if ai_config and ai_config.get('api_key'):
+                                m = res['results']
+                                summary = (f"Biến phụ thuộc: {res.get('dep_var')}. "
+                                           f"R^2={float(m.rsquared):.4f}, R^2_adj={float(m.rsquared_adj):.4f}, "
+                                           f"F p-value={m.f_pvalue:.4g}. Hệ số & p-value: " +
+                                           "; ".join(f"{n}={float(m.params[n]):.4f}(p={float(m.pvalues[n]):.4g})"
+                                                     for n in m.params.index))
+                                prompt = ("Bạn là giảng viên Kinh tế lượng Tài chính. Dựa trên kết quả hồi quy OLS sau, "
+                                          "hãy phân tích chuyên sâu bằng tiếng Việt: (1) đánh giá độ phù hợp và ý nghĩa "
+                                          "thống kê, (2) diễn giải kinh tế của từng hệ số, (3) cảnh báo về khuyết tật mô "
+                                          "hình nếu có, (4) gợi ý cải thiện. Trình bày gọn bằng Markdown, có emoji hợp lý. "
+                                          "Nhấn mạnh đây là phân tích học thuật, không phải khuyến nghị đầu tư.\n\n"
+                                          f"KẾT QUẢ: {summary}")
+                                with st.spinner("AI đang phân tích chuyên sâu..."):
+                                    out = call_llm(prompt, ai_config)
+                                if out:
+                                    st.markdown("##### 🤖 Phân tích chuyên sâu bằng AI")
+                                    st.markdown(out)
+                            else:
+                                st.warning("Hãy nhập API key ở sidebar (mục Tích hợp AI) để dùng phân tích chuyên sâu.")
 
 
 # ---------- TAB 5: ÔN THI ----------
