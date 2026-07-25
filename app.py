@@ -1,4 +1,6 @@
 import io
+import re
+import contextlib
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -287,6 +289,76 @@ def render_eviews_plot(plot):
         d = data.reset_index().rename(columns={"index": "Quan sát"})
         fig = px.line(d, x="Quan sát", y=cols, title="Đồ thị đường")
         st.plotly_chart(fig, use_container_width=True)
+
+
+def compute_portfolio(df, assets, weights, nobs=0, reverse=False, normalize=True):
+    """Tính lợi suất TB & rủi ro danh mục từ giá, trọng số W cho trước."""
+    w = np.array(weights, dtype=float)
+    if normalize and w.sum() != 0:
+        w = w / w.sum()
+    data = df[assets].apply(pd.to_numeric, errors='coerce').dropna()
+    if nobs and int(nobs) > 1:
+        data = data.head(int(nobs))
+    if reverse:
+        data = data.iloc[::-1]
+    R = np.log(data / data.shift(1)).dropna()
+    if len(R) < 2:
+        raise ValueError("Không đủ dữ liệu để tính lợi suất.")
+    rp = R.values @ w
+    return {
+        'weights': w, 'assets': list(assets), 'n_prices': len(data), 'n_returns': len(R),
+        'asset_means': R.mean(), 'mean': float(np.mean(rp)),
+        'variance': float(np.var(rp, ddof=1)), 'std': float(np.std(rp, ddof=1)),
+        'cov': R.cov(),
+    }
+
+
+_AI_SAFE_BUILTINS = {k: __builtins__[k] if isinstance(__builtins__, dict) else getattr(__builtins__, k)
+                     for k in ['len','range','round','sum','min','max','abs','list','dict','set',
+                               'tuple','float','int','str','bool','sorted','enumerate','zip','map',
+                               'filter','print','any','all','divmod','pow']}
+_AI_BLOCKED = ['import','open(','exec(','eval(','os.','sys.','subprocess','socket','__','compile(',
+               'globals(','locals(','getattr(','setattr(','delattr(','input(','read_csv','read_excel',
+               'read_','to_csv','to_excel','pickle','requests','urllib','.system','popen','write']
+
+
+def _extract_code(text):
+    m = re.search(r'```(?:python)?\s*(.*?)```', text, re.S)
+    return (m.group(1) if m else text).strip()
+
+
+def run_ai_analysis(df, request, ai_config):
+    """Gửi cấu trúc dữ liệu + yêu cầu cho LLM, nhận mã pandas, chạy an toàn trên df."""
+    cols_desc = ", ".join(f"{c}({df[c].dtype})" for c in df.columns)
+    head = df.head(5).to_string()
+    prompt = (
+        "Bạn là trợ lý phân tích Kinh tế lượng Tài chính. Có sẵn một DataFrame pandas tên `df`.\n"
+        f"Các cột: {cols_desc}\n5 dòng đầu:\n{head}\n\n"
+        f'Yêu cầu của người dùng: "{request}"\n\n'
+        "Viết MÃ PYTHON dùng pandas (pd) và numpy (np) — `df`, `pd`, `np` đã có sẵn, KHÔNG import, "
+        "KHÔNG đọc/ghi file. Lợi suất (return) dùng log: np.log(x/x.shift(1)). "
+        "Gán kết quả cuối vào biến `ket_qua` (số, Series, DataFrame hoặc dict). "
+        "Gán chuỗi diễn giải ngắn bằng tiếng Việt vào biến `giai_thich`. "
+        "Chỉ trả về DUY NHẤT một khối ```python ... ```."
+    )
+    resp = call_llm(prompt, ai_config)
+    if not resp or str(resp).startswith("Lỗi"):
+        return {"error": resp or "Không nhận được phản hồi từ AI."}
+    code = _extract_code(resp)
+    low = code.lower()
+    for bad in _AI_BLOCKED:
+        if bad in low:
+            return {"error": f"Mã sinh ra chứa thao tác không cho phép ('{bad}') nên bị chặn vì an toàn.",
+                    "code": code}
+    ns = {'df': df.copy(), 'pd': pd, 'np': np, 'ket_qua': None, 'giai_thich': None}
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            exec(code, {'__builtins__': _AI_SAFE_BUILTINS}, ns)
+    except Exception as e:
+        return {"error": f"Lỗi khi chạy mã: {e}", "code": code}
+    return {"code": code, "result": ns.get('ket_qua'),
+            "explain": ns.get('giai_thich'), "stdout": buf.getvalue()}
 
 
 # ---------- TAB 1: SIM ----------
@@ -687,3 +759,90 @@ with tab5:
                 st.json({k: float(v) if not isinstance(v, str) else v for k, v in params.items()})
             except Exception as e:
                 st.error(f"Lỗi: {e}")
+
+        # ===== Danh mục theo trọng số W =====
+        st.markdown("---")
+        st.markdown("##### 🧺 Danh mục theo trọng số cho trước (W)")
+        st.caption("Chọn các mã (cột GIÁ), số quan sát, thứ tự ngày và nhập trọng số → ra lợi suất TB & rủi ro danh mục.")
+        num_cols = list(exam_data.select_dtypes(include=[np.number]).columns)
+        if len(num_cols) < 1:
+            st.info("Không có cột số hợp lệ trong dữ liệu.")
+        else:
+            pf_assets = st.multiselect("Các mã trong danh mục (cột giá):", num_cols, key="pf_assets")
+            pc1, pc2 = st.columns(2)
+            pf_n = pc1.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="pf_n")
+            pf_order = pc2.radio("Thứ tự ngày trong file:", ["Giữ nguyên", "Đảo ngược (cũ → mới)"],
+                                 key="pf_order", horizontal=True)
+            if pf_assets:
+                st.caption("Nhập trọng số W cho từng mã:")
+                wcols = st.columns(len(pf_assets))
+                pf_weights = []
+                for i, a in enumerate(pf_assets):
+                    wv = wcols[i].number_input(a, value=round(1.0 / len(pf_assets), 4),
+                                               step=0.05, format="%.4f", key=f"pf_w_{a}")
+                    pf_weights.append(wv)
+                pf_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="pf_norm")
+                if st.button("📊 Tính danh mục", use_container_width=True, type="primary", key="pf_btn"):
+                    try:
+                        res = compute_portfolio(exam_data, pf_assets, pf_weights,
+                                                nobs=pf_n, reverse=pf_order.startswith("Đảo"),
+                                                normalize=pf_norm)
+                        st.caption(f"Dùng {res['n_prices']} giá → {res['n_returns']} lợi suất. "
+                                   f"Trọng số áp dụng: " + ", ".join(f"{a}={w:.4f}" for a, w in zip(res['assets'], res['weights'])))
+                        mA, mB, mC = st.columns(3)
+                        mA.metric("Lợi suất TB danh mục", f"{res['mean']*100:.4f}%")
+                        mB.metric("Rủi ro (độ lệch chuẩn)", f"{res['std']*100:.4f}%")
+                        mC.metric("Phương sai danh mục", f"{res['variance']:.8f}")
+                        st.write("Lợi suất trung bình từng mã:")
+                        st.dataframe((res['asset_means'] * 100).round(4).rename("Lợi suất TB (%)"),
+                                     use_container_width=True)
+                        st.write("Ma trận hiệp phương sai V:")
+                        st.dataframe(res['cov'], use_container_width=True)
+                        direction = "âm (danh mục giảm giá trong kỳ)" if res['mean'] < 0 else "dương (danh mục tăng giá)"
+                        st.markdown(
+                            f"**Diễn giải:** Lợi suất trung bình danh mục ≈ **{res['mean']*100:.4f}%/phiên** ({direction}); "
+                            f"rủi ro (độ lệch chuẩn) ≈ **{res['std']*100:.4f}%**. "
+                            f"Tính bằng r_P = Σ wᵢ·rᵢ rồi lấy trung bình & độ lệch chuẩn — bằng đúng W'VW. "
+                            f"\n\n> ⚠️ Lợi suất TB đổi dấu nếu thay đổi thứ tự ngày; rủi ro không đổi.")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+
+        # ===== Trợ lý AI: tính theo yêu cầu tự nhiên =====
+        st.markdown("---")
+        st.markdown("##### 🤖 Trợ lý AI — tính theo yêu cầu (cần API key)")
+        st.caption("Gõ yêu cầu tự nhiên. AI đọc cấu trúc dữ liệu bạn đang nạp ở Tab 4 rồi viết mã tính; "
+                   "app chạy mã đó trên đúng file của bạn và hiện kết quả kèm mã để đối chiếu.")
+        ai_req = st.text_area("Yêu cầu của bạn:",
+                              placeholder="VD: Tính lợi suất trung bình và phương sai của GAS, HDB; lập ma trận hiệp phương sai của GAS, HDB, HPG.",
+                              key="ai_req")
+        if st.button("✨ Tính bằng AI", use_container_width=True, key="ai_calc_btn"):
+            if not (ai_config and ai_config.get('api_key')):
+                st.warning("Hãy nhập & kích hoạt API key ở sidebar (mục Tích hợp AI) trước.")
+            elif not ai_req.strip():
+                st.warning("Hãy nhập yêu cầu.")
+            else:
+                with st.spinner("AI đang đọc dữ liệu và tính..."):
+                    out = run_ai_analysis(exam_data, ai_req, ai_config)
+                if out.get("error"):
+                    st.error(out["error"])
+                    if out.get("code"):
+                        with st.expander("Xem mã AI đã sinh"):
+                            st.code(out["code"], language="python")
+                else:
+                    if out.get("explain"):
+                        st.markdown(out["explain"])
+                    res = out.get("result")
+                    if res is not None:
+                        st.write("**Kết quả:**")
+                        if isinstance(res, (pd.DataFrame, pd.Series)):
+                            st.dataframe(res, use_container_width=True)
+                        elif isinstance(res, dict):
+                            st.json({k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
+                                     for k, v in res.items()})
+                        else:
+                            st.write(res)
+                    if out.get("stdout"):
+                        st.text(out["stdout"])
+                    with st.expander("🔍 Mã AI đã dùng (đối chiếu để yên tâm)"):
+                        st.code(out["code"], language="python")
+                    st.caption("⚠️ AI có thể sai — hãy kiểm chứng kết quả trước khi dùng để nộp.")
