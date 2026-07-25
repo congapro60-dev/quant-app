@@ -83,7 +83,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("🤖 Tích hợp AI (Tùy chọn)")
-    ai_provider = st.selectbox("Nhà cung cấp AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"])
+    ai_provider = st.radio("Nhà cung cấp AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"], horizontal=True)
     ai_config = None
     if ai_provider != "Không dùng":
         api_key = st.text_input("API Key:", type="password", key="api_key_val")
