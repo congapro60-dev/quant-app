@@ -41,7 +41,7 @@ for k, v in {
     'prices_df': pd.DataFrame(), 'opt_res': {}, 'sim_results_list': [],
     'returns_df': pd.DataFrame(), 'market_ticker': "", 'valid_assets': [],
     'tickers_val': "FPT, HPG, CTG, DPM", 'eviews_data': pd.DataFrame(),
-    'last_query': None, 'last_update': None,
+    'last_query': None, 'last_update': None, 'ai_ok': None, 'ai_err': '',
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -86,13 +86,32 @@ with st.sidebar:
     ai_provider = st.selectbox("Nhà cung cấp AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"])
     ai_config = None
     if ai_provider != "Không dùng":
-        api_key = st.text_input("API Key:", type="password")
+        api_key = st.text_input("API Key:", type="password", key="api_key_val")
         if ai_provider == "Anthropic (Claude)":
             model_choice = st.selectbox("Model:", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
         else:
             model_choice = st.selectbox("Model:", ["gemini-3.6-flash", "gemini-3.1-pro", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
         ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
-        st.caption("🔒 API key chỉ lưu tạm trong phiên, không ghi vào code.")
+
+        if api_key:
+            if st.button("🔌 Kích hoạt & kiểm tra kết nối", use_container_width=True):
+                with st.spinner("Đang kiểm tra key..."):
+                    test = call_llm("Trả lời đúng 1 từ: OK", ai_config)
+                if test and not str(test).startswith("Lỗi"):
+                    st.session_state['ai_ok'] = True
+                    st.session_state['ai_err'] = ""
+                else:
+                    st.session_state['ai_ok'] = False
+                    st.session_state['ai_err'] = str(test) if test else "Không nhận được phản hồi."
+            if st.session_state.get('ai_ok') is True:
+                st.success(f"🟢 Đã kết nối {ai_provider} — {model_choice}. Sẵn sàng dùng ở các tab AI.")
+            elif st.session_state.get('ai_ok') is False:
+                st.error(f"🔴 Key chưa dùng được: {st.session_state.get('ai_err','')}")
+            else:
+                st.info("🔑 Đã nhận key — có thể dùng ngay. Bấm nút trên để xác nhận key hợp lệ (khuyên dùng).")
+        else:
+            st.caption("Nhập API key để bật phân tích AI.")
+        st.caption("🔒 Key chỉ lưu tạm trong phiên, không ghi vào code.")
 
 # ==================== XỬ LÝ KHI BẤM PHÂN TÍCH ====================
 def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=True):
@@ -251,6 +270,25 @@ def interpret_regression_vn(res):
     return "\n".join(L)
 
 
+def render_eviews_plot(plot):
+    kind = plot["kind"]
+    data = plot["data"].dropna()
+    cols = plot["cols"]
+    if kind == "scatter":
+        fig = px.scatter(data, x=cols[0], y=cols[1], trendline="ols",
+                         title=f"Phân tán {cols[1]} theo {cols[0]}")
+        fig.update_traces(marker=dict(color="#00A67E", opacity=0.5))
+        st.plotly_chart(fig, use_container_width=True)
+    elif kind == "hist":
+        fig = px.histogram(data, x=cols[0], nbins=40, title=f"Phân phối {cols[0]}")
+        fig.update_traces(marker_color="#00A67E")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        d = data.reset_index().rename(columns={"index": "Quan sát"})
+        fig = px.line(d, x="Quan sát", y=cols, title="Đồ thị đường")
+        st.plotly_chart(fig, use_container_width=True)
+
+
 # ---------- TAB 1: SIM ----------
 with tab1:
     if not has_data:
@@ -395,7 +433,9 @@ with tab3:
 # ---------- TAB 4: EVIEWS ----------
 with tab4:
     st.subheader("📈 Eviews tiếng Việt (Giả lập)")
-    st.markdown("Tải file số liệu, chọn sheet, rồi gõ lệnh y hệt Eviews (`LS Y C X`, `GENR Z = X + Y`).")
+    st.markdown("Tải file, chọn sheet, rồi dùng menu **Chọn nhanh** hoặc gõ lệnh Eviews. "
+                "Hỗ trợ: `LS` (hồi quy), `GENR` (LOG/D/trễ X(-1)/@TREND), `ADF` (nghiệm đơn vị), "
+                "`STATS` (thống kê mô tả), `COR` (tương quan), `PLOT/SCAT/HIST` (đồ thị).")
     from eviews_emulator import parse_and_execute_command, format_eviews_output
 
     col_ev1, col_ev2 = st.columns([1, 2])
@@ -452,6 +492,10 @@ with tab4:
                 op = st.selectbox("Bạn muốn làm gì?", [
                     "Hồi quy OLS / Ước lượng SIM (LS)",
                     "Tạo biến mới (GENR)",
+                    "Kiểm định nghiệm đơn vị (ADF)",
+                    "Thống kê mô tả (STATS)",
+                    "Ma trận tương quan (COR)",
+                    "Vẽ đồ thị (đường/phân tán/tần suất)",
                 ])
                 if op.startswith("Hồi quy"):
                     # Tự nhận diện cột chỉ số thị trường
@@ -472,15 +516,50 @@ with tab4:
                                            [c for c in cols_list if c not in (y, x_market)])
                     xs = [x_market] + [e for e in extra if e != x_market]
                     command_to_run = f"LS {y} C {' '.join(xs)}"
-                else:
-                    st.caption("Tạo biến mới từ 2 biến sẵn có bằng một phép toán.")
+                elif op.startswith("Tạo biến"):
+                    st.caption("Có thể dùng hàm: LOG(), D() (sai phân), biến trễ X(-1), @TREND, hoặc điều kiện tạo biến giả (VD: BID>20).")
                     newname = st.text_input("Tên biến mới:", "Z")
-                    cc1, cc2, cc3 = st.columns(3)
-                    v1 = cc1.selectbox("Biến 1:", cols_list, key="genr_v1")
-                    opr = cc2.selectbox("Phép toán:", ["+", "-", "*", "/"], key="genr_op")
-                    v2 = cc3.selectbox("Biến 2:", cols_list, key="genr_v2")
-                    if newname.strip():
-                        command_to_run = f"GENR {newname.strip()} = {v1} {opr} {v2}"
+                    gmode = st.radio("Kiểu tạo:", ["Hai biến + phép toán", "Tự gõ biểu thức"],
+                                     horizontal=True, key="genr_mode")
+                    if gmode.startswith("Hai"):
+                        cc1, cc2, cc3 = st.columns(3)
+                        v1 = cc1.selectbox("Biến 1:", cols_list, key="genr_v1")
+                        opr = cc2.selectbox("Phép toán:", ["+", "-", "*", "/"], key="genr_op")
+                        v2 = cc3.selectbox("Biến 2:", cols_list, key="genr_v2")
+                        expr = f"{v1} {opr} {v2}"
+                    else:
+                        expr = st.text_input("Biểu thức (VD: LOG(BID) - LOG(BID(-1))):",
+                                             f"LOG({cols_list[0]})", key="genr_expr")
+                    if newname.strip() and expr.strip():
+                        command_to_run = f"GENR {newname.strip()} = {expr}"
+                elif op.startswith("Kiểm định nghiệm"):
+                    st.caption("Kiểm định chuỗi có DỪNG không (nghiệm đơn vị) — dùng cho số liệu chuỗi thời gian.")
+                    v = st.selectbox("Chọn biến:", cols_list, key="adf_v")
+                    command_to_run = f"ADF {v}"
+                elif op.startswith("Thống kê"):
+                    vs = st.multiselect("Chọn biến (bỏ trống = tất cả):", cols_list, key="stats_v")
+                    command_to_run = "STATS " + " ".join(vs) if vs else "STATS"
+                elif op.startswith("Ma trận tương quan"):
+                    vs = st.multiselect("Chọn biến (≥2, bỏ trống = tất cả):", cols_list, key="cor_v")
+                    command_to_run = "COR " + " ".join(vs) if vs else "COR"
+                else:  # Vẽ đồ thị
+                    gtype = st.selectbox("Loại đồ thị:",
+                                         ["Đường (line)", "Phân tán (scatter)", "Tần suất (histogram)"],
+                                         key="plot_type_sel")
+                    if gtype.startswith("Phân"):
+                        c1p, c2p = st.columns(2)
+                        vx = c1p.selectbox("Trục X:", cols_list, key="plot_x")
+                        vy = c2p.selectbox("Trục Y:", cols_list,
+                                           index=min(1, len(cols_list) - 1), key="plot_y")
+                        command_to_run = f"SCAT {vx} {vy}"
+                    elif gtype.startswith("Tần"):
+                        vh = st.selectbox("Biến:", cols_list, key="plot_h")
+                        command_to_run = f"HIST {vh}"
+                    else:
+                        vs = st.multiselect("Chọn 1 hoặc nhiều biến:", cols_list,
+                                            default=cols_list[:1], key="plot_l")
+                        if vs:
+                            command_to_run = "PLOT " + " ".join(vs)
 
                 if command_to_run:
                     st.caption("📋 Câu lệnh Eviews tương ứng (học thuộc để sau tự gõ tay):")
@@ -488,7 +567,7 @@ with tab4:
                     run_now = st.button("▶️ Xem kết quả", use_container_width=True, type="primary")
             else:
                 command_to_run = st.text_input(
-                    "Nhập lệnh Eviews (VD: LS Y C X1 X2, GENR Z = X1 + X2):", key="eviews_cmd")
+                    "Nhập lệnh (VD: LS Y C X | GENR Z=LOG(X) | ADF X | STATS X | COR | PLOT X Y):", key="eviews_cmd")
                 run_now = st.button("▶️ Chạy lệnh", use_container_width=True)
 
             deep_ai = st.checkbox("🤖 Kèm phân tích chuyên sâu bằng AI (cần API key ở sidebar)")
@@ -503,9 +582,17 @@ with tab4:
                         st.session_state.eviews_data = res["data"]
                     if res.get("error"):
                         st.error(res["error"])
-                    st.markdown("##### 📤 Output (Kết quả)")
-                    html_output = format_eviews_output(res)
-                    st.components.v1.html(html_output, height=450, scrolling=True)
+                    elif res.get("plot"):
+                        st.markdown("##### 📈 Đồ thị")
+                        render_eviews_plot(res["plot"])
+                    elif res.get("message"):
+                        st.success(res["message"])
+                        with st.expander("👁️ Xem dữ liệu sau khi tạo biến"):
+                            st.dataframe(st.session_state.eviews_data.head(20), use_container_width=True)
+                    else:
+                        st.markdown("##### 📤 Output (Kết quả)")
+                        html_output = format_eviews_output(res)
+                        st.components.v1.html(html_output, height=460, scrolling=True)
 
                     narrative = interpret_regression_vn(res)
                     if narrative:
