@@ -46,7 +46,7 @@ if ai_provider != "Không dùng":
     if ai_provider == "Anthropic (Claude)":
         model_choice = st.sidebar.selectbox("Chọn Model:", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
     else:
-        model_choice = st.sidebar.selectbox("Chọn Model:", ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-pro"])
+        model_choice = st.sidebar.selectbox("Chọn Model:", ["gemini-3.6-flash", "gemini-3.1-pro", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
         
     ai_config = {
         'provider': ai_provider,
