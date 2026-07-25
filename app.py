@@ -291,26 +291,68 @@ def render_eviews_plot(plot):
         st.plotly_chart(fig, use_container_width=True)
 
 
-def compute_portfolio(df, assets, weights, nobs=0, reverse=False, normalize=True):
-    """Tính lợi suất TB & rủi ro danh mục từ giá, trọng số W cho trước."""
-    w = np.array(weights, dtype=float)
-    if normalize and w.sum() != 0:
-        w = w / w.sum()
-    data = df[assets].apply(pd.to_numeric, errors='coerce').dropna()
+def _prep_returns(df, cols, nobs, reverse, is_returns):
+    data = df[cols].apply(pd.to_numeric, errors='coerce').dropna()
     if nobs and int(nobs) > 1:
         data = data.head(int(nobs))
     if reverse:
         data = data.iloc[::-1]
-    R = np.log(data / data.shift(1)).dropna()
+    if is_returns:
+        return data.dropna(), len(data)
+    return np.log(data / data.shift(1)).dropna(), len(data)
+
+
+def compute_portfolio(df, assets, weights, nobs=0, reverse=False, normalize=True,
+                      is_returns=False, ddof=1):
+    """Rủi ro danh mục theo phương pháp hiệp phương sai: σ²_P = W'VW."""
+    w = np.array(weights, dtype=float)
+    if normalize and w.sum() != 0:
+        w = w / w.sum()
+    R, n_raw = _prep_returns(df, list(assets), nobs, reverse, is_returns)
     if len(R) < 2:
         raise ValueError("Không đủ dữ liệu để tính lợi suất.")
     rp = R.values @ w
+    cov = pd.DataFrame(np.cov(R.values.T, ddof=ddof), index=list(assets), columns=list(assets))
     return {
-        'weights': w, 'assets': list(assets), 'n_prices': len(data), 'n_returns': len(R),
+        'weights': w, 'assets': list(assets), 'n_prices': n_raw, 'n_returns': len(R),
         'asset_means': R.mean(), 'mean': float(np.mean(rp)),
-        'variance': float(np.var(rp, ddof=1)), 'std': float(np.std(rp, ddof=1)),
-        'cov': R.cov(),
+        'variance': float(np.var(rp, ddof=ddof)), 'std': float(np.std(rp, ddof=ddof)),
+        'cov': cov, 'ddof': ddof,
     }
+
+
+def compute_sim_portfolio_risk(df, assets, market, weights, nobs=0, reverse=False,
+                               normalize=True, is_returns=False):
+    """Rủi ro danh mục theo mô hình SIM: tách rủi ro hệ thống / phi hệ thống."""
+    import statsmodels.api as sm
+    w = np.array(weights, dtype=float)
+    if normalize and w.sum() != 0:
+        w = w / w.sum()
+    R, _ = _prep_returns(df, list(assets) + [market], nobs, reverse, is_returns)
+    if len(R) < 3:
+        raise ValueError("Không đủ dữ liệu để hồi quy SIM.")
+    Rm = R[market]
+    sig_m2 = float(Rm.var(ddof=1))
+    X = sm.add_constant(Rm)
+    betas, etas, per = [], [], []
+    for a in assets:
+        res = sm.OLS(R[a], X).fit()
+        b = float(res.params[market])
+        eta = float(res.mse_resid)          # η² = SSR/(n-2)
+        sysr = b * b * sig_m2
+        betas.append(b); etas.append(eta)
+        per.append({'Mã': a, 'Beta': round(b, 6),
+                    'Rủi ro hệ thống': round(sysr, 8),
+                    'Rủi ro phi hệ thống (η²)': round(eta, 8),
+                    'Tổng rủi ro': round(sysr + eta, 8)})
+    betas = np.array(betas); etas = np.array(etas)
+    beta_p = float(w @ betas)
+    sysP = beta_p ** 2 * sig_m2
+    unsysP = float(np.sum(w ** 2 * etas))
+    return {'weights': w, 'assets': list(assets), 'market': market, 'n_returns': len(R),
+            'sigma_market2': sig_m2, 'per_stock': per, 'beta_p': beta_p,
+            'systematic': sysP, 'unsystematic': unsysP, 'total': sysP + unsysP,
+            'total_std': float(np.sqrt(sysP + unsysP))}
 
 
 _AI_SAFE_BUILTINS = {k: __builtins__[k] if isinstance(__builtins__, dict) else getattr(__builtins__, k)
@@ -773,6 +815,12 @@ with tab5:
             pf_n = pc1.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="pf_n")
             pf_order = pc2.radio("Thứ tự ngày trong file:", ["Giữ nguyên", "Đảo ngược (cũ → mới)"],
                                  key="pf_order", horizontal=True)
+            pc3, pc4 = st.columns(2)
+            pf_isret = pc3.checkbox("Dữ liệu đã là lợi suất", key="pf_isret",
+                                    help="Tick nếu cột đã là r_... (không tính lợi suất lại).")
+            pf_ddofr = pc4.radio("Kiểu phương sai:", ["Mẫu ÷(n−1)", "Tổng thể ÷n"],
+                                 key="pf_ddof", horizontal=True,
+                                 help="Bảng Excel của giảng viên thường dùng Tổng thể ÷n; EViews dùng Mẫu ÷(n−1).")
             if pf_assets:
                 st.caption("Nhập trọng số W cho từng mã:")
                 wcols = st.columns(len(pf_assets))
@@ -786,7 +834,8 @@ with tab5:
                     try:
                         res = compute_portfolio(exam_data, pf_assets, pf_weights,
                                                 nobs=pf_n, reverse=pf_order.startswith("Đảo"),
-                                                normalize=pf_norm)
+                                                normalize=pf_norm, is_returns=pf_isret,
+                                                ddof=(1 if pf_ddofr.startswith("Mẫu") else 0))
                         st.caption(f"Dùng {res['n_prices']} giá → {res['n_returns']} lợi suất. "
                                    f"Trọng số áp dụng: " + ", ".join(f"{a}={w:.4f}" for a, w in zip(res['assets'], res['weights'])))
                         mA, mB, mC = st.columns(3)
@@ -806,6 +855,49 @@ with tab5:
                             f"\n\n> ⚠️ Lợi suất TB đổi dấu nếu thay đổi thứ tự ngày; rủi ro không đổi.")
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
+
+        # ===== Rủi ro danh mục theo mô hình SIM =====
+        st.markdown("---")
+        st.markdown("##### 🎯 Rủi ro danh mục theo mô hình SIM (hệ thống / phi hệ thống)")
+        st.caption("Chọn các mã + chỉ số thị trường + trọng số → app chạy SIM từng mã, tách rủi ro hệ thống & phi hệ thống của danh mục.")
+        num_cols2 = list(exam_data.select_dtypes(include=[np.number]).columns)
+        s_assets = st.multiselect("Các mã trong danh mục:", num_cols2, key="sim_assets")
+        sc1, sc2 = st.columns(2)
+        s_market = sc1.selectbox("Chỉ số thị trường:", num_cols2,
+                                 index=len(num_cols2) - 1 if num_cols2 else 0, key="sim_market")
+        s_n = sc2.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="sim_n")
+        sc3, sc4 = st.columns(2)
+        s_isret = sc3.checkbox("Dữ liệu đã là lợi suất", key="sim_isret")
+        s_order = sc4.radio("Thứ tự ngày:", ["Giữ nguyên", "Đảo ngược"], key="sim_order", horizontal=True)
+        if s_assets and s_market:
+            st.caption("Nhập trọng số W cho từng mã:")
+            swcols = st.columns(len(s_assets))
+            s_weights = []
+            for i, a in enumerate(s_assets):
+                wv = swcols[i].number_input(a, value=round(1.0 / len(s_assets), 4),
+                                            step=0.05, format="%.4f", key=f"sim_w_{a}")
+                s_weights.append(wv)
+            s_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="sim_norm")
+            if st.button("🎯 Tính rủi ro SIM danh mục", use_container_width=True, type="primary", key="sim_btn"):
+                try:
+                    r = compute_sim_portfolio_risk(exam_data, s_assets, s_market, s_weights,
+                                                   nobs=s_n, reverse=s_order.startswith("Đảo"),
+                                                   normalize=s_norm, is_returns=s_isret)
+                    st.caption(f"{r['n_returns']} lợi suất | σ²_thị trường = {r['sigma_market2']:.8f} | "
+                               f"Beta danh mục β_P = {r['beta_p']:.6f}")
+                    st.write("Chi tiết từng cổ phiếu (SIM):")
+                    st.dataframe(pd.DataFrame(r['per_stock']), use_container_width=True)
+                    k1, k2, k3 = st.columns(3)
+                    k1.metric("Rủi ro hệ thống", f"{r['systematic']:.8f}")
+                    k2.metric("Rủi ro phi hệ thống", f"{r['unsystematic']:.8f}")
+                    k3.metric("TỔNG rủi ro danh mục", f"{r['total']:.8f}")
+                    st.markdown(
+                        f"**Diễn giải:** Rủi ro danh mục P theo SIM = **{r['total']:.8f}** "
+                        f"(= hệ thống {r['systematic']:.8f} + phi hệ thống {r['unsystematic']:.8f}); "
+                        f"độ lệch chuẩn ≈ **{r['total_std']*100:.4f}%**. "
+                        f"Hệ thống = β²_P·σ²_I; phi hệ thống = Σ wᵢ²·ηᵢ² (ηᵢ² = phương sai phần dư hồi quy SIM).")
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
 
         # ===== Trợ lý AI: tính theo yêu cầu tự nhiên =====
         st.markdown("---")
