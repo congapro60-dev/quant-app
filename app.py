@@ -366,41 +366,78 @@ _AI_BLOCKED = ['import','open(','exec(','eval(','os.','sys.','subprocess','socke
 
 def _extract_code(text):
     m = re.search(r'```(?:python)?\s*(.*?)```', text, re.S)
-    return (m.group(1) if m else text).strip()
+    return m.group(1).strip() if m else None
 
 
-def run_ai_analysis(df, request, ai_config):
-    """Gửi cấu trúc dữ liệu + yêu cầu cho LLM, nhận mã pandas, chạy an toàn trên df."""
+def _strip_code(text):
+    return re.sub(r'```(?:python)?\s*.*?```', '', text, flags=re.S).strip()
+
+
+def run_ai_analysis(df, request, ai_config, extra_context=""):
+    """Trợ lý AI toàn năng: trả lời lý thuyết + sinh mã tính mọi đại lượng, chạy an toàn trên df."""
     cols_desc = ", ".join(f"{c}({df[c].dtype})" for c in df.columns)
-    head = df.head(5).to_string()
+    head = df.head(6).to_string()
     prompt = (
-        "Bạn là trợ lý phân tích Kinh tế lượng Tài chính. Có sẵn một DataFrame pandas tên `df`.\n"
-        f"Các cột: {cols_desc}\n5 dòng đầu:\n{head}\n\n"
-        f'Yêu cầu của người dùng: "{request}"\n\n'
-        "Viết MÃ PYTHON dùng pandas (pd) và numpy (np) — `df`, `pd`, `np` đã có sẵn, KHÔNG import, "
-        "KHÔNG đọc/ghi file. Lợi suất (return) dùng log: np.log(x/x.shift(1)). "
-        "Gán kết quả cuối vào biến `ket_qua` (số, Series, DataFrame hoặc dict). "
-        "Gán chuỗi diễn giải ngắn bằng tiếng Việt vào biến `giai_thich`. "
-        "Chỉ trả về DUY NHẤT một khối ```python ... ```."
+        "Bạn là trợ lý Kinh tế lượng Tài chính, trả lời bằng tiếng Việt. Có sẵn DataFrame `df` và công cụ: "
+        "pd, np, sm (statsmodels.api), opt (scipy.optimize); các hàm kiểm định het_white(resid,exog), "
+        "acorr_breusch_godfrey(res), linear_reset(res,power=2,use_f=True), jarque_bera(resid), "
+        "durbin_watson(resid), variance_inflation_factor(exog,i), adfuller(series); và hai hàm tính sẵn "
+        "compute_portfolio(df,assets,weights,is_returns=False,ddof=1,nobs=0) và "
+        "compute_sim_portfolio_risk(df,assets,market,weights,is_returns=False,nobs=0).\n"
+        f"Các cột: {cols_desc}\n5 dòng đầu:\n{head}\n"
+        + (f"\nGhi chú/câu hỏi trong file:\n{extra_context}\n" if extra_context else "")
+        + f'\nYêu cầu: "{request}"\n\n'
+        "CÁCH TRẢ LỜI:\n"
+        "- Trả lời & giải thích bằng tiếng Việt (văn xuôi, có thể markdown).\n"
+        "- Nếu cần TÍNH TOÁN: chèn ĐÚNG MỘT khối ```python``` dùng df/pd/np/sm/opt và các hàm trên "
+        "(KHÔNG import, KHÔNG đọc/ghi file); gán kết quả cuối vào `ket_qua` (dict nhiều khoá nếu đề nhiều câu a,b,c).\n"
+        "- Nếu chỉ là câu hỏi lý thuyết thì trả lời trực tiếp, không cần code.\n\n"
+        "QUY ƯỚC (theo giáo trình):\n"
+        "- Lợi suất log np.log(P/P.shift(1)).dropna(); cột tên r_/R_ đã là lợi suất (dùng thẳng, is_returns=True).\n"
+        "- 'N số liệu/quan sát đầu' → df=df.head(N) hoặc nobs=N.\n"
+        "- SIM: res=sm.OLS(y,sm.add_constant(x)).fit(); beta=res.params.iloc[1]; rủi ro hệ thống=beta**2*x.var(ddof=1); "
+        "phi hệ thống η²=res.mse_resid; tổng=hệ thống+phi hệ thống.\n"
+        "- Danh mục W: lợi suất kỳ vọng=Σ wi*mean(ri); rủi ro cov σ²=W'VW; rủi ro SIM=βP²σI²+Σ wi²ηi².\n"
+        "- Phương sai ddof=1 (mẫu) mặc định; bảng Excel giảng viên thường ddof=0 (tổng thể) cho ma trận hiệp phương sai."
     )
     resp = call_llm(prompt, ai_config)
     if not resp or str(resp).startswith("Lỗi"):
         return {"error": resp or "Không nhận được phản hồi từ AI."}
+    narrative = _strip_code(resp)
     code = _extract_code(resp)
-    low = code.lower()
-    for bad in _AI_BLOCKED:
-        if bad in low:
-            return {"error": f"Mã sinh ra chứa thao tác không cho phép ('{bad}') nên bị chặn vì an toàn.",
-                    "code": code}
-    ns = {'df': df.copy(), 'pd': pd, 'np': np, 'ket_qua': None, 'giai_thich': None}
-    buf = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(buf):
-            exec(code, {'__builtins__': _AI_SAFE_BUILTINS}, ns)
-    except Exception as e:
-        return {"error": f"Lỗi khi chạy mã: {e}", "code": code}
-    return {"code": code, "result": ns.get('ket_qua'),
-            "explain": ns.get('giai_thich'), "stdout": buf.getvalue()}
+    result = explain = None
+    stdout = ""
+    err = None
+    if code:
+        low = code.lower()
+        for bad in _AI_BLOCKED:
+            if bad in low:
+                return {"narrative": narrative, "code": code,
+                        "error": f"Mã sinh ra chứa thao tác không cho phép ('{bad}') nên bị chặn vì an toàn."}
+        import statsmodels.api as sm
+        import scipy.optimize as opt
+        from statsmodels.stats.diagnostic import het_white, acorr_breusch_godfrey, linear_reset
+        from statsmodels.stats.stattools import jarque_bera, durbin_watson
+        from statsmodels.stats.outliers_influence import variance_inflation_factor
+        try:
+            from statsmodels.tsa.stattools import adfuller
+        except Exception:
+            adfuller = None
+        ns = {'df': df.copy(), 'pd': pd, 'np': np, 'sm': sm, 'opt': opt,
+              'het_white': het_white, 'acorr_breusch_godfrey': acorr_breusch_godfrey,
+              'linear_reset': linear_reset, 'jarque_bera': jarque_bera, 'durbin_watson': durbin_watson,
+              'variance_inflation_factor': variance_inflation_factor, 'adfuller': adfuller,
+              'compute_portfolio': compute_portfolio, 'compute_sim_portfolio_risk': compute_sim_portfolio_risk,
+              'ket_qua': None, 'giai_thich': None}
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                exec(code, {'__builtins__': _AI_SAFE_BUILTINS}, ns)
+        except Exception as e:
+            err = f"Lỗi khi chạy mã: {e}"
+        result = ns.get('ket_qua'); explain = ns.get('giai_thich'); stdout = buf.getvalue()
+    return {"narrative": narrative, "code": code, "result": result,
+            "explain": explain, "stdout": stdout, "error": err}
 
 
 # ---------- TAB 1: SIM ----------
@@ -899,42 +936,80 @@ with tab5:
                 except Exception as e:
                     st.error(f"Lỗi: {e}")
 
-        # ===== Trợ lý AI: tính theo yêu cầu tự nhiên =====
-        st.markdown("---")
-        st.markdown("##### 🤖 Trợ lý AI — tính theo yêu cầu (cần API key)")
-        st.caption("Gõ yêu cầu tự nhiên. AI đọc cấu trúc dữ liệu bạn đang nạp ở Tab 4 rồi viết mã tính; "
-                   "app chạy mã đó trên đúng file của bạn và hiện kết quả kèm mã để đối chiếu.")
-        ai_req = st.text_area("Yêu cầu của bạn:",
-                              placeholder="VD: Tính lợi suất trung bình và phương sai của GAS, HDB; lập ma trận hiệp phương sai của GAS, HDB, HPG.",
-                              key="ai_req")
-        if st.button("✨ Tính bằng AI", use_container_width=True, key="ai_calc_btn"):
-            if not (ai_config and ai_config.get('api_key')):
-                st.warning("Hãy nhập & kích hoạt API key ở sidebar (mục Tích hợp AI) trước.")
-            elif not ai_req.strip():
-                st.warning("Hãy nhập yêu cầu.")
-            else:
-                with st.spinner("AI đang đọc dữ liệu và tính..."):
-                    out = run_ai_analysis(exam_data, ai_req, ai_config)
-                if out.get("error"):
-                    st.error(out["error"])
-                    if out.get("code"):
-                        with st.expander("Xem mã AI đã sinh"):
-                            st.code(out["code"], language="python")
-                else:
-                    if out.get("explain"):
-                        st.markdown(out["explain"])
-                    res = out.get("result")
-                    if res is not None:
-                        st.write("**Kết quả:**")
-                        if isinstance(res, (pd.DataFrame, pd.Series)):
-                            st.dataframe(res, use_container_width=True)
-                        elif isinstance(res, dict):
-                            st.json({k: (float(v) if isinstance(v, (int, float, np.floating, np.integer)) else v)
-                                     for k, v in res.items()})
+    # ===== Trợ lý AI toàn năng (luôn hiển thị, có thể tải file trực tiếp) =====
+    st.markdown("---")
+    st.markdown("#### 🤖 Trợ lý AI — hỏi gì tính nấy (cần API key)")
+    st.caption("Dán yêu cầu/đề bài tự nhiên. AI đọc dữ liệu bạn nạp ở Tab 4 hoặc file tải ngay đây, "
+               "trả lời lý thuyết và tính mọi đại lượng (lợi suất, SIM, danh mục, Markowitz, các kiểm định...).")
+
+    ai_upload = st.file_uploader("Tải file trực tiếp cho AI (bỏ trống thì dùng dữ liệu ở Tab 4):",
+                                 type=["csv", "xlsx", "xls"], key="ai_upload")
+    ai_df = None
+    ai_extra = ""
+    if ai_upload is not None:
+        _raw_b = ai_upload.getvalue(); _fn = ai_upload.name
+
+        def _aibuf():
+            b = io.BytesIO(_raw_b); b.name = _fn; return b
+        _sheets = dc.list_sheets(_aibuf())
+        _chosen = st.selectbox("Chọn sheet:", _sheets, key="ai_sheet") if _sheets else None
+        try:
+            ai_df, _ = dc.smart_import(_aibuf(), sheet=_chosen, mode='auto')
+            try:
+                _raw = dc.read_raw(_aibuf(), sheet=_chosen, header=None)
+                _texts = [str(v).strip() for v in _raw.values.ravel()
+                          if isinstance(v, str) and len(str(v).strip()) > 8]
+                ai_extra = "\n".join(dict.fromkeys(_texts))[:2000]
+            except Exception:
+                ai_extra = ""
+            st.success(f"Đã đọc file cho AI ({ai_df.shape[0]} dòng, {ai_df.shape[1]} cột).")
+        except Exception as e:
+            st.error(f"Lỗi đọc file: {e}")
+    elif not st.session_state.eviews_data.empty:
+        ai_df = st.session_state.eviews_data
+        st.caption("→ Đang dùng dữ liệu đã nạp ở Tab 4.")
+    else:
+        st.info("Tải file ở đây, hoặc nạp ở Tab 4 để AI có dữ liệu làm việc.")
+
+    ai_req = st.text_area("Yêu cầu / đề bài của bạn:",
+                          placeholder="VD: Với 200 số liệu đầu — a) tính lợi suất các mã; "
+                                      "b) danh mục P=(GAS,HDB,HPG) W=(0,25;0,45;0,3) tính lợi suất TB & rủi ro; "
+                                      "c) ước lượng SIM cho BID, tách rủi ro hệ thống/phi hệ thống.",
+                          key="ai_req")
+    if st.button("✨ Hỏi AI", use_container_width=True, type="primary", key="ai_calc_btn"):
+        if not (ai_config and ai_config.get('api_key')):
+            st.warning("Hãy nhập & kích hoạt API key ở sidebar (mục Tích hợp AI) trước.")
+        elif ai_df is None:
+            st.warning("Chưa có dữ liệu — tải file hoặc nạp ở Tab 4.")
+        elif not ai_req.strip():
+            st.warning("Hãy nhập yêu cầu.")
+        else:
+            with st.spinner("AI đang đọc dữ liệu và tính..."):
+                out = run_ai_analysis(ai_df, ai_req, ai_config, extra_context=ai_extra)
+            if out.get("narrative"):
+                st.markdown(out["narrative"])
+            if out.get("error"):
+                st.error(out["error"])
+            res = out.get("result")
+            if res is not None:
+                st.write("**Kết quả tính:**")
+                if isinstance(res, (pd.DataFrame, pd.Series)):
+                    st.dataframe(res, use_container_width=True)
+                elif isinstance(res, dict):
+                    for _k, _v in res.items():
+                        if isinstance(_v, (pd.DataFrame, pd.Series)):
+                            st.write(f"**{_k}:**"); st.dataframe(_v, use_container_width=True)
+                        elif isinstance(_v, (int, float, np.floating, np.integer)):
+                            st.write(f"**{_k}:** {float(_v):.6g}")
                         else:
-                            st.write(res)
-                    if out.get("stdout"):
-                        st.text(out["stdout"])
-                    with st.expander("🔍 Mã AI đã dùng (đối chiếu để yên tâm)"):
-                        st.code(out["code"], language="python")
-                    st.caption("⚠️ AI có thể sai — hãy kiểm chứng kết quả trước khi dùng để nộp.")
+                            st.write(f"**{_k}:** {_v}")
+                else:
+                    st.write(res)
+            if out.get("explain"):
+                st.caption(out["explain"])
+            if out.get("stdout"):
+                st.text(out["stdout"])
+            if out.get("code"):
+                with st.expander("🔍 Mã AI đã dùng (đối chiếu để yên tâm)"):
+                    st.code(out["code"], language="python")
+            st.caption("⚠️ AI có thể sai — hãy kiểm chứng kết quả trước khi nộp.")
