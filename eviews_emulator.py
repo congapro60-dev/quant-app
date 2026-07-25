@@ -1,6 +1,8 @@
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
+from statsmodels.stats.stattools import jarque_bera
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 def parse_and_execute_command(command, data_df):
     """
@@ -115,6 +117,18 @@ def format_eviews_output(res_dict):
     # Durbin-Watson
     from statsmodels.stats.stattools import durbin_watson
     dw_stat = durbin_watson(results.resid)
+
+    # Jarque-Bera normality test
+    jb_stat, jb_pvalue, jb_skew, jb_kurt = jarque_bera(results.resid)
+
+    # VIF (bỏ qua cột hằng số 'const')
+    X_for_vif = results.model.exog
+    col_names = results.model.exog_names
+    non_const_idx = [i for i, n in enumerate(col_names) if n != 'const']
+    if len(non_const_idx) >= 2:
+        vif_values = {col_names[i]: variance_inflation_factor(X_for_vif, i) for i in non_const_idx}
+    else:
+        vif_values = {}
     
     # Construct coefficient table
     coef_df = pd.DataFrame({
@@ -169,6 +183,28 @@ def format_eviews_output(res_dict):
                 <td><b>Xác suất (Prob(F-statistic))</b></td><td>{f_pvalue:.6f}</td>
             </tr>
         </table>
-    </div>
+        <hr style="border-top: 1px solid #bbb; margin: 10px 0;">
+        <p style="margin:4px 0;"><b>Kiểm định chuẩn tắc phần dư (Jarque-Bera):</b>
+           JB = {jb_stat:.4f} &nbsp;|&nbsp; p-value = {jb_pvalue:.4f} &nbsp;|&nbsp;
+           Độ lệch (Skewness) = {jb_skew:.4f} &nbsp;|&nbsp; Độ nhọn (Kurtosis) = {jb_kurt:.4f}
+           &nbsp;→ <b>{"✅ Phần dư phân phối chuẩn" if jb_pvalue > 0.05 else "⚠️ Phần dư KHÔNG phân phối chuẩn"}</b>
+           &nbsp;(H₀: phần dư ~ N(0,σ²); bác bỏ khi p-value < 0.05)
+        </p>
     """
+
+    if vif_values:
+        html += "<hr style='border-top: 1px solid #bbb; margin: 10px 0;'>"
+        html += "<p style='margin:4px 0;'><b>Nhân tử phóng đại phương sai (VIF – Đa cộng tuyến):</b></p>"
+        html += "<table style='font-size:14px;'><tr><th style='text-align:left;padding-right:20px;'>Biến</th><th>VIF</th><th style='padding-left:20px;'>Đánh giá</th></tr>"
+        for var, vif in vif_values.items():
+            if vif > 10:
+                assessment = "⚠️ Đa cộng tuyến nghiêm trọng"
+            elif vif > 5:
+                assessment = "⚡ Đa cộng tuyến trung bình"
+            else:
+                assessment = "✅ Chấp nhận được"
+            html += f"<tr><td><b>{var}</b></td><td>{vif:.4f}</td><td style='padding-left:20px;'>{assessment}</td></tr>"
+        html += "</table>"
+
+    html += "</div>"
     return html

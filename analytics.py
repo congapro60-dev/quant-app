@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
-from statsmodels.stats.diagnostic import het_white, acorr_breusch_godfrey
+from statsmodels.stats.diagnostic import het_white, acorr_breusch_godfrey, linear_reset
+from statsmodels.stats.stattools import jarque_bera
 from scipy.optimize import minimize
 
 def run_sim(asset_returns, market_returns):
@@ -68,7 +69,31 @@ def run_diagnostics(sim_results):
     except Exception as e:
         diagnostics['BG_pvalue'] = None
         diagnostics['Autocorrelation'] = "Error"
-        
+
+    # Ramsey RESET Test (kiểm định dạng hàm – Chương 5)
+    try:
+        reset = linear_reset(model, power=2, use_f=True)
+        diagnostics['RESET_pvalue'] = float(reset.pvalue)
+        diagnostics['SpecificationError'] = "Có thể có" if reset.pvalue < 0.05 else "Không"
+    except Exception:
+        diagnostics['RESET_pvalue'] = None
+        diagnostics['SpecificationError'] = "Error"
+
+    # Jarque-Bera Normality Test (kiểm định phân phối chuẩn – Chương 5)
+    try:
+        jb_stat, jb_pvalue, jb_skew, jb_kurt = jarque_bera(model.resid)
+        diagnostics['JB_stat'] = float(jb_stat)
+        diagnostics['JB_pvalue'] = float(jb_pvalue)
+        diagnostics['JB_skewness'] = float(jb_skew)
+        diagnostics['JB_kurtosis'] = float(jb_kurt)
+        diagnostics['Normality'] = "Chuẩn" if jb_pvalue > 0.05 else "Không chuẩn"
+    except Exception:
+        diagnostics['JB_stat'] = None
+        diagnostics['JB_pvalue'] = None
+        diagnostics['JB_skewness'] = None
+        diagnostics['JB_kurtosis'] = None
+        diagnostics['Normality'] = "Error"
+
     return diagnostics
 
 def markowitz_optimization(returns_df):

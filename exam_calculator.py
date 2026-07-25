@@ -57,9 +57,9 @@ def calc_markowitz_params_formula():
     return r"""
     \text{Các đại lượng trong cấu trúc ma trận của Markowitz (Biên duyên):} \\
     A = [1]^T V^{-1} [1] \\
-    B = [r]^T V^{-1} [r] \\
+    B = [\bar{r}]^T V^{-1} [\bar{r}] \\
     C = [\bar{r}]^T V^{-1} [1] \\
-    D = A \cdot C - B^2 \\
+    D = A \cdot B - C^2 \\
     \text{Với } V^{-1} \text{ là ma trận nghịch đảo của ma trận hiệp phương sai, } [1] \text{ là vector cột các số 1, } [\bar{r}] \text{ là vector lợi suất kỳ vọng.}
     """
 
