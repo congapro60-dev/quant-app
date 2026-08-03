@@ -39,7 +39,12 @@ class _FakeQuote:
         self.source = source
 
     def history(self, start: str, end: str):
-        payload = self.payloads[self.symbol]
+        source_key = (self.source, self.symbol)
+        payload = (
+            self.payloads[source_key]
+            if source_key in self.payloads
+            else self.payloads[self.symbol]
+        )
         if isinstance(payload, Exception):
             raise payload
         return payload.copy()
@@ -94,6 +99,25 @@ class MarketDataHardeningTests(unittest.TestCase):
         self.assertTrue(result.data.empty)
         codes = {issue.code for issue in result.report.errors}
         self.assertTrue({"PROVIDER_ERROR", "INCOMPLETE_PORTFOLIO"}.issubset(codes))
+
+    def test_data_source_fallback_returns_complete_portfolio(self):
+        start, end = "2024-02-01", "2024-02-15"
+        _FakeQuote.payloads = {
+            ("KBS", "AAA"): RuntimeError("kbs unavailable"),
+            ("KBS", "BBB"): RuntimeError("kbs unavailable"),
+            ("VCI", "AAA"): _history(start, end),
+            ("VCI", "BBB"): _history(start, end, offset=50),
+        }
+        with mock.patch.object(loader, "Quote", _FakeQuote):
+            result = loader.fetch_data_result(["AAA", "BBB"], start, end)
+
+        self.assertTrue(result.ok, result.report.to_dict())
+        self.assertEqual(result.report.source, "VCI")
+        self.assertEqual(list(result.data.columns), ["AAA", "BBB"])
+        self.assertIn(
+            "DATA_SOURCE_FALLBACK_USED",
+            [issue.code for issue in result.report.warnings],
+        )
 
     def test_rejects_constant_and_phantom_prefix_series(self):
         start, end = "2024-03-01", "2024-04-04"

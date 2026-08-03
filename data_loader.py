@@ -59,8 +59,10 @@ MAX_DATE_RANGE_DAYS = 3655
 DEFAULT_MIN_COVERAGE = 0.70
 DEFAULT_MAX_STALENESS_BUSINESS_DAYS = 5
 DEFAULT_MIN_OBSERVATIONS = 3
+DEFAULT_DATA_SOURCES = ("KBS", "VCI")
 _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,19}$")
 _SOURCE_RE = re.compile(r"^[A-Z][A-Z0-9_-]{1,15}$")
+_SOURCE_LIST_SPLIT_RE = re.compile(r"[\s,;|]+")
 
 
 @dataclass(frozen=True)
@@ -139,6 +141,31 @@ class DataFetchError(RuntimeError):
 
     def __init__(self, report: FetchReport):
         self.report = report
+        source_names = [part.strip() for part in report.source.split(",") if part.strip()]
+        all_sources_failed = any(
+            issue.code == "ALL_DATA_SOURCES_FAILED" for issue in report.errors
+        )
+        if all_sources_failed and source_names:
+            provider_errors = [
+                issue for issue in report.errors if issue.code == "PROVIDER_ERROR"
+            ]
+            sample = []
+            for issue in provider_errors[:4]:
+                source = issue.details.get("source")
+                subject = issue.ticker or "request"
+                sample.append(
+                    f"{source}:{subject}:PROVIDER_ERROR"
+                    if source
+                    else f"{subject}:PROVIDER_ERROR"
+                )
+            if len(provider_errors) > len(sample):
+                sample.append(f"+{len(provider_errors) - len(sample)} more")
+            summary = "; ".join(sample) or "unknown error"
+            super().__init__(
+                "Market-data validation failed after trying sources "
+                f"{', '.join(source_names)} ({summary})."
+            )
+            return
         summary = "; ".join(
             f"{issue.ticker or 'request'}:{issue.code}" for issue in report.errors
         )
@@ -172,6 +199,46 @@ def _normalise_tickers(tickers: Iterable[str] | str) -> list[str]:
         if ticker and ticker not in result:
             result.append(ticker)
     return result
+
+
+def _source_values(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        values = _SOURCE_LIST_SPLIT_RE.split(value)
+    else:
+        try:
+            raw_values = list(value)
+        except TypeError as exc:
+            raise ValueError("source must be a string or an iterable of strings") from exc
+        values = []
+        for item in raw_values:
+            if not isinstance(item, str):
+                raise ValueError("every source must be a string")
+            values.extend(_SOURCE_LIST_SPLIT_RE.split(item))
+    sources: list[str] = []
+    for raw in values:
+        source_name = str(raw).strip().upper()
+        if source_name and source_name not in sources:
+            sources.append(source_name)
+    return sources
+
+
+def _normalise_source_order(
+    source: Any = None, fallback_sources: Any = None
+) -> list[str]:
+    configured = os.getenv("QUANT_APP_DATA_SOURCES") if source is None else None
+    sources = _source_values(source if source is not None else configured)
+    if not sources:
+        sources = list(DEFAULT_DATA_SOURCES)
+    for fallback in _source_values(fallback_sources):
+        if fallback not in sources:
+            sources.append(fallback)
+    if not sources:
+        raise ValueError("at least one market-data source is required")
+    if any(not _SOURCE_RE.fullmatch(source_name) for source_name in sources):
+        raise ValueError("source has an invalid format")
+    return sources
 
 
 def _normalise_date(value: Any, field_name: str) -> pd.Timestamp:
@@ -423,96 +490,23 @@ def _clean_symbol_frame(
     return work[["close"]].rename(columns={"close": ticker}), metadata, issues
 
 
-def fetch_data_result(
-    tickers: Iterable[str] | str,
-    start_date: Any,
-    end_date: Any,
+def _fetch_data_result_from_source(
+    requested: list[str],
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    source_name: str,
+    expected: pd.DatetimeIndex,
     *,
-    source: str = "VCI",
-    min_coverage: float = DEFAULT_MIN_COVERAGE,
-    max_staleness_business_days: int = DEFAULT_MAX_STALENESS_BUSINESS_DAYS,
-    min_observations: int = DEFAULT_MIN_OBSERVATIONS,
+    min_coverage: float,
+    max_staleness_business_days: int,
+    min_observations: int,
 ) -> FetchResult:
-    """Fetch and validate a complete portfolio without returning partial data."""
-
-    try:
-        requested = _normalise_tickers(tickers)
-        ticker_input_error = None
-    except ValueError as exc:
-        requested = []
-        ticker_input_error = str(exc)
-    source_name = source.strip().upper() if isinstance(source, str) else ""
     report = FetchReport(
         requested_tickers=requested,
-        start=str(start_date),
-        end=str(end_date),
+        start=start.date().isoformat(),
+        end=end.date().isoformat(),
         source=source_name,
     )
-    if ticker_input_error:
-        report.issues.append(
-            FetchIssue(code="INVALID_REQUEST", message=ticker_input_error)
-        )
-        return _empty_result(report)
-    try:
-        start = _normalise_date(start_date, "start_date")
-        end = _normalise_date(end_date, "end_date")
-        report.start, report.end = start.date().isoformat(), end.date().isoformat()
-        if start > end:
-            raise ValueError("start_date must be on or before end_date")
-        if end > pd.Timestamp.today().normalize():
-            raise ValueError("end_date cannot be in the future")
-        if (end - start).days > MAX_DATE_RANGE_DAYS:
-            raise ValueError(
-                f"date range exceeds the {MAX_DATE_RANGE_DAYS}-day safety limit"
-            )
-        if not 0 < float(min_coverage) <= 1:
-            raise ValueError("min_coverage must be in (0, 1]")
-        if not _SOURCE_RE.fullmatch(source_name):
-            raise ValueError("source has an invalid format")
-        if int(max_staleness_business_days) < 0 or int(min_observations) < 2:
-            raise ValueError("staleness and observation limits are invalid")
-    except (TypeError, ValueError) as exc:
-        report.issues.append(
-            FetchIssue(code="INVALID_REQUEST", message=str(exc))
-        )
-        return _empty_result(report)
-
-    if not requested:
-        report.issues.append(
-            FetchIssue(code="NO_TICKERS", message="At least one ticker is required.")
-        )
-        return _empty_result(report)
-    if len(requested) > MAX_TICKERS:
-        report.issues.append(
-            FetchIssue(
-                code="TOO_MANY_TICKERS",
-                message=f"At most {MAX_TICKERS} tickers may be fetched at once.",
-                details={"requested": len(requested), "maximum": MAX_TICKERS},
-            )
-        )
-        return _empty_result(report)
-    invalid_tickers = [ticker for ticker in requested if not _TICKER_RE.fullmatch(ticker)]
-    if invalid_tickers:
-        report.issues.append(
-            FetchIssue(
-                code="INVALID_TICKERS",
-                message="One or more ticker symbols have an invalid format.",
-                details={"tickers": invalid_tickers},
-            )
-        )
-        return _empty_result(report)
-
-    expected = _business_dates(start, end)
-    if len(expected) < int(min_observations):
-        report.issues.append(
-            FetchIssue(
-                code="REQUEST_WINDOW_TOO_SHORT",
-                message="The requested window has too few business days.",
-                details={"business_days": len(expected), "minimum": min_observations},
-            )
-        )
-        return _empty_result(report)
-
     frames: dict[str, pd.DataFrame] = {}
     for ticker in requested:
         try:
@@ -525,7 +519,11 @@ def fetch_data_result(
                     code="PROVIDER_ERROR",
                     ticker=ticker,
                     message="The market-data provider request failed.",
-                    details={"exception_type": type(exc).__name__, "reason": str(exc)},
+                    details={
+                        "source": source_name,
+                        "exception_type": type(exc).__name__,
+                        "reason": str(exc),
+                    },
                 )
             )
             continue
@@ -539,6 +537,7 @@ def fetch_data_result(
             max_staleness_business_days=int(max_staleness_business_days),
             min_observations=int(min_observations),
         )
+        metadata["source"] = source_name
         report.per_ticker[ticker] = metadata
         report.issues.extend(issues)
         if frame is not None:
@@ -611,6 +610,176 @@ def fetch_data_result(
     final_df = final_df[requested]
     final_df.attrs["fetch_report"] = report.to_dict()
     return FetchResult(data=final_df, report=report)
+
+
+def _combine_failed_fetch_reports(reports: list[FetchReport]) -> FetchResult:
+    if not reports:
+        empty_report = FetchReport(
+            requested_tickers=[],
+            start="",
+            end="",
+            source=",".join(DEFAULT_DATA_SOURCES),
+        )
+        empty_report.issues.append(
+            FetchIssue(
+                code="ALL_DATA_SOURCES_FAILED",
+                message="No configured market-data source returned a complete validated portfolio.",
+            )
+        )
+        return _empty_result(empty_report)
+    combined = FetchReport(
+        requested_tickers=list(reports[0].requested_tickers),
+        start=reports[0].start,
+        end=reports[0].end,
+        source=",".join(report.source for report in reports),
+    )
+    combined.issues.append(
+        FetchIssue(
+            code="ALL_DATA_SOURCES_FAILED",
+            message="No configured market-data source returned a complete validated portfolio.",
+            details={"sources": [report.source for report in reports]},
+        )
+    )
+    for report in reports:
+        for ticker, metadata in report.per_ticker.items():
+            combined.per_ticker[f"{report.source}:{ticker}"] = dict(metadata)
+        for issue in report.issues:
+            details = dict(issue.details)
+            details.setdefault("source", report.source)
+            combined.issues.append(
+                FetchIssue(
+                    code=issue.code,
+                    message=issue.message,
+                    ticker=issue.ticker,
+                    severity=issue.severity,
+                    details=details,
+                )
+            )
+    return _empty_result(combined)
+
+
+def fetch_data_result(
+    tickers: Iterable[str] | str,
+    start_date: Any,
+    end_date: Any,
+    *,
+    source: Any = None,
+    fallback_sources: Any = None,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+    max_staleness_business_days: int = DEFAULT_MAX_STALENESS_BUSINESS_DAYS,
+    min_observations: int = DEFAULT_MIN_OBSERVATIONS,
+) -> FetchResult:
+    """Fetch and validate a complete portfolio without returning partial data."""
+
+    try:
+        requested = _normalise_tickers(tickers)
+        ticker_input_error = None
+    except ValueError as exc:
+        requested = []
+        ticker_input_error = str(exc)
+    report = FetchReport(
+        requested_tickers=requested,
+        start=str(start_date),
+        end=str(end_date),
+        source="",
+    )
+    if ticker_input_error:
+        report.issues.append(
+            FetchIssue(code="INVALID_REQUEST", message=ticker_input_error)
+        )
+        return _empty_result(report)
+    try:
+        start = _normalise_date(start_date, "start_date")
+        end = _normalise_date(end_date, "end_date")
+        report.start, report.end = start.date().isoformat(), end.date().isoformat()
+        if start > end:
+            raise ValueError("start_date must be on or before end_date")
+        if end > pd.Timestamp.today().normalize():
+            raise ValueError("end_date cannot be in the future")
+        if (end - start).days > MAX_DATE_RANGE_DAYS:
+            raise ValueError(
+                f"date range exceeds the {MAX_DATE_RANGE_DAYS}-day safety limit"
+            )
+        if not 0 < float(min_coverage) <= 1:
+            raise ValueError("min_coverage must be in (0, 1]")
+        source_order = _normalise_source_order(source, fallback_sources)
+        report.source = ",".join(source_order)
+        if int(max_staleness_business_days) < 0 or int(min_observations) < 2:
+            raise ValueError("staleness and observation limits are invalid")
+    except (TypeError, ValueError) as exc:
+        report.issues.append(
+            FetchIssue(code="INVALID_REQUEST", message=str(exc))
+        )
+        return _empty_result(report)
+
+    if not requested:
+        report.issues.append(
+            FetchIssue(code="NO_TICKERS", message="At least one ticker is required.")
+        )
+        return _empty_result(report)
+    if len(requested) > MAX_TICKERS:
+        report.issues.append(
+            FetchIssue(
+                code="TOO_MANY_TICKERS",
+                message=f"At most {MAX_TICKERS} tickers may be fetched at once.",
+                details={"requested": len(requested), "maximum": MAX_TICKERS},
+            )
+        )
+        return _empty_result(report)
+    invalid_tickers = [ticker for ticker in requested if not _TICKER_RE.fullmatch(ticker)]
+    if invalid_tickers:
+        report.issues.append(
+            FetchIssue(
+                code="INVALID_TICKERS",
+                message="One or more ticker symbols have an invalid format.",
+                details={"tickers": invalid_tickers},
+            )
+        )
+        return _empty_result(report)
+
+    expected = _business_dates(start, end)
+    if len(expected) < int(min_observations):
+        report.issues.append(
+            FetchIssue(
+                code="REQUEST_WINDOW_TOO_SHORT",
+                message="The requested window has too few business days.",
+                details={"business_days": len(expected), "minimum": min_observations},
+            )
+        )
+        return _empty_result(report)
+
+    failed_reports: list[FetchReport] = []
+    for source_name in source_order:
+        result = _fetch_data_result_from_source(
+            requested,
+            start,
+            end,
+            source_name,
+            expected,
+            min_coverage=float(min_coverage),
+            max_staleness_business_days=int(max_staleness_business_days),
+            min_observations=int(min_observations),
+        )
+        if result.ok:
+            if failed_reports:
+                result.report.issues.append(
+                    FetchIssue(
+                        code="DATA_SOURCE_FALLBACK_USED",
+                        message="A fallback market-data source returned the complete portfolio.",
+                        severity="warning",
+                        details={
+                            "selected_source": result.report.source,
+                            "failed_sources": [
+                                failed_report.source for failed_report in failed_reports
+                            ],
+                        },
+                    )
+                )
+                result.data.attrs["fetch_report"] = result.report.to_dict()
+            return result
+        failed_reports.append(result.report)
+
+    return _combine_failed_fetch_reports(failed_reports)
 
 
 def fetch_data(tickers, start_date, end_date, **kwargs):

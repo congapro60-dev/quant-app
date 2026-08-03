@@ -185,6 +185,7 @@ def _clear_market_state(error_message=""):
     st.session_state.valid_assets = []
     st.session_state.last_update = None
     st.session_state.data_last_date = None
+    st.session_state.data_source = ""
     st.session_state.data_status = "error"
     st.session_state.data_error = str(error_message)
 
@@ -281,6 +282,8 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
     st.session_state.last_query = (asset_tickers, market_ticker, start_str, end_str)
     st.session_state.last_update = datetime.now()
     st.session_state.data_last_date = pd.Timestamp(prices_df.index.max())
+    fetch_report = prices_df.attrs.get("fetch_report", {})
+    st.session_state.data_source = fetch_report.get("source", "")
     st.session_state.data_status = "ok"
     st.session_state.data_error = ""
     return True
@@ -328,8 +331,10 @@ def render_live_prices():
     if lu is not None:
         last_session = st.session_state.get('data_last_date')
         last_session_text = pd.Timestamp(last_session).strftime('%d/%m/%Y') if last_session is not None else "không rõ"
+        data_source = st.session_state.get('data_source')
+        source_text = f" · nguồn {data_source}" if data_source else ""
         st.caption(
-            f"{tag} · phiên gần nhất {last_session_text} · tải lúc {lu.strftime('%H:%M:%S %d/%m/%Y')} · "
+            f"{tag} · phiên gần nhất {last_session_text}{source_text} · tải lúc {lu.strftime('%H:%M:%S %d/%m/%Y')} · "
             "không phải báo giá realtime"
         )
     if not tickers:
