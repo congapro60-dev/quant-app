@@ -1,3 +1,5 @@
+import ast
+import html as html_lib
 import re
 import pandas as pd
 import statsmodels.api as sm
@@ -13,9 +15,241 @@ except Exception:
 
 
 # ==================== TIỆN ÍCH ====================
+MAX_COMMAND_LENGTH = 2_000
+MAX_FORMULA_LENGTH = 1_000
+MAX_AST_NODES = 128
+MAX_AST_DEPTH = 20
+MAX_FUNCTION_CALLS = 32
+MAX_LAG = 2_520
+MAX_POWER_EXPONENT = 10
+MAX_LS_TERMS = 50
+MAX_ANALYSIS_ROWS = 100_000
+MAX_ANALYSIS_COLUMNS = 256
+_GENR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+
+
+class ExpressionValidationError(ValueError):
+    """Raised when an EViews-like expression is unsafe or too complex."""
+
+    def __init__(self, code, message):
+        self.code = code
+        super().__init__(message)
+
+
+def _casefold_column_map(df):
+    mapping = {}
+    for column in df.columns:
+        label = str(column)
+        key = label.upper()
+        if key in mapping and mapping[key] != column:
+            raise ExpressionValidationError(
+                "AMBIGUOUS_COLUMN",
+                f"Tên cột '{label}' bị trùng khi so sánh không phân biệt hoa/thường.",
+            )
+        mapping[key] = column
+    return mapping
+
+
 def _find_col(df, name):
-    up = {c.upper(): c for c in df.columns}
-    return up.get(name.strip().upper())
+    return _casefold_column_map(df).get(name.strip().upper())
+
+
+def _validate_expression_tree(tree):
+    node_count = 0
+    call_count = 0
+    stack = [(tree, 1)]
+    while stack:
+        node, depth = stack.pop()
+        node_count += 1
+        if node_count > MAX_AST_NODES:
+            raise ExpressionValidationError(
+                "EXPRESSION_TOO_COMPLEX",
+                f"Biểu thức vượt giới hạn {MAX_AST_NODES} nút cú pháp.",
+            )
+        if depth > MAX_AST_DEPTH:
+            raise ExpressionValidationError(
+                "EXPRESSION_TOO_DEEP",
+                f"Biểu thức vượt độ sâu tối đa {MAX_AST_DEPTH}.",
+            )
+        if isinstance(node, ast.Call):
+            call_count += 1
+            if call_count > MAX_FUNCTION_CALLS:
+                raise ExpressionValidationError(
+                    "TOO_MANY_FUNCTION_CALLS",
+                    f"Biểu thức vượt giới hạn {MAX_FUNCTION_CALLS} lời gọi hàm.",
+                )
+        stack.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
+
+
+def _reject_infinite(value):
+    try:
+        values = np.asarray(value)
+        if np.issubdtype(values.dtype, np.number) and bool(np.isinf(values).any()):
+            raise ExpressionValidationError(
+                "NON_FINITE_RESULT", "Biểu thức tạo ra giá trị vô cực."
+            )
+    except TypeError:
+        pass
+    return value
+
+
+class _SafeSeriesEvaluator:
+    """Small allowlisted AST interpreter; it never compiles or executes code."""
+
+    def __init__(self, namespace):
+        self.namespace = namespace
+
+    def evaluate(self, node):
+        if isinstance(node, ast.Expression):
+            return self.evaluate(node.body)
+        if isinstance(node, ast.Constant):
+            if isinstance(node.value, bool):
+                return node.value
+            if not isinstance(node.value, (int, float)):
+                raise ExpressionValidationError(
+                    "UNSUPPORTED_LITERAL", "Chỉ hỗ trợ hằng số số hoặc logic."
+                )
+            if not np.isfinite(node.value) or abs(node.value) > 1e15:
+                raise ExpressionValidationError(
+                    "INVALID_LITERAL", "Hằng số không hữu hạn hoặc quá lớn."
+                )
+            return node.value
+        if isinstance(node, ast.Name):
+            try:
+                return self.namespace[node.id.upper()]
+            except KeyError as exc:
+                raise ExpressionValidationError(
+                    "UNKNOWN_VARIABLE", f"Không tìm thấy biến '{node.id}'."
+                ) from exc
+        if isinstance(node, ast.UnaryOp):
+            operand = self.evaluate(node.operand)
+            if isinstance(node.op, ast.UAdd):
+                result = +operand
+            elif isinstance(node.op, ast.USub):
+                result = -operand
+            elif isinstance(node.op, ast.Not):
+                result = np.logical_not(operand)
+            else:
+                raise ExpressionValidationError(
+                    "UNSUPPORTED_OPERATOR", "Toán tử một ngôi không được hỗ trợ."
+                )
+            return _reject_infinite(result)
+        if isinstance(node, ast.BinOp):
+            left = self.evaluate(node.left)
+            right = self.evaluate(node.right)
+            try:
+                with np.errstate(all="ignore"):
+                    if isinstance(node.op, ast.Add):
+                        result = left + right
+                    elif isinstance(node.op, ast.Sub):
+                        result = left - right
+                    elif isinstance(node.op, ast.Mult):
+                        result = left * right
+                    elif isinstance(node.op, ast.Div):
+                        result = left / right
+                    elif isinstance(node.op, ast.Pow):
+                        if not np.isscalar(right) or isinstance(right, (bool, np.bool_)):
+                            raise ExpressionValidationError(
+                                "UNBOUNDED_POWER", "Số mũ phải là một hằng số hữu hạn."
+                            )
+                        if not np.isfinite(right) or abs(float(right)) > MAX_POWER_EXPONENT:
+                            raise ExpressionValidationError(
+                                "UNBOUNDED_POWER",
+                                f"Trị tuyệt đối số mũ không được vượt {MAX_POWER_EXPONENT}.",
+                            )
+                        result = left ** right
+                    elif isinstance(node.op, ast.BitAnd):
+                        result = np.logical_and(left, right)
+                    elif isinstance(node.op, ast.BitOr):
+                        result = np.logical_or(left, right)
+                    else:
+                        raise ExpressionValidationError(
+                            "UNSUPPORTED_OPERATOR", "Toán tử hai ngôi không được hỗ trợ."
+                        )
+            except ExpressionValidationError:
+                raise
+            except (ArithmeticError, TypeError, ValueError) as exc:
+                raise ExpressionValidationError(
+                    "ARITHMETIC_ERROR", "Không thể thực hiện phép toán trong biểu thức."
+                ) from exc
+            return _reject_infinite(result)
+        if isinstance(node, ast.BoolOp):
+            values = [self.evaluate(value) for value in node.values]
+            if not values:
+                raise ExpressionValidationError(
+                    "INVALID_BOOLEAN", "Biểu thức logic không hợp lệ."
+                )
+            result = values[0]
+            operation = np.logical_and if isinstance(node.op, ast.And) else np.logical_or
+            for value in values[1:]:
+                result = operation(result, value)
+            return result
+        if isinstance(node, ast.Compare):
+            left = self.evaluate(node.left)
+            result = True
+            operations = {
+                ast.Eq: lambda a, b: a == b,
+                ast.NotEq: lambda a, b: a != b,
+                ast.Lt: lambda a, b: a < b,
+                ast.LtE: lambda a, b: a <= b,
+                ast.Gt: lambda a, b: a > b,
+                ast.GtE: lambda a, b: a >= b,
+            }
+            for operator, comparator in zip(node.ops, node.comparators):
+                right = self.evaluate(comparator)
+                operation = operations.get(type(operator))
+                if operation is None:
+                    raise ExpressionValidationError(
+                        "UNSUPPORTED_COMPARISON", "Phép so sánh không được hỗ trợ."
+                    )
+                result = np.logical_and(result, operation(left, right))
+                left = right
+            return result
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ExpressionValidationError(
+                    "UNSUPPORTED_CALL", "Chỉ cho phép gọi hàm phân tích đã định danh."
+                )
+            if len(node.args) != 1 or node.keywords:
+                raise ExpressionValidationError(
+                    "INVALID_FUNCTION_ARGUMENTS", "Hàm phân tích nhận đúng một đối số."
+                )
+            name = node.func.id.upper()
+            argument = self.evaluate(node.args[0])
+            with np.errstate(all="ignore"):
+                if name == "LOG":
+                    values = np.asarray(argument)
+                    if bool(np.less_equal(values, 0).any()):
+                        raise ExpressionValidationError(
+                            "FUNCTION_DOMAIN", "LOG chỉ nhận giá trị dương."
+                        )
+                    result = np.log(argument)
+                elif name == "EXP":
+                    result = np.exp(argument)
+                elif name == "ABS":
+                    result = np.abs(argument)
+                elif name in ("SQR", "SQRT"):
+                    values = np.asarray(argument)
+                    if bool(np.less(values, 0).any()):
+                        raise ExpressionValidationError(
+                            "FUNCTION_DOMAIN", "SQRT/SQR không nhận giá trị âm."
+                        )
+                    result = np.sqrt(argument)
+                elif name == "D":
+                    if np.isscalar(argument):
+                        raise ExpressionValidationError(
+                            "FUNCTION_DOMAIN", "D cần một chuỗi dữ liệu."
+                        )
+                    result = pd.Series(argument).diff()
+                else:
+                    raise ExpressionValidationError(
+                        "UNKNOWN_FUNCTION", f"Hàm '{node.func.id}' không được hỗ trợ."
+                    )
+            return _reject_infinite(result)
+        raise ExpressionValidationError(
+            "UNSUPPORTED_SYNTAX",
+            f"Cú pháp '{type(node).__name__}' không được hỗ trợ.",
+        )
 
 
 def eviews_expr_to_series(formula, df):
@@ -24,55 +258,112 @@ def eviews_expr_to_series(formula, df):
     Hỗ trợ: + - * / ** , LOG(), EXP(), ABS(), SQR()/SQRT(), D() (sai phân),
     biến trễ VAR(-k), @TREND, và biểu thức so sánh (tạo biến giả).
     """
-    work = df.copy()
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        raise ExpressionValidationError("INVALID_DATA", "Bảng dữ liệu đang trống.")
+    if len(df) > MAX_ANALYSIS_ROWS or df.shape[1] > MAX_ANALYSIS_COLUMNS:
+        raise ExpressionValidationError(
+            "DATA_TOO_LARGE", "Bảng dữ liệu vượt giới hạn phân tích tương tác."
+        )
+    if not isinstance(formula, str):
+        raise ExpressionValidationError("INVALID_EXPRESSION", "Biểu thức phải là văn bản.")
     f = formula.strip()
+    if not f:
+        raise ExpressionValidationError("EMPTY_EXPRESSION", "Biểu thức đang trống.")
+    if len(f) > MAX_FORMULA_LENGTH:
+        raise ExpressionValidationError(
+            "EXPRESSION_TOO_LONG",
+            f"Biểu thức vượt giới hạn {MAX_FORMULA_LENGTH} ký tự.",
+        )
+    work = df.copy()
+    column_map = _casefold_column_map(work)
+    namespace = {
+        str(key).upper(): pd.to_numeric(work[column], errors="coerce")
+        for key, column in column_map.items()
+    }
 
     # @TREND -> chuỗi 0,1,2,...
     if '@TREND' in f.upper():
-        work['__TREND__'] = np.arange(len(work), dtype=float)
-        f = re.sub('@TREND', '__TREND__', f, flags=re.I)
+        trend_name = "_QV_INTERNAL_TREND"
+        while trend_name in namespace:
+            trend_name += "_"
+        namespace[trend_name] = pd.Series(
+            np.arange(len(work), dtype=float), index=work.index
+        )
+        f = re.sub(r"@TREND\b", trend_name, f, flags=re.I)
 
     # Biến trễ VAR(-k)
-    def _lag(m):
-        name, k = m.group(1), int(m.group(2))
-        col = _find_col(work, name)
-        if col is None:
-            raise ValueError(f"Không tìm thấy biến '{name}' để lấy trễ.")
-        newname = f"__{name}_L{k}__"
-        work[newname] = work[col].shift(k)
-        return newname
-    f = re.sub(r'([A-Za-z_@]\w*)\s*\(\s*-\s*(\d+)\s*\)', _lag, f)
+    lag_counter = 0
 
-    # Không gian tên cho eval
-    ns = {}
-    for c in work.columns:
-        ns[c] = work[c]
-        ns.setdefault(c.upper(), work[c])
-        ns.setdefault(c.lower(), work[c])
-    funcs = {'LOG': np.log, 'EXP': np.exp, 'ABS': np.abs,
-             'SQR': np.sqrt, 'SQRT': np.sqrt,
-             'D': lambda s: pd.Series(s).diff()}
-    for k, v in list(funcs.items()):
-        ns[k] = v
-        ns[k.lower()] = v
+    def _lag(match):
+        nonlocal lag_counter
+        name, lag = match.group(1), int(match.group(2))
+        column = column_map.get(name.upper())
+        if column is None:
+            raise ExpressionValidationError(
+                "UNKNOWN_VARIABLE", f"Không tìm thấy biến '{name}' để lấy trễ."
+            )
+        if not 1 <= lag <= MAX_LAG:
+            raise ExpressionValidationError(
+                "INVALID_LAG", f"Độ trễ phải từ 1 đến {MAX_LAG}."
+            )
+        placeholder = f"_QV_INTERNAL_LAG_{lag_counter}"
+        while placeholder in namespace:
+            lag_counter += 1
+            placeholder = f"_QV_INTERNAL_LAG_{lag_counter}"
+        lag_counter += 1
+        namespace[placeholder] = pd.to_numeric(work[column], errors="coerce").shift(lag)
+        return placeholder
 
-    val = eval(f, {"__builtins__": {}}, ns)
-    if np.isscalar(val):
-        val = pd.Series(val, index=work.index)
-    val = pd.Series(val, index=work.index)
-    if val.dtype == bool:
-        val = val.astype(int)
-    return val
+    f = re.sub(r"\b([A-Za-z_]\w*)\s*\(\s*-\s*(\d+)\s*\)", _lag, f)
+    try:
+        tree = ast.parse(f, mode="eval")
+    except (SyntaxError, ValueError) as exc:
+        raise ExpressionValidationError(
+            "INVALID_SYNTAX", "Biểu thức có cú pháp không hợp lệ."
+        ) from exc
+    _validate_expression_tree(tree)
+    value = _SafeSeriesEvaluator(namespace).evaluate(tree)
+    if np.isscalar(value):
+        result = pd.Series(value, index=work.index)
+    elif isinstance(value, pd.Series):
+        result = value.reindex(work.index)
+    else:
+        array = np.asarray(value)
+        if array.ndim != 1 or len(array) != len(work):
+            raise ExpressionValidationError(
+                "INVALID_RESULT_SHAPE", "Biểu thức không trả về một chuỗi đúng độ dài."
+            )
+        result = pd.Series(array, index=work.index)
+    if pd.api.types.is_bool_dtype(result.dtype):
+        result = result.astype(int)
+    else:
+        result = pd.to_numeric(result, errors="coerce")
+    if bool(np.isinf(result.to_numpy(dtype=float, na_value=np.nan)).any()):
+        raise ExpressionValidationError(
+            "NON_FINITE_RESULT", "Biểu thức tạo ra giá trị vô cực."
+        )
+    return result
 
 
 # ==================== BỘ PHÂN TÍCH LỆNH ====================
 def parse_and_execute_command(command, data_df):
+    if not isinstance(command, str):
+        return {"error": "Lệnh phải là văn bản."}
     command = command.strip()
     if not command:
         return {"error": "Lệnh trống."}
+    if len(command) > MAX_COMMAND_LENGTH:
+        return {"error": f"Lệnh vượt giới hạn {MAX_COMMAND_LENGTH} ký tự."}
+    if not isinstance(data_df, pd.DataFrame) or data_df.empty:
+        return {"error": "Bảng dữ liệu đang trống hoặc không hợp lệ."}
+    if len(data_df) > MAX_ANALYSIS_ROWS or data_df.shape[1] > MAX_ANALYSIS_COLUMNS:
+        return {"error": "Bảng dữ liệu vượt giới hạn phân tích tương tác."}
     parts = command.split()
     cmd = parts[0].upper()
-    col_map = {c.upper(): c for c in data_df.columns}
+    try:
+        col_map = _casefold_column_map(data_df)
+    except ExpressionValidationError as exc:
+        return {"error": str(exc)}
 
     # ---------- LS / OLS ----------
     if cmd in ('LS', 'OLS'):
@@ -83,20 +374,26 @@ def parse_and_execute_command(command, data_df):
         if dep_col is None:
             return {"error": f"Không tìm thấy biến phụ thuộc '{parts[1]}'."}
         terms = parts[2:]
+        if len(terms) > MAX_LS_TERMS:
+            return {"error": f"Mô hình vượt giới hạn {MAX_LS_TERMS} số hạng độc lập."}
         X_data = pd.DataFrame(index=data_df.index)
         for t in terms:
             tU = t.upper()
             if tU == 'C':
                 X_data['C'] = 1.0
             elif tU in col_map:
-                X_data[col_map[tU]] = data_df[col_map[tU]]
+                X_data[col_map[tU]] = pd.to_numeric(
+                    data_df[col_map[tU]], errors='coerce'
+                )
             else:
                 # thử biểu thức (biến trễ, log, ...)
                 try:
                     X_data[t] = eviews_expr_to_series(t, data_df)
                 except Exception:
                     return {"error": f"Không hiểu số hạng độc lập '{t}'."}
-        temp = pd.concat([data_df[dep_col].rename(dep_col), X_data], axis=1).dropna()
+        dependent = pd.to_numeric(data_df[dep_col], errors='coerce').rename(dep_col)
+        temp = pd.concat([dependent, X_data], axis=1)
+        temp = temp.replace([np.inf, -np.inf], np.nan).dropna()
         y = temp[dep_col]
         X = temp.loc[:, ~temp.columns.duplicated()]
         X = X[[c for c in X.columns if c != dep_col]]
@@ -116,6 +413,15 @@ def parse_and_execute_command(command, data_df):
             expr = " ".join(parts[1:])
             var_name, formula = expr.split('=', 1)
             var_name = var_name.strip()
+            if not _GENR_NAME_RE.fullmatch(var_name):
+                raise ExpressionValidationError(
+                    "INVALID_VARIABLE_NAME",
+                    "Tên biến mới chỉ gồm chữ, số, gạch dưới và không bắt đầu bằng số.",
+                )
+            if not formula.strip():
+                raise ExpressionValidationError(
+                    "EMPTY_EXPRESSION", "Biểu thức tạo biến đang trống."
+                )
             new_df = data_df.copy()
             new_df[var_name] = eviews_expr_to_series(formula, data_df)
             return {"success": True,
@@ -133,7 +439,8 @@ def parse_and_execute_command(command, data_df):
         col = col_map.get(parts[1].upper())
         if col is None:
             return {"error": f"Không tìm thấy biến '{parts[1]}'."}
-        series = pd.to_numeric(data_df[col], errors='coerce').dropna()
+        series = pd.to_numeric(data_df[col], errors='coerce')
+        series = series.replace([np.inf, -np.inf], np.nan).dropna()
         try:
             stat, pval, usedlag, nobs, crit, _ = adfuller(series, autolag='AIC')
             return {"success": True, "adf": {
@@ -152,6 +459,7 @@ def parse_and_execute_command(command, data_df):
         if not cols:
             return {"error": "Không tìm thấy biến để thống kê."}
         num = data_df[cols].apply(pd.to_numeric, errors='coerce')
+        num = num.replace([np.inf, -np.inf], np.nan)
         rows = {}
         for c in cols:
             s = num[c].dropna()
@@ -175,6 +483,7 @@ def parse_and_execute_command(command, data_df):
             cols = [col_map.get(p.upper()) for p in parts[1:]]
             cols = [c for c in cols if c is not None]
         num = data_df[cols].apply(pd.to_numeric, errors='coerce')
+        num = num.replace([np.inf, -np.inf], np.nan)
         num = num.select_dtypes(include=[np.number]).dropna()
         if num.shape[1] < 2:
             return {"error": "Cần ≥2 biến số để tính tương quan."}
@@ -196,6 +505,7 @@ def parse_and_execute_command(command, data_df):
         else:
             kind = 'line'
         data = data_df[cols].apply(pd.to_numeric, errors='coerce')
+        data = data.replace([np.inf, -np.inf], np.nan)
         return {"success": True, "plot": {"kind": kind, "cols": cols, "data": data}}
 
     return {"error": f"Lệnh '{cmd}' chưa hỗ trợ. Các lệnh có: LS, GENR, ADF, STATS, COR, PLOT/SCAT/HIST."}
@@ -238,6 +548,7 @@ def _diagnostics_block(results):
 def _format_ls(res_dict):
     results = res_dict["results"]
     dep_var = res_dict["dep_var"]
+    safe_dep_var = html_lib.escape(str(dep_var))
     nobs = res_dict["nobs"]
 
     r_squared = results.rsquared
@@ -270,7 +581,7 @@ def _format_ls(res_dict):
 
     html = f"""
     <div style="font-family: monospace; font-size: 14px; background-color: #f8f9fa; padding: 15px; border: 1px solid #ddd; border-radius: 5px; color:#111;">
-        <p style="margin:2px 0;"><b>Biến phụ thuộc (Dependent Variable):</b> {dep_var}</p>
+        <p style="margin:2px 0;"><b>Biến phụ thuộc (Dependent Variable):</b> {safe_dep_var}</p>
         <p style="margin:2px 0;"><b>Phương pháp (Method):</b> Bình phương nhỏ nhất (Least Squares)</p>
         <p style="margin:2px 0;"><b>Số quan sát (Included observations):</b> {nobs}</p>
         <hr style="border-top: 1px solid #bbb; margin: 10px 0;">
@@ -305,7 +616,8 @@ def _format_ls(res_dict):
         for var, vif in vif_values.items():
             a = ("⚠️ Đa cộng tuyến nghiêm trọng" if vif > 10
                  else "⚡ Đa cộng tuyến trung bình" if vif > 5 else "✅ Chấp nhận được")
-            html += f"<tr><td><b>{var}</b></td><td>{vif:.4f}</td><td style='padding-left:20px;'>{a}</td></tr>"
+            safe_var = html_lib.escape(str(var))
+            html += f"<tr><td><b>{safe_var}</b></td><td>{vif:.4f}</td><td style='padding-left:20px;'>{a}</td></tr>"
         html += "</table>"
     html += "</div>"
     return html
@@ -318,19 +630,24 @@ def _wrap(inner):
 
 def format_eviews_output(res_dict):
     if "error" in res_dict:
-        return f"<div style='color:red;'><b>Lỗi:</b> {res_dict['error']}</div>"
+        error = html_lib.escape(str(res_dict['error']))
+        return f"<div style='color:red;'><b>Lỗi:</b> {error}</div>"
     if "message" in res_dict:
-        return f"<div style='color:green;'><b>Thành công:</b> {res_dict['message']}</div>"
+        message = html_lib.escape(str(res_dict['message']))
+        return f"<div style='color:green;'><b>Thành công:</b> {message}</div>"
 
     if "results" in res_dict:
         return _format_ls(res_dict)
 
     if "adf" in res_dict:
         a = res_dict["adf"]
+        safe_var = html_lib.escape(str(a['var']))
         concl = ("✅ Chuỗi DỪNG (bác bỏ H₀ có nghiệm đơn vị)" if a["pvalue"] < 0.05
                  else "⚠️ Chuỗi KHÔNG dừng (chưa bác bỏ được nghiệm đơn vị)")
-        crit = " | ".join(f"{k}: {v:.4f}" for k, v in a["crit"].items())
-        inner = (f"<p><b>Kiểm định nghiệm đơn vị ADF — biến {a['var']}</b></p>"
+        crit = " | ".join(
+            f"{html_lib.escape(str(k))}: {v:.4f}" for k, v in a["crit"].items()
+        )
+        inner = (f"<p><b>Kiểm định nghiệm đơn vị ADF — biến {safe_var}</b></p>"
                  f"<p>ADF Test Statistic = <b>{a['stat']:.6f}</b> | p-value = <b>{a['pvalue']:.4f}</b></p>"
                  f"<p>Giá trị tới hạn: {crit}</p>"
                  f"<p>Số trễ (lags) = {a['lags']} | Số quan sát = {a['nobs']}</p>"

@@ -1,275 +1,685 @@
-import pandas as pd
-import numpy as np
-import statsmodels.api as sm
-from statsmodels.stats.diagnostic import het_white, acorr_breusch_godfrey, linear_reset
-from statsmodels.stats.stattools import jarque_bera
-from scipy.optimize import minimize
+import json
+from collections.abc import Mapping
 
-def run_sim(asset_returns, market_returns):
-    """
-    Run Single Index Model (SIM): r_i = alpha + beta * r_m + e_i
-    """
-    # Align data
-    df = pd.concat([asset_returns, market_returns], axis=1).dropna()
-    df.columns = ['Asset', 'Market']
-    
-    y = df['Asset']
-    X = df['Market']
-    X = sm.add_constant(X) # Ensure X is correctly shaped
-    
-    # Run OLS
-    model = sm.OLS(y, X)
-    results = model.fit()
-    
-    # Calculate risks
-    beta = results.params['Market']
-    alpha = results.params['const']
-    
-    market_var = df['Market'].var()
-    residual_var = results.resid.var()
-    
-    sys_risk = (beta ** 2) * market_var
-    unsys_risk = residual_var
-    total_risk = df['Asset'].var()
-    
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from scipy.optimize import minimize
+from statsmodels.stats.diagnostic import (
+    acorr_breusch_godfrey,
+    het_white,
+    linear_reset,
+)
+from statsmodels.stats.stattools import jarque_bera
+
+
+TRADING_DAYS = 252
+DEFAULT_RISK_FREE_RATE = 0.04
+DEFAULT_FRONTIER_SEED = 42
+DEFAULT_GEMINI_MODEL = "gemini-3.1-pro-preview"
+MIN_SIM_OBSERVATIONS = 8
+MIN_PORTFOLIO_OBSERVATIONS = 20
+_WEIGHT_TOLERANCE = 1e-6
+
+
+class AnalyticsValidationError(ValueError):
+    """Raised when an analytics result would not be safe to present."""
+
+
+def _finite_series(values, name):
+    if isinstance(values, pd.Series):
+        series = values.copy()
+    else:
+        try:
+            series = pd.Series(values)
+        except Exception as exc:
+            raise AnalyticsValidationError(f"{name} không phải chuỗi dữ liệu hợp lệ.") from exc
+    return pd.to_numeric(series, errors="coerce").replace([np.inf, -np.inf], np.nan)
+
+
+def run_sim(asset_returns, market_returns, min_observations=MIN_SIM_OBSERVATIONS):
+    """Run the Single Index Model after validating the aligned return sample."""
+    if int(min_observations) < 3:
+        raise AnalyticsValidationError("min_observations phải >= 3.")
+
+    asset = _finite_series(asset_returns, "Lợi suất tài sản")
+    market = _finite_series(market_returns, "Lợi suất thị trường")
+    df = pd.concat([asset, market], axis=1).dropna()
+    df.columns = ["Asset", "Market"]
+
+    if len(df) < int(min_observations):
+        raise AnalyticsValidationError(
+            f"SIM cần ít nhất {int(min_observations)} quan sát hữu hạn; hiện có {len(df)}."
+        )
+    if not np.isfinite(df.to_numpy(dtype=float)).all():
+        raise AnalyticsValidationError("Mẫu SIM còn chứa giá trị không hữu hạn.")
+    if float(df["Market"].var(ddof=1)) <= np.finfo(float).eps:
+        raise AnalyticsValidationError("Lợi suất thị trường không có đủ biến động để ước lượng Beta.")
+
+    y = df["Asset"]
+    X = sm.add_constant(df["Market"], has_constant="add")
+    results = sm.OLS(y, X).fit()
+
+    beta = float(results.params["Market"])
+    alpha = float(results.params["const"])
+    market_var = float(df["Market"].var(ddof=1))
+    residual_var = float(results.resid.var(ddof=1))
+    total_risk = float(df["Asset"].var(ddof=1))
+    values = np.array(
+        [beta, alpha, market_var, residual_var, total_risk, results.rsquared],
+        dtype=float,
+    )
+    if not np.isfinite(values).all():
+        raise AnalyticsValidationError("SIM tạo ra hệ số hoặc rủi ro không hữu hạn.")
+
     return {
-        'alpha': alpha,
-        'beta': beta,
-        'systematic_risk': sys_risk,
-        'unsystematic_risk': unsys_risk,
-        'total_risk': total_risk,
-        'r_squared': results.rsquared,
-        'model': results,
-        'X': sm.add_constant(df['Market'])
+        "alpha": alpha,
+        "beta": beta,
+        "systematic_risk": (beta**2) * market_var,
+        "unsystematic_risk": residual_var,
+        "total_risk": total_risk,
+        "r_squared": float(results.rsquared),
+        "model": results,
+        "X": X,
+        "n_observations": len(df),
     }
 
-def run_diagnostics(sim_results):
-    """
-    Run White test for heteroskedasticity and Breusch-Godfrey for autocorrelation.
-    """
-    model = sim_results['model']
-    X = sim_results['X']
-    
-    diagnostics = {}
-    
-    # White Test
-    try:
-        white_test = het_white(model.resid, X)
-        diagnostics['White_pvalue'] = white_test[1]
-        diagnostics['Heteroskedasticity'] = "Yes" if white_test[1] < 0.05 else "No"
-    except Exception as e:
-        diagnostics['White_pvalue'] = None
-        diagnostics['Heteroskedasticity'] = "Error"
 
-    # Breusch-Godfrey Test
+def _validated_diagnostic_inputs(sim_results, min_observations):
+    if not isinstance(sim_results, Mapping):
+        raise AnalyticsValidationError("Kết quả SIM phải là một mapping.")
+    model = sim_results.get("model")
+    X = sim_results.get("X")
+    if model is None or X is None or not hasattr(model, "resid"):
+        raise AnalyticsValidationError("Kết quả SIM thiếu model hoặc ma trận X.")
+
+    resid = np.asarray(model.resid, dtype=float).reshape(-1)
+    exog = np.asarray(X, dtype=float)
+    if exog.ndim == 1:
+        exog = exog.reshape(-1, 1)
+    if len(resid) != exog.shape[0]:
+        raise AnalyticsValidationError("Số dòng phần dư không khớp ma trận X.")
+    if len(resid) < int(min_observations):
+        raise AnalyticsValidationError(
+            f"Chẩn đoán SIM cần ít nhất {int(min_observations)} quan sát; hiện có {len(resid)}."
+        )
+    if exog.shape[1] < 2:
+        raise AnalyticsValidationError("Ma trận X phải chứa hằng số và biến thị trường.")
+    if not np.isfinite(resid).all() or not np.isfinite(exog).all():
+        raise AnalyticsValidationError("Dữ liệu chẩn đoán chứa NaN hoặc vô cực.")
+    return model, exog, resid
+
+
+def _validated_pvalue(value, test_name):
+    pvalue = float(value)
+    if not np.isfinite(pvalue) or not 0.0 <= pvalue <= 1.0:
+        raise AnalyticsValidationError(f"{test_name} trả về p-value không hợp lệ.")
+    return pvalue
+
+
+def run_diagnostics(sim_results, min_observations=MIN_SIM_OBSERVATIONS):
+    """Run model diagnostics with contract validation and explicit partial errors."""
+    model, X, resid = _validated_diagnostic_inputs(sim_results, min_observations)
+    diagnostics = {
+        "White_pvalue": None,
+        "Heteroskedasticity": "Error",
+        "BG_pvalue": None,
+        "Autocorrelation": "Error",
+        "RESET_pvalue": None,
+        "SpecificationError": "Error",
+        "JB_stat": None,
+        "JB_pvalue": None,
+        "JB_skewness": None,
+        "JB_kurtosis": None,
+        "Normality": "Error",
+    }
+    errors = {}
+
+    try:
+        white_test = het_white(resid, X)
+        pvalue = _validated_pvalue(white_test[1], "White")
+        diagnostics["White_pvalue"] = pvalue
+        diagnostics["Heteroskedasticity"] = "Yes" if pvalue < 0.05 else "No"
+    except Exception as exc:
+        errors["White"] = str(exc)
+
     try:
         bg_test = acorr_breusch_godfrey(model, nlags=1)
-        diagnostics['BG_pvalue'] = bg_test[1]
-        diagnostics['Autocorrelation'] = "Yes" if bg_test[1] < 0.05 else "No"
-    except Exception as e:
-        diagnostics['BG_pvalue'] = None
-        diagnostics['Autocorrelation'] = "Error"
+        pvalue = _validated_pvalue(bg_test[1], "Breusch-Godfrey")
+        diagnostics["BG_pvalue"] = pvalue
+        diagnostics["Autocorrelation"] = "Yes" if pvalue < 0.05 else "No"
+    except Exception as exc:
+        errors["Breusch-Godfrey"] = str(exc)
 
-    # Ramsey RESET Test (kiểm định dạng hàm – Chương 5)
     try:
         reset = linear_reset(model, power=2, use_f=True)
-        diagnostics['RESET_pvalue'] = float(reset.pvalue)
-        diagnostics['SpecificationError'] = "Có thể có" if reset.pvalue < 0.05 else "Không"
-    except Exception:
-        diagnostics['RESET_pvalue'] = None
-        diagnostics['SpecificationError'] = "Error"
+        pvalue = _validated_pvalue(reset.pvalue, "Ramsey RESET")
+        diagnostics["RESET_pvalue"] = pvalue
+        diagnostics["SpecificationError"] = "Có thể có" if pvalue < 0.05 else "Không"
+    except Exception as exc:
+        errors["Ramsey RESET"] = str(exc)
 
-    # Jarque-Bera Normality Test (kiểm định phân phối chuẩn – Chương 5)
     try:
-        jb_stat, jb_pvalue, jb_skew, jb_kurt = jarque_bera(model.resid)
-        diagnostics['JB_stat'] = float(jb_stat)
-        diagnostics['JB_pvalue'] = float(jb_pvalue)
-        diagnostics['JB_skewness'] = float(jb_skew)
-        diagnostics['JB_kurtosis'] = float(jb_kurt)
-        diagnostics['Normality'] = "Chuẩn" if jb_pvalue > 0.05 else "Không chuẩn"
-    except Exception:
-        diagnostics['JB_stat'] = None
-        diagnostics['JB_pvalue'] = None
-        diagnostics['JB_skewness'] = None
-        diagnostics['JB_kurtosis'] = None
-        diagnostics['Normality'] = "Error"
+        jb_stat, jb_pvalue, jb_skew, jb_kurt = jarque_bera(resid)
+        pvalue = _validated_pvalue(jb_pvalue, "Jarque-Bera")
+        jb_values = np.asarray([jb_stat, jb_skew, jb_kurt], dtype=float)
+        if not np.isfinite(jb_values).all():
+            raise AnalyticsValidationError("Jarque-Bera trả về thống kê không hữu hạn.")
+        diagnostics["JB_stat"] = float(jb_stat)
+        diagnostics["JB_pvalue"] = pvalue
+        diagnostics["JB_skewness"] = float(jb_skew)
+        diagnostics["JB_kurtosis"] = float(jb_kurt)
+        diagnostics["Normality"] = "Chuẩn" if pvalue > 0.05 else "Không chuẩn"
+    except Exception as exc:
+        errors["Jarque-Bera"] = str(exc)
 
+    diagnostics["status"] = "ok" if not errors else "partial"
+    diagnostics["errors"] = errors
+    diagnostics["n_observations"] = len(resid)
     return diagnostics
 
-def markowitz_optimization(returns_df):
+
+def _prepare_portfolio_returns(returns_df, min_observations):
+    if not isinstance(returns_df, pd.DataFrame):
+        try:
+            returns_df = pd.DataFrame(returns_df)
+        except Exception as exc:
+            raise AnalyticsValidationError("Lợi suất danh mục phải chuyển được thành DataFrame.") from exc
+    if returns_df.shape[1] == 0:
+        raise AnalyticsValidationError("Cần ít nhất một tài sản để tối ưu danh mục.")
+    if returns_df.columns.duplicated().any():
+        raise AnalyticsValidationError("Tên tài sản trong danh mục không được trùng nhau.")
+    if int(min_observations) < 3:
+        raise AnalyticsValidationError("min_observations phải >= 3.")
+
+    numeric = returns_df.apply(pd.to_numeric, errors="coerce")
+    numeric = numeric.replace([np.inf, -np.inf], np.nan).dropna(how="any")
+    if len(numeric) < int(min_observations):
+        raise AnalyticsValidationError(
+            f"Markowitz cần ít nhất {int(min_observations)} quan sát chung hữu hạn; hiện có {len(numeric)}."
+        )
+    values = numeric.to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        raise AnalyticsValidationError("Lợi suất danh mục chứa giá trị không hữu hạn.")
+
+    variances = numeric.var(ddof=1)
+    invalid_assets = variances.index[
+        (~np.isfinite(variances.to_numpy(dtype=float)))
+        | (variances.to_numpy(dtype=float) <= np.finfo(float).eps)
+    ].tolist()
+    if invalid_assets:
+        raise AnalyticsValidationError(
+            "Tài sản không có đủ biến động để tối ưu: " + ", ".join(map(str, invalid_assets))
+        )
+    return numeric, len(returns_df) - len(numeric)
+
+
+def _regularize_covariance(cov_matrix, strength):
+    strength = float(strength)
+    if not np.isfinite(strength) or strength < 0:
+        raise AnalyticsValidationError("covariance_regularization phải là số hữu hạn >= 0.")
+    covariance = np.asarray(cov_matrix, dtype=float)
+    if covariance.ndim != 2 or covariance.shape[0] != covariance.shape[1]:
+        raise AnalyticsValidationError("Ma trận hiệp phương sai không vuông.")
+    if not np.isfinite(covariance).all():
+        raise AnalyticsValidationError("Ma trận hiệp phương sai chứa NaN hoặc vô cực.")
+
+    covariance = (covariance + covariance.T) / 2.0
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    scale = max(
+        float(np.trace(covariance) / max(len(covariance), 1)),
+        float(np.max(np.abs(eigenvalues))),
+        np.finfo(float).eps,
+    )
+    floor = max(scale * strength, scale * np.finfo(float).eps)
+    clipped = np.maximum(eigenvalues, floor)
+    regularized = (eigenvectors * clipped) @ eigenvectors.T
+    regularized = (regularized + regularized.T) / 2.0
+    adjustment = float(np.max(clipped - eigenvalues))
+    return regularized, adjustment
+
+
+def _validated_solver_weights(result, num_assets, label):
+    if result is None or not bool(getattr(result, "success", False)):
+        message = getattr(result, "message", "không có phản hồi từ solver")
+        raise AnalyticsValidationError(f"{label} thất bại: {message}")
+    weights = np.asarray(getattr(result, "x", []), dtype=float).reshape(-1)
+    if weights.shape != (num_assets,) or not np.isfinite(weights).all():
+        raise AnalyticsValidationError(f"{label} trả về vector trọng số không hợp lệ.")
+    if np.any(weights < -_WEIGHT_TOLERANCE) or np.any(weights > 1 + _WEIGHT_TOLERANCE):
+        raise AnalyticsValidationError(f"{label} trả về trọng số ngoài miền [0, 1].")
+    total = float(weights.sum())
+    if abs(total - 1.0) > _WEIGHT_TOLERANCE:
+        raise AnalyticsValidationError(f"{label} trả về tổng trọng số {total:.8f}, khác 1.")
+
+    weights = np.clip(weights, 0.0, 1.0)
+    weights /= weights.sum()
+    return weights
+
+
+def markowitz_optimization(
+    returns_df,
+    risk_free_rate=DEFAULT_RISK_FREE_RATE,
+    trading_days=TRADING_DAYS,
+    num_portfolios=500,
+    random_seed=DEFAULT_FRONTIER_SEED,
+    min_observations=MIN_PORTFOLIO_OBSERVATIONS,
+    covariance_regularization=1e-8,
+):
+    """Optimize a long-only risky portfolio and expose cash as a separate option.
+
+    Existing keys consumed by the Streamlit UI are preserved. New metadata makes
+    solver, cash and regularization decisions explicit for safer integrations.
     """
-    Perform Markowitz Portfolio Optimization to find the weights for minimum variance (safest) portfolio
-    and maximum Sharpe ratio portfolio. Also generates an efficient frontier simulation.
-    """
-    num_assets = len(returns_df.columns)
-    mean_returns = returns_df.mean() * 252 # Annualized
-    cov_matrix = returns_df.cov() * 252
-    risk_free_rate = 0.04
-    
-    def portfolio_annualised_performance(weights, mean_returns, cov_matrix):
-        returns = np.sum(mean_returns * weights)
-        std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
-        return std, returns
-        
-    def minimize_volatility(weights, mean_returns, cov_matrix):
-        return portfolio_annualised_performance(weights, mean_returns, cov_matrix)[0]
-        
-    def negative_sharpe_ratio(weights, mean_returns, cov_matrix, risk_free_rate=0.04):
-        p_vol, p_ret = portfolio_annualised_performance(weights, mean_returns, cov_matrix)
-        # Prevent division by zero
-        if p_vol == 0:
-            return float('inf')
-        return -(p_ret - risk_free_rate) / p_vol
-        
-    constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
-    bounds = tuple((0, 1) for _ in range(num_assets))
-    init_guess = num_assets * [1. / num_assets,]
-    
-    # Min Volatility Portfolio (Safest)
-    min_vol = minimize(minimize_volatility, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=bounds, constraints=constraints)
-    
-    # Max Sharpe Portfolio
-    # If the maximum possible return is less than risk free rate, Max Sharpe will try to maximize volatility. 
-    # In this case, we fallback to min_vol weights.
-    if np.max(mean_returns) <= risk_free_rate:
-        max_sharpe_weights = min_vol.x
-        warning_msg = "Lợi suất kỳ vọng của tất cả tài sản đều thấp hơn lãi suất phi rủi ro (4%). Danh mục Max Sharpe được chuyển về Min Volatility."
+    risk_free_rate = float(risk_free_rate)
+    trading_days = int(trading_days)
+    num_portfolios = int(num_portfolios)
+    if not np.isfinite(risk_free_rate):
+        raise AnalyticsValidationError("risk_free_rate phải là số hữu hạn.")
+    if trading_days <= 0:
+        raise AnalyticsValidationError("trading_days phải > 0.")
+    if not 1 <= num_portfolios <= 100_000:
+        raise AnalyticsValidationError("num_portfolios phải nằm trong [1, 100000].")
+    if random_seed is None:
+        raise AnalyticsValidationError("random_seed phải được đặt để frontier có thể tái lập.")
+
+    clean_returns, dropped_rows = _prepare_portfolio_returns(
+        returns_df, min_observations=min_observations
+    )
+    assets = clean_returns.columns.tolist()
+    num_assets = len(assets)
+    mean_returns = clean_returns.mean().to_numpy(dtype=float) * trading_days
+    raw_covariance = clean_returns.cov().to_numpy(dtype=float) * trading_days
+    covariance, regularization_adjustment = _regularize_covariance(
+        raw_covariance, covariance_regularization
+    )
+    if not np.isfinite(mean_returns).all():
+        raise AnalyticsValidationError("Lợi suất kỳ vọng năm hóa không hữu hạn.")
+
+    def performance(weights):
+        weights = np.asarray(weights, dtype=float)
+        expected_return = float(mean_returns @ weights)
+        variance = float(weights @ covariance @ weights)
+        if not np.isfinite(expected_return) or not np.isfinite(variance):
+            return np.nan, np.nan
+        volatility = float(np.sqrt(max(variance, 0.0)))
+        return volatility, expected_return
+
+    def portfolio_variance(weights):
+        weights = np.asarray(weights, dtype=float)
+        value = float(weights @ covariance @ weights)
+        return value if np.isfinite(value) else 1e100
+
+    def negative_sharpe_ratio(weights):
+        volatility, expected_return = performance(weights)
+        if not np.isfinite(volatility) or volatility <= np.finfo(float).eps:
+            return 1e100
+        return -((expected_return - risk_free_rate) / volatility)
+
+    constraints = ({"type": "eq", "fun": lambda x: np.sum(x) - 1.0},)
+    bounds = tuple((0.0, 1.0) for _ in range(num_assets))
+    initial_weights = np.full(num_assets, 1.0 / num_assets, dtype=float)
+    solver_options = {"maxiter": 2_000, "ftol": 1e-12}
+
+    min_vol_result = minimize(
+        portfolio_variance,
+        initial_weights,
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints,
+        options=solver_options,
+    )
+    min_vol_weights = _validated_solver_weights(
+        min_vol_result, num_assets, "Tối ưu Min Volatility"
+    )
+    min_vol_perf = performance(min_vol_weights)
+    if not np.isfinite(min_vol_perf).all():
+        raise AnalyticsValidationError("Min Volatility tạo ra hiệu suất không hữu hạn.")
+
+    warning_msg = None
+    cash_weight = 0.0
+    max_sharpe_result = None
+    if float(np.max(mean_returns)) <= risk_free_rate + 1e-12:
+        max_sharpe_weights = np.zeros(num_assets, dtype=float)
+        cash_weight = 1.0
+        warning_msg = (
+            "Lợi suất kỳ vọng năm hóa của mọi tài sản rủi ro không vượt lãi suất "
+            f"phi rủi ro ({risk_free_rate:.2%}); mô hình giữ 100% ở phương án tiền mặt."
+        )
+        max_sharpe_status = {
+            "success": True,
+            "mode": "cash",
+            "message": "Không tối ưu tài sản rủi ro vì tiền mặt chi phối theo giả định đầu vào.",
+        }
     else:
-        max_sharpe = minimize(negative_sharpe_ratio, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=bounds, constraints=constraints)
-        max_sharpe_weights = max_sharpe.x
-        warning_msg = None
-        
-    # Simulate Efficient Frontier points for plotting
-    num_portfolios = 500
-    results = np.zeros((3, num_portfolios))
-    weights_record = []
-    
-    for i in range(num_portfolios):
-        weights = np.random.random(num_assets)
-        weights /= np.sum(weights)
-        p_vol, p_ret = portfolio_annualised_performance(weights, mean_returns, cov_matrix)
-        results[0,i] = p_vol
-        results[1,i] = p_ret
-        results[2,i] = (p_ret - risk_free_rate) / p_vol if p_vol > 0 else 0
-        weights_record.append(weights)
-        
+        max_sharpe_result = minimize(
+            negative_sharpe_ratio,
+            initial_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+            options=solver_options,
+        )
+        max_sharpe_weights = _validated_solver_weights(
+            max_sharpe_result, num_assets, "Tối ưu Max Sharpe"
+        )
+        max_sharpe_perf = performance(max_sharpe_weights)
+        if not np.isfinite(max_sharpe_perf).all():
+            raise AnalyticsValidationError("Max Sharpe tạo ra hiệu suất không hữu hạn.")
+        max_sharpe_status = {
+            "success": True,
+            "mode": "risky_portfolio",
+            "message": str(getattr(max_sharpe_result, "message", "Thành công")),
+        }
+
+    rng = np.random.default_rng(int(random_seed))
+    if num_assets == 1:
+        frontier_weights = np.ones((num_portfolios, 1), dtype=float)
+    else:
+        frontier_weights = rng.dirichlet(np.ones(num_assets), size=num_portfolios)
+    frontier_returns = frontier_weights @ mean_returns
+    frontier_variances = np.einsum(
+        "ij,jk,ik->i", frontier_weights, covariance, frontier_weights
+    )
+    frontier_volatility = np.sqrt(np.maximum(frontier_variances, 0.0))
+    frontier_sharpes = np.divide(
+        frontier_returns - risk_free_rate,
+        frontier_volatility,
+        out=np.zeros_like(frontier_returns),
+        where=frontier_volatility > np.finfo(float).eps,
+    )
+    if not (
+        np.isfinite(frontier_returns).all()
+        and np.isfinite(frontier_volatility).all()
+        and np.isfinite(frontier_sharpes).all()
+    ):
+        raise AnalyticsValidationError("Efficient frontier chứa giá trị không hữu hạn.")
+
     return {
-        'min_vol_weights': min_vol.x,
-        'max_sharpe_weights': max_sharpe_weights,
-        'assets': returns_df.columns.tolist(),
-        'warning': warning_msg,
-        'ef_vols': results[0,:],
-        'ef_rets': results[1,:],
-        'ef_sharpes': results[2,:]
+        "min_vol_weights": min_vol_weights,
+        "max_sharpe_weights": max_sharpe_weights,
+        "assets": assets,
+        "warning": warning_msg,
+        "ef_vols": frontier_volatility,
+        "ef_rets": frontier_returns,
+        "ef_sharpes": frontier_sharpes,
+        "cash_weight": cash_weight,
+        "max_sharpe_cash_weight": cash_weight,
+        "risk_free_rate": risk_free_rate,
+        "n_observations": len(clean_returns),
+        "dropped_rows": dropped_rows,
+        "covariance_regularization": regularization_adjustment,
+        "regularized_covariance": pd.DataFrame(covariance, index=assets, columns=assets),
+        "optimizer_status": {
+            "min_vol": {
+                "success": True,
+                "mode": "risky_portfolio",
+                "message": str(getattr(min_vol_result, "message", "Thành công")),
+            },
+            "max_sharpe": max_sharpe_status,
+        },
+        "frontier_seed": int(random_seed),
     }
 
-def call_llm(prompt, config):
-    if not config or not config.get('api_key'):
-        return None
-        
+
+def _extract_anthropic_text(content):
+    texts = []
+    for block in content or []:
+        if isinstance(block, Mapping):
+            block_type = block.get("type")
+            text = block.get("text")
+        else:
+            block_type = getattr(block, "type", None)
+            text = getattr(block, "text", None)
+        if (block_type in (None, "text")) and isinstance(text, str) and text.strip():
+            texts.append(text.strip())
+    return "\n".join(texts)
+
+
+def _extract_gemini_text(response):
     try:
-        if config['provider'] == 'Anthropic (Claude)':
+        text = getattr(response, "text", None)
+    except Exception:
+        text = None
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+
+    texts = []
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            part_text = getattr(part, "text", None)
+            if isinstance(part_text, str) and part_text.strip():
+                texts.append(part_text.strip())
+    return "\n".join(texts)
+
+
+def call_llm(prompt, config):
+    """Call a configured provider without process-global SDK configuration."""
+    if not config or not config.get("api_key"):
+        return None
+    provider = config.get("provider")
+    api_key = str(config.get("api_key", "")).strip()
+    if not api_key:
+        return None
+
+    try:
+        if provider == "Anthropic (Claude)":
             import anthropic
-            client = anthropic.Anthropic(api_key=config['api_key'])
-            message = client.messages.create(
-                model=config['model'],
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return message.content[0].text
-            
-        elif config['provider'] == 'Google (Gemini)':
-            import google.generativeai as genai
-            genai.configure(api_key=config['api_key'])
-            model = genai.GenerativeModel(config['model'])
-            response = model.generate_content(prompt)
-            return response.text
-    except Exception as e:
-        return f"Lỗi gọi API: {str(e)}"
-    
-    return None
+
+            model_name = str(config.get("model") or "").strip()
+            if not model_name:
+                raise AnalyticsValidationError("Chưa cấu hình model Anthropic.")
+            client = anthropic.Anthropic(api_key=api_key)
+            try:
+                message = client.messages.create(
+                    model=model_name,
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": str(prompt)}],
+                )
+                text = _extract_anthropic_text(getattr(message, "content", None))
+            finally:
+                close = getattr(client, "close", None)
+                if callable(close):
+                    close()
+            if not text:
+                raise AnalyticsValidationError("Anthropic không trả về content block dạng text.")
+            return text
+
+        if provider == "Google (Gemini)":
+            from google import genai
+
+            model_name = str(config.get("model") or DEFAULT_GEMINI_MODEL).strip()
+            client = genai.Client(api_key=api_key)
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=str(prompt),
+                )
+                text = _extract_gemini_text(response)
+            finally:
+                close = getattr(client, "close", None)
+                if callable(close):
+                    close()
+            if not text:
+                raise AnalyticsValidationError("Gemini không trả về nội dung text.")
+            return text
+
+        raise AnalyticsValidationError(f"Nhà cung cấp AI không được hỗ trợ: {provider!r}.")
+    except Exception as exc:
+        return f"Lỗi gọi API: {exc}"
+
+
+_ACTIONABLE_LANGUAGE = (
+    "nên mua",
+    "nên bán",
+    "khuyến nghị mua",
+    "khuyến nghị bán",
+    "giải ngân",
+    "đầu tư ngay",
+    "phân bổ phần lớn vốn",
+)
+
+
+def _contains_actionable_language(text):
+    normalized = " ".join(str(text).lower().split())
+    return any(phrase in normalized for phrase in _ACTIONABLE_LANGUAGE)
+
+
+def _safe_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if np.isfinite(number) else None
+
+
+def _structured_metrics(sim_results_list, opt_res, market_prices):
+    market = _finite_series(market_prices, "Giá thị trường").dropna()
+    if len(market) < 2:
+        raise AnalyticsValidationError("Cần ít nhất hai mức giá thị trường để diễn giải xu hướng.")
+    values = market.to_numpy(dtype=float)
+    x = np.arange(len(values), dtype=float)
+    if np.all(values > 0):
+        slope = float(sm.OLS(np.log(values), sm.add_constant(x)).fit().params[1])
+        change = float(values[-1] / values[0] - 1.0)
+    else:
+        scale = max(float(np.mean(np.abs(values))), np.finfo(float).eps)
+        slope = float(sm.OLS(values / scale, sm.add_constant(x)).fit().params[1])
+        change = None
+    trend = "TĂNG" if slope > 1e-12 else "GIẢM" if slope < -1e-12 else "ĐI NGANG"
+
+    sim_metrics = []
+    for item in sim_results_list or []:
+        if not isinstance(item, Mapping):
+            continue
+        sim_metrics.append(
+            {
+                "asset": str(item.get("Mã CP", "")),
+                "beta": _safe_number(item.get("Beta (Độ nhạy)")),
+                "alpha": _safe_number(item.get("Alpha")),
+                "r_squared": _safe_number(item.get("R^2")),
+                "systematic_risk": _safe_number(item.get("Rủi ro Hệ thống")),
+                "unsystematic_risk": _safe_number(item.get("Rủi ro Phi hệ thống")),
+                "total_risk": _safe_number(item.get("Tổng Rủi ro")),
+            }
+        )
+
+    assets = [str(asset) for asset in opt_res.get("assets", [])]
+    weights = np.asarray(opt_res.get("max_sharpe_weights", []), dtype=float).reshape(-1)
+    allocation_warning = None
+    if weights.shape != (len(assets),) or not np.isfinite(weights).all():
+        allocation_warning = "Vector trọng số Max Sharpe không hợp lệ nên không được diễn giải."
+        allocations = []
+    else:
+        allocations = [
+            {"asset": asset, "model_weight": float(weight)}
+            for asset, weight in zip(assets, weights)
+        ]
+
+    cash_weight = _safe_number(
+        opt_res.get("max_sharpe_cash_weight", opt_res.get("cash_weight", 0.0))
+    )
+    if cash_weight is None or not 0.0 <= cash_weight <= 1.0 + _WEIGHT_TOLERANCE:
+        allocation_warning = "Trọng số tiền mặt không hợp lệ nên được đặt về 0."
+        cash_weight = 0.0
+
+    warnings = [warning for warning in (opt_res.get("warning"), allocation_warning) if warning]
+    return {
+        "scope": "historical_sample_only",
+        "market_sample": {
+            "observations": len(values),
+            "trend_label": trend,
+            "log_trend_per_observation": slope,
+            "sample_total_change": change,
+        },
+        "single_index_model": sim_metrics,
+        "portfolio_model": {
+            "risky_asset_allocations": allocations,
+            "cash_weight": cash_weight,
+            "risk_free_rate": _safe_number(
+                opt_res.get("risk_free_rate", DEFAULT_RISK_FREE_RATE)
+            ),
+            "optimizer_status": opt_res.get("optimizer_status"),
+            "warnings": warnings,
+        },
+        "limitations": [
+            "Các ước lượng chỉ mô tả mẫu lịch sử.",
+            "Chưa chứng minh hiệu quả ngoài mẫu hoặc sau chi phí giao dịch.",
+            "Trọng số là đầu ra toán học, không phải lệnh mua bán.",
+        ],
+    }
+
+
+def _fallback_metric_explanation(metrics):
+    market = metrics["market_sample"]
+    sim_metrics = metrics["single_index_model"]
+    portfolio = metrics["portfolio_model"]
+    lines = [
+        "### 📊 Diễn giải kết quả định lượng",
+        (
+            f"- Trong mẫu lịch sử {market['observations']} quan sát, nhãn xu hướng là "
+            f"**{market['trend_label']}**. Đây chỉ là mô tả của mẫu, không phải dự báo."
+        ),
+    ]
+
+    beta_text = []
+    for item in sim_metrics:
+        if item["asset"] and item["beta"] is not None:
+            beta_text.append(f"{item['asset']}: β={item['beta']:.3f}")
+    if beta_text:
+        lines.append("- Độ nhạy SIM ước lượng: " + "; ".join(beta_text) + ".")
+
+    allocations = portfolio["risky_asset_allocations"]
+    if allocations:
+        allocation_text = "; ".join(
+            f"{item['asset']}={item['model_weight']:.1%}" for item in allocations
+        )
+        lines.append(f"- Phân bổ toán học Max Sharpe trong mẫu: {allocation_text}.")
+    if portfolio["cash_weight"] > _WEIGHT_TOLERANCE:
+        lines.append(
+            f"- Phương án tiền mặt trong mô hình: {portfolio['cash_weight']:.1%}."
+        )
+    for warning in portfolio["warnings"]:
+        lines.append(f"- ⚠️ {warning}")
+
+    lines.append(
+        "> Kết quả chỉ dùng để giải thích số liệu lịch sử; chưa bao gồm kiểm định ngoài mẫu, "
+        "phí giao dịch hoặc bảo đảm lợi nhuận, và không phải khuyến nghị mua/bán."
+    )
+    return "\n\n".join(lines)
+
 
 def generate_expert_advice(sim_results_list, opt_res, market_prices, ai_config=None):
-    """
-    Synthesize quantitative results into actionable expert advice.
-    Optionally uses an LLM to generate more comprehensive advice.
-    """
-    # 1. Prepare data facts
-    market_prices = market_prices.dropna()
-    y = market_prices.values
-    x = np.arange(len(y))
-    x = sm.add_constant(x)
-    trend_model = sm.OLS(y, x).fit()
-    trend_coef = trend_model.params[1]
-    
-    market_trend = "TĂNG" if trend_coef > 0 else "GIẢM"
-    
-    high_beta = [res['Mã CP'] for res in sim_results_list if res['Beta (Độ nhạy)'] > 1]
-    low_beta = [res['Mã CP'] for res in sim_results_list if res['Beta (Độ nhạy)'] < 1]
-    
-    assets = opt_res['assets']
-    sharpe_weights = opt_res['max_sharpe_weights']
-    weighted_assets = sorted(zip(assets, sharpe_weights), key=lambda x: x[1], reverse=True)
-    top_picks = [f"{w[0]} ({w[1]*100:.1f}%)" for w in weighted_assets if w[1] > 0.05]
-    
-    # Try LLM generation if configured
-    if ai_config and ai_config.get('api_key'):
-        prompt = f"""
-        Bạn là một chuyên gia phân tích định lượng tài chính cấp cao. Hãy đọc các số liệu định lượng sau và đưa ra một báo cáo khuyến nghị ngắn gọn, chuyên nghiệp bằng tiếng Việt.
-        
-        THÔNG TIN THỊ TRƯỜNG:
-        - Xu hướng giá Index hiện tại: {market_trend}
-        
-        THÔNG TIN CỔ PHIẾU (Mô hình SIM):
-        - Nhóm năng động (Beta > 1): {', '.join(high_beta) if high_beta else 'Không có'}
-        - Nhóm phòng thủ (Beta < 1): {', '.join(low_beta) if low_beta else 'Không có'}
-        
-        TỐI ƯU HÓA DANH MỤC MARKOWITZ (Danh mục hiệu quả Max Sharpe):
-        - Các mã nên phân bổ vốn nhiều nhất (tỷ trọng > 5%): {', '.join(top_picks) if top_picks else 'Nên giữ tiền mặt'}
-        - Cảnh báo mô hình: {opt_res.get('warning') if opt_res.get('warning') else 'Không có'}
-        
-        YÊU CẦU:
-        1. Mở đầu bằng một nhận định ngắn về xu hướng thị trường.
-        2. Đánh giá rủi ro và chiến lược (dựa vào Beta).
-        3. Đưa ra Khuyến nghị Hành động cụ thể dựa trên tỷ trọng Markowitz.
-        4. Trình bày đẹp bằng Markdown, dùng emoji chuyên nghiệp. Đừng lặp lại nguyên văn số liệu, hãy biến nó thành lời khuyên.
-        """
-        
-        llm_advice = call_llm(prompt, ai_config)
-        if llm_advice and not llm_advice.startswith("Lỗi gọi API"):
-            return llm_advice
-        elif llm_advice:
-            fallback_prefix = f"⚠️ **{llm_advice}**. Đang sử dụng khuyến nghị mặc định.\n\n"
-        else:
-            fallback_prefix = "⚠️ **Lỗi kết nối AI**. Đang sử dụng khuyến nghị mặc định.\n\n"
-    else:
-        fallback_prefix = ""
-        
-    # --- FALLBACK: Rules-based generation ---
-    advice = []
-    
-    if trend_coef > 0:
-        strategy = "Thị trường đang trong xu hướng tăng. Nên ưu tiên nắm giữ các cổ phiếu Năng động ($\\beta > 1$) để tối đa hóa lợi nhuận theo đà tăng của thị trường."
-    else:
-        strategy = "Thị trường đang trong xu hướng giảm hoặc đi ngang. Nên phòng thủ, ưu tiên các cổ phiếu Thụ động ($\\beta < 1$) hoặc chuyển sang tiền mặt."
-        
-    advice.append(f"### 📈 Xu hướng Thị trường: **{market_trend} (Bullish/Bearish)**")
-    advice.append(strategy)
-    
-    if high_beta:
-        advice.append(f"*   **Nhóm Tấn công ($\\beta > 1$):** `{', '.join(high_beta)}` - Phù hợp khi dự báo thị trường tiếp tục Tăng.")
-    if low_beta:
-        advice.append(f"*   **Nhóm Phòng thủ ($\\beta < 1$):** `{', '.join(low_beta)}` - Phù hợp khi dự báo thị trường Giảm hoặc Biến động mạnh.")
+    """Explain structured historical metrics without issuing trading instructions."""
+    if not isinstance(opt_res, Mapping):
+        raise AnalyticsValidationError("Kết quả tối ưu phải là một mapping.")
+    metrics = _structured_metrics(sim_results_list, opt_res, market_prices)
+    fallback = _fallback_metric_explanation(metrics)
 
-    if opt_res.get('warning'):
-        advice.append(f"⚠️ **Cảnh báo:** {opt_res['warning']}")
-        
-    advice.append("### 💡 Khuyến nghị Hành động (Dành cho bạn)")
-    if top_picks:
-        advice.append(f"Để tối ưu hóa Tỷ suất Sinh lời / Rủi ro (theo tiêu chuẩn của các Quỹ đầu tư), bạn nên cân nhắc giải ngân phần lớn vốn vào: {', '.join(top_picks)}.")
-    else:
-        advice.append("Hiện tại các cổ phiếu trong danh mục có rủi ro cao, tỷ trọng tối ưu phân bổ khá đều hoặc rủi ro, cân nhắc giữ tiền mặt.")
-        
-    final_advice = "\n\n".join(advice)
-    return fallback_prefix + final_advice
+    if not (ai_config and ai_config.get("api_key")):
+        return fallback
 
+    prompt = (
+        "Bạn là người diễn giải mô hình định lượng. Chỉ được giải thích dữ liệu JSON bên dưới "
+        "bằng tiếng Việt, phân biệt mô tả lịch sử với dự báo và nêu giới hạn mô hình. "
+        "Không đưa ra chỉ dẫn mua, bán, giải ngân, thời điểm giao dịch hoặc hứa hẹn lợi nhuận. "
+        "Không bổ sung dữ kiện ngoài JSON. Trình bày ngắn bằng Markdown.\n\n"
+        "METRICS_JSON:\n"
+        + json.dumps(metrics, ensure_ascii=False, sort_keys=True)
+    )
+    llm_explanation = call_llm(prompt, ai_config)
+    if not llm_explanation:
+        return "⚠️ **Không nhận được phản hồi AI; dùng diễn giải định lượng mặc định.**\n\n" + fallback
+    if llm_explanation.startswith("Lỗi gọi API"):
+        return f"⚠️ **{llm_explanation}; dùng diễn giải định lượng mặc định.**\n\n{fallback}"
+    if _contains_actionable_language(llm_explanation):
+        return (
+            "⚠️ **Phản hồi AI chứa ngôn ngữ chỉ dẫn giao dịch nên đã bị loại; "
+            "dùng diễn giải định lượng mặc định.**\n\n"
+            + fallback
+        )
+    return (
+        llm_explanation.strip()
+        + "\n\n> Đây là diễn giải số liệu lịch sử, không phải khuyến nghị mua/bán hoặc bảo đảm lợi nhuận."
+    )
