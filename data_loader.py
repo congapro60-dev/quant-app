@@ -21,7 +21,7 @@ import pandas as pd
 def _disable_vnstock_import_side_effects() -> None:
     """Keep vnstock imports from mutating the machine or starting telemetry.
 
-    Vnstock 4.0.5 initializes vnai during ordinary market-data calls.  That
+    Vnstock initializes vnai during ordinary market-data calls.  That
     initialization writes terms/editor files, inspects the local Git checkout,
     and queues system metadata.  None of it is required for Quote access, so
     replace only those initialization hooks before importing vnstock.
