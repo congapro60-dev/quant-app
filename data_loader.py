@@ -59,7 +59,34 @@ MAX_DATE_RANGE_DAYS = 3655
 DEFAULT_MIN_COVERAGE = 0.70
 DEFAULT_MAX_STALENESS_BUSINESS_DAYS = 5
 DEFAULT_MIN_OBSERVATIONS = 3
-DEFAULT_DATA_SOURCES = ("KBS", "VCI")
+# KBS/VCI are Vietnamese brokers and are the most accurate locally, but both
+# IP-block Streamlit Cloud (every ticker returns PROVIDER_ERROR there). MSN is
+# Microsoft's global source and stays reachable from cloud IPs, so it is kept as
+# a last-resort fallback that keeps the deployed app working when the VN brokers
+# are blocked. See _MSN_PRICE_SCALE below for the unit-normalisation MSN needs.
+DEFAULT_DATA_SOURCES = ("KBS", "VCI", "MSN")
+
+# MSN quotes VN equities in absolute VND (e.g. FPT ~109,000) whereas VCI/KBS use
+# the "nghìn đồng" convention (~109). Index series (VNINDEX, VN30, ...) carry no
+# such 1000x factor. We divide MSN equity OHLC by this scale so absolute-price
+# features (paper portfolio, investment desk) stay consistent across sources.
+# Return-based analytics (SIM, Markowitz, backtest) are scale-invariant already.
+_MSN_PRICE_SCALE = 1000.0
+_INDEX_SYMBOLS = frozenset(
+    {
+        "VNINDEX",
+        "VN30",
+        "VN100",
+        "VNXALL",
+        "VNX50",
+        "HNXINDEX",
+        "HNX",
+        "HNX30",
+        "UPCOMINDEX",
+        "UPCOM",
+    }
+)
+_MSN_PRICE_COLUMNS = ("open", "high", "low", "close")
 _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,19}$")
 _SOURCE_RE = re.compile(r"^[A-Z][A-Z0-9_-]{1,15}$")
 _SOURCE_LIST_SPLIT_RE = re.compile(r"[\s,;|]+")
@@ -490,6 +517,25 @@ def _clean_symbol_frame(
     return work[["close"]].rename(columns={"close": ticker}), metadata, issues
 
 
+def _normalise_msn_prices(raw: Any, ticker: str) -> Any:
+    """Rescale MSN equity OHLC (absolute VND) to the nghìn-đồng convention.
+
+    MSN reports VN equity prices ~1000x larger than VCI/KBS; indices are already
+    on the same scale, so they are left untouched. Anything we cannot safely
+    recognise as a DataFrame with price columns is returned unchanged.
+    """
+    if ticker.upper() in _INDEX_SYMBOLS:
+        return raw
+    if raw is None or not hasattr(raw, "columns") or getattr(raw, "empty", True):
+        return raw
+    price_cols = [col for col in _MSN_PRICE_COLUMNS if col in raw.columns]
+    if not price_cols:
+        return raw
+    raw = raw.copy()
+    raw[price_cols] = raw[price_cols] / _MSN_PRICE_SCALE
+    return raw
+
+
 def _fetch_data_result_from_source(
     requested: list[str],
     start: pd.Timestamp,
@@ -513,6 +559,8 @@ def _fetch_data_result_from_source(
             raw = Quote(symbol=ticker, source=source_name).history(
                 start=start.date().isoformat(), end=end.date().isoformat()
             )
+            if source_name == "MSN":
+                raw = _normalise_msn_prices(raw, ticker)
         except Exception as exc:
             report.issues.append(
                 FetchIssue(

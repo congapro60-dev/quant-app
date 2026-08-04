@@ -119,6 +119,37 @@ class MarketDataHardeningTests(unittest.TestCase):
             [issue.code for issue in result.report.warnings],
         )
 
+    def test_msn_fallback_normalises_equity_but_not_index(self):
+        # Simulates Streamlit Cloud where both VN brokers are IP-blocked and only
+        # MSN answers. MSN quotes equities in absolute VND (~1000x), indices are
+        # already on the nghìn-đồng scale.
+        start, end = "2024-02-01", "2024-02-15"
+        base_equity = _history(start, end)
+        msn_equity = base_equity.copy()
+        msn_equity["close"] = msn_equity["close"] * loader._MSN_PRICE_SCALE
+        msn_index = _history(start, end, offset=1000.0)
+        _FakeQuote.payloads = {
+            ("KBS", "AAA"): RuntimeError("kbs blocked on cloud"),
+            ("KBS", "VNINDEX"): RuntimeError("kbs blocked on cloud"),
+            ("VCI", "AAA"): RuntimeError("vci blocked on cloud"),
+            ("VCI", "VNINDEX"): RuntimeError("vci blocked on cloud"),
+            ("MSN", "AAA"): msn_equity,
+            ("MSN", "VNINDEX"): msn_index,
+        }
+        with mock.patch.object(loader, "Quote", _FakeQuote):
+            result = loader.fetch_data_result(["AAA", "VNINDEX"], start, end)
+
+        self.assertTrue(result.ok, result.report.to_dict())
+        self.assertEqual(result.report.source, "MSN")
+        # Equity rescaled back to nghìn-đồng (matches the un-scaled fixture).
+        self.assertAlmostEqual(
+            float(result.data["AAA"].iloc[-1]),
+            float(base_equity["close"].iloc[-1]),
+            places=6,
+        )
+        # Index must never be divided by 1000.
+        self.assertGreater(float(result.data["VNINDEX"].iloc[-1]), 1000.0)
+
     def test_rejects_constant_and_phantom_prefix_series(self):
         start, end = "2024-03-01", "2024-04-04"
         dates = pd.bdate_range(start, end)
