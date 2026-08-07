@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime, timedelta
-from data_loader import fetch_data, calculate_returns
+from data_loader import fetch_data, calculate_returns, fetch_intraday
 from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm
 from safe_ai_tools import (
     SafeAnalysisError,
@@ -304,8 +304,9 @@ if live_mode and st_autorefresh is not None:
         run_analysis(*st.session_state['last_query'], show_msgs=False)
 
 # ==================== CÁC TAB ====================
-invest_tab, paper_tab, backtest_tab, tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Bàn đầu tư", "Paper portfolio", "Backtest OOS",
+(invest_tab, intraday_tab, paper_tab, backtest_tab,
+ tab1, tab2, tab3, tab4, tab5) = st.tabs([
+    "Bàn đầu tư", "Giá trong phiên", "Paper portfolio", "Backtest OOS",
     "Rủi ro (SIM)", "Danh mục (Markowitz)", "Trợ lý quyết định",
     "EViews tiếng Việt", "Ôn thi",
 ])
@@ -549,6 +550,103 @@ with backtest_tab:
         st.session_state.valid_assets,
         st.session_state.market_ticker,
     )
+
+
+# ---------- TAB: GIÁ TRONG PHIÊN (INTRADAY) ----------
+with intraday_tab:
+    st.header("Giá khớp lệnh trong phiên")
+    st.warning(
+        "⚠️ **Đây là dữ liệu khớp lệnh có độ trễ, không phải bảng giá tức thời.** "
+        "Đo thực tế độ trễ khoảng **15–30 giây**, nhưng có thể lớn hơn khi thị trường "
+        "biến động mạnh — con số đo được ở từng lần tải luôn hiển thị bên dưới. "
+        "Khớp lệnh liên tục: **9:15–11:30** và **13:00–14:30**. "
+        "Trước khi đặt lệnh, hãy đối chiếu bảng giá của công ty chứng khoán."
+    )
+
+    default_tickers = st.session_state.get('valid_assets') or []
+    default_text = default_tickers[0] if default_tickers else "CTG"
+
+    c1, c2 = st.columns([2, 1])
+    intraday_ticker = c1.text_input(
+        "Mã cổ phiếu cần xem:", value=default_text, key="intraday_ticker"
+    ).strip().upper()
+    n_ticks = c2.selectbox("Số lệnh gần nhất:", [100, 300, 500, 1000], index=2)
+
+    if st.button("🔄 Lấy dữ liệu trong phiên", type="primary", key="btn_intraday"):
+        with st.spinner(f"Đang lấy dữ liệu khớp lệnh của {intraday_ticker}..."):
+            st.session_state['intraday_result'] = fetch_intraday(
+                intraday_ticker, page_size=n_ticks
+            )
+
+    intr = st.session_state.get('intraday_result')
+    if intr is None:
+        st.info("Nhập mã rồi bấm **Lấy dữ liệu trong phiên**.")
+    elif not intr.ok:
+        st.error(f"Không lấy được dữ liệu: {intr.error}")
+        st.caption(
+            "**Khi nào dữ liệu trống là bình thường (không phải lỗi phần mềm):**  \n"
+            "• Ngoài giờ giao dịch → nhà cung cấp báo 'chuẩn bị phiên mới'.  \n"
+            "• Trong phiên ATO (9:00–9:15) và ATC (14:30–14:45) → là khớp lệnh định kỳ, "
+            "chưa sinh lệnh khớp liên tục nên bảng lệnh còn trống.  \n"
+            "• Nghỉ trưa 11:30–13:00, hoặc thứ Bảy/Chủ nhật/ngày lễ.  \n"
+            "→ Khớp lệnh liên tục chạy **9:15–11:30** và **13:00–14:30**, thử lại lúc đó."
+        )
+    else:
+        ticks = intr.data
+        last_price = intr.last_price
+        last_time = intr.last_tick_time
+        first_price = float(ticks['price'].iloc[0])
+        change = (last_price - first_price) if last_price is not None else None
+        pct = (change / first_price * 100) if (change is not None and first_price) else None
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Giá khớp gần nhất", f"{last_price:,.2f}" if last_price else "—",
+                  f"{pct:+.2f}% trong mẫu" if pct is not None else None)
+        m2.metric("Thời điểm khớp",
+                  last_time.strftime("%H:%M:%S") if last_time is not None else "—")
+        m3.metric("Số lệnh lấy về", f"{len(ticks):,}")
+        m4.metric("Nguồn dữ liệu", intr.source)
+
+        if intr.fetched_at is not None and last_time is not None:
+            try:
+                lag = (intr.fetched_at - last_time).total_seconds()
+                if lag >= 0:
+                    lag_text = (f"{lag:.0f} giây" if lag < 90
+                                else f"{lag/60:.1f} phút")
+                    st.caption(
+                        f"⏱️ **Độ trễ đo được: {lag_text}** — lệnh khớp gần nhất lúc "
+                        f"{last_time.strftime('%H:%M:%S')}, tải về lúc "
+                        f"{intr.fetched_at.strftime('%H:%M:%S')}. "
+                        "Đây là độ trễ của nhà cung cấp dữ liệu, không phải của app."
+                    )
+            except Exception:
+                pass
+
+        fig_intr = px.line(
+            ticks, x="time", y="price",
+            title=f"Diễn biến giá khớp lệnh trong phiên — {intraday_ticker}",
+            labels={"time": "Thời gian", "price": "Giá khớp"},
+        )
+        fig_intr.update_traces(line_width=2)
+        st.plotly_chart(fig_intr, use_container_width=True)
+
+        if "volume" in ticks.columns:
+            fig_vol = px.bar(
+                ticks, x="time", y="volume",
+                title="Khối lượng theo từng lệnh khớp",
+                labels={"time": "Thời gian", "volume": "Khối lượng"},
+            )
+            st.plotly_chart(fig_vol, use_container_width=True)
+
+        with st.expander("Xem bảng lệnh khớp chi tiết"):
+            st.dataframe(ticks.tail(200), use_container_width=True)
+            _download_df(ticks, "⬇️ Tải toàn bộ lệnh khớp (CSV)",
+                         f"intraday_{intraday_ticker}.csv")
+
+        st.caption(
+            "Số liệu này chỉ phục vụ quan sát và nghiên cứu. Công cụ không đặt lệnh "
+            "và không đưa ra khuyến nghị mua/bán."
+        )
 
 
 # ---------- TAB 1: SIM ----------

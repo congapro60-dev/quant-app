@@ -87,6 +87,8 @@ _INDEX_SYMBOLS = frozenset(
     }
 )
 _MSN_PRICE_COLUMNS = ("open", "high", "low", "close")
+# Only these providers expose an intraday (matched-order) endpoint; MSN has none.
+_INTRADAY_SOURCES = ("KBS", "VCI")
 _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,19}$")
 _SOURCE_RE = re.compile(r"^[A-Z][A-Z0-9_-]{1,15}$")
 _SOURCE_LIST_SPLIT_RE = re.compile(r"[\s,;|]+")
@@ -841,6 +843,163 @@ def fetch_data(tickers, start_date, end_date, **kwargs):
     if not result.ok:
         raise DataFetchError(result.report)
     return result.data
+
+
+@dataclass
+class IntradayResult:
+    """Matched-order ticks for one symbol, plus provenance for the UI."""
+
+    data: pd.DataFrame
+    source: str = ""
+    error: str = ""
+    fetched_at: pd.Timestamp | None = None
+
+    @property
+    def ok(self) -> bool:
+        return not self.data.empty
+
+    @property
+    def last_price(self) -> float | None:
+        if self.data.empty or "price" not in self.data.columns:
+            return None
+        value = pd.to_numeric(self.data["price"], errors="coerce").dropna()
+        return float(value.iloc[-1]) if len(value) else None
+
+    @property
+    def last_tick_time(self):
+        if self.data.empty or "time" not in self.data.columns:
+            return None
+        stamps = pd.to_datetime(self.data["time"], errors="coerce").dropna()
+        return stamps.iloc[-1] if len(stamps) else None
+
+
+def fetch_intraday(ticker, *, page_size=500, source=None, fallback_sources=None):
+    """Fetch in-session matched-order ticks for one ticker.
+
+    This is NOT a real-time quote feed: providers publish matched orders with a
+    delay of up to several minutes and the endpoint is unavailable outside
+    trading hours. The caller must surface both facts to the user, so failures
+    are returned as text in ``IntradayResult.error`` instead of raising.
+    """
+
+    symbol = str(ticker or "").strip().upper()
+    if not symbol:
+        return IntradayResult(pd.DataFrame(), error="Chưa nhập mã cổ phiếu.")
+    if not _TICKER_RE.fullmatch(symbol):
+        return IntradayResult(pd.DataFrame(), error=f"Mã '{ticker}' không hợp lệ.")
+
+    try:
+        size = int(page_size)
+    except (TypeError, ValueError):
+        size = 500
+    size = max(1, min(size, 5000))
+
+    source_order = _normalise_source_order(source, fallback_sources)
+    # MSN exposes no intraday endpoint at all, so querying it only produces a
+    # confusing AttributeError in the UI. Keep it out unless explicitly asked.
+    if source is None:
+        source_order = [s for s in source_order if s in _INTRADAY_SOURCES]
+    if not source_order:
+        return IntradayResult(
+            pd.DataFrame(),
+            error="Không có nguồn nào hỗ trợ dữ liệu khớp lệnh trong phiên.",
+        )
+    problems: list[str] = []
+
+    for source_name in source_order:
+        try:
+            raw = Quote(symbol=symbol, source=source_name).intraday(page_size=size)
+        except Exception as exc:
+            problems.append(f"{source_name}: {_unwrap_provider_reason(exc)}")
+            continue
+
+        if raw is None or getattr(raw, "empty", True):
+            problems.append(f"{source_name}: nhà cung cấp không trả về dữ liệu khớp lệnh.")
+            continue
+
+        frame = _clean_intraday_frame(raw, symbol, source_name)
+        if frame.empty:
+            problems.append(f"{source_name}: dữ liệu khớp lệnh không đọc được.")
+            continue
+
+        return IntradayResult(
+            data=frame,
+            source=source_name,
+            fetched_at=pd.Timestamp.now(),
+        )
+
+    return IntradayResult(
+        pd.DataFrame(),
+        error=" | ".join(problems) or "Không lấy được dữ liệu khớp lệnh.",
+        fetched_at=pd.Timestamp.now(),
+    )
+
+
+def _unwrap_provider_reason(exc):
+    """Pull the human-readable message out of tenacity's RetryError wrapper."""
+
+    cause = exc
+    for _ in range(5):
+        attempt = getattr(cause, "last_attempt", None)
+        if attempt is None:
+            break
+        try:
+            attempt.result()
+        except Exception as inner:  # noqa: BLE001 - we want the original text
+            cause = inner
+            continue
+        break
+    text = str(cause).strip()
+    return text[:200] if text else type(cause).__name__
+
+
+def _clean_intraday_frame(raw, symbol, source_name):
+    """Normalise provider tick columns to time/price/volume/side."""
+
+    frame = raw.copy()
+    frame.columns = [str(c).strip().lower() for c in frame.columns]
+
+    rename = {}
+    for candidate in ("time", "tradingdate", "timestamp", "trading_time"):
+        if candidate in frame.columns:
+            rename[candidate] = "time"
+            break
+    for candidate in ("price", "matchprice", "close", "last_price"):
+        if candidate in frame.columns:
+            rename[candidate] = "price"
+            break
+    for candidate in ("volume", "matchvol", "vol", "quantity"):
+        if candidate in frame.columns:
+            rename[candidate] = "volume"
+            break
+    for candidate in ("match_type", "side", "buysell", "type"):
+        if candidate in frame.columns:
+            rename[candidate] = "side"
+            break
+    frame = frame.rename(columns=rename)
+
+    if "time" not in frame.columns or "price" not in frame.columns:
+        return pd.DataFrame()
+
+    frame["time"] = pd.to_datetime(frame["time"], errors="coerce")
+    frame["price"] = pd.to_numeric(frame["price"], errors="coerce")
+    if "volume" in frame.columns:
+        frame["volume"] = pd.to_numeric(frame["volume"], errors="coerce")
+
+    keep = [c for c in ("time", "price", "volume", "side") if c in frame.columns]
+    frame = frame[keep].dropna(subset=["time", "price"])
+    frame = frame[frame["price"] > 0]
+    if frame.empty:
+        return pd.DataFrame()
+
+    # MSN quotes equities in absolute VND; keep the nghìn-đồng convention.
+    if source_name == "MSN" and symbol not in _INDEX_SYMBOLS:
+        frame["price"] = frame["price"] / _MSN_PRICE_SCALE
+
+    frame = frame.sort_values("time").reset_index(drop=True)
+    frame.attrs["symbol"] = symbol
+    frame.attrs["source"] = source_name
+    return frame
 
 
 def calculate_returns(prices_df):
