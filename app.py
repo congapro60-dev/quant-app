@@ -572,15 +572,48 @@ with intraday_tab:
     ).strip().upper()
     n_ticks = c2.selectbox("Số lệnh gần nhất:", [100, 300, 500, 1000], index=2)
 
-    if st.button("🔄 Lấy dữ liệu trong phiên", type="primary", key="btn_intraday"):
+    a1, a2 = st.columns([1, 1])
+    intraday_auto = a1.toggle(
+        "🔁 Tự làm mới giá", value=False, key="intraday_auto",
+        help="Tự tải lại giá khớp lệnh theo chu kỳ. Chỉ bật khi đang theo dõi, "
+             "vì mỗi lần làm mới đều tốn băng thông và lượt gọi nhà cung cấp.",
+    )
+    intraday_every = a2.selectbox(
+        "Chu kỳ (giây):", [15, 30, 60, 120], index=1,
+        disabled=not intraday_auto, key="intraday_every",
+    )
+
+    auto_tick = False
+    if intraday_auto:
+        if st_autorefresh is None:
+            st.warning("Thiếu gói `streamlit-autorefresh` nên chưa tự làm mới được.")
+        else:
+            counter = st_autorefresh(
+                interval=int(intraday_every) * 1000, key="intraday_refresh"
+            )
+            # Only refetch on a genuine timer tick, not on every Streamlit rerun
+            # (typing in a box or switching tabs also reruns the script).
+            auto_tick = counter != st.session_state.get('intraday_refresh_counter')
+            st.session_state['intraday_refresh_counter'] = counter
+
+    manual_click = st.button("🔄 Lấy dữ liệu trong phiên", type="primary", key="btn_intraday")
+
+    if manual_click or (auto_tick and intraday_ticker):
         with st.spinner(f"Đang lấy dữ liệu khớp lệnh của {intraday_ticker}..."):
             st.session_state['intraday_result'] = fetch_intraday(
                 intraday_ticker, page_size=n_ticks
             )
 
+    if intraday_auto and st_autorefresh is not None:
+        st.caption(
+            f"🔁 Đang tự làm mới mỗi **{intraday_every} giây** "
+            f"(lần tải gần nhất: {pd.Timestamp.now().strftime('%H:%M:%S')}). "
+            "Tắt công tắc khi không dùng để đỡ tốn băng thông."
+        )
+
     intr = st.session_state.get('intraday_result')
     if intr is None:
-        st.info("Nhập mã rồi bấm **Lấy dữ liệu trong phiên**.")
+        st.info("Nhập mã rồi bấm **Lấy dữ liệu trong phiên** (hoặc bật *Tự làm mới giá*).")
     elif not intr.ok:
         st.error(f"Không lấy được dữ liệu: {intr.error}")
         st.caption(
