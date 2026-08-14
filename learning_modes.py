@@ -39,6 +39,99 @@ MODE_DESCRIPTIONS = {
 VALID_MODES = (MODE_HIGHSCHOOL, MODE_UNIVERSITY)
 DEFAULT_MODE = MODE_HIGHSCHOOL
 
+# ---------------------------------------------------------------------------
+# Hồ sơ người học: lớp, mức kiến thức, mục tiêu
+# ---------------------------------------------------------------------------
+#
+# Chỉ thu thập thông tin phục vụ việc chọn nội dung. Không hỏi họ tên, ngày sinh
+# hay bất kỳ dữ liệu định danh nào — ứng dụng không có nhu cầu và không lưu.
+
+LEARNER_PROFILE_KEY = "learner_profile"
+
+GRADE_LEVELS = ("lop_10", "lop_11", "lop_12", "sinh_vien", "khac")
+GRADE_LABELS = {
+    "lop_10": "Lớp 10",
+    "lop_11": "Lớp 11",
+    "lop_12": "Lớp 12",
+    "sinh_vien": "Sinh viên đại học",
+    "khac": "Khác",
+}
+
+KNOWLEDGE_LEVELS = ("moi_bat_dau", "co_ban", "kha", "vung")
+KNOWLEDGE_LABELS = {
+    "moi_bat_dau": "Mới bắt đầu — chưa từng tìm hiểu",
+    "co_ban": "Cơ bản — biết vài khái niệm",
+    "kha": "Khá — đã đọc báo cáo và biểu đồ",
+    "vung": "Vững — đã học thống kê hoặc kinh tế lượng",
+}
+
+GOALS = (
+    "hieu_tai_chinh_ca_nhan",
+    "on_thi",
+    "tap_dau_tu_mo_phong",
+    "nghien_cuu_dinh_luong",
+)
+GOAL_LABELS = {
+    "hieu_tai_chinh_ca_nhan": "Hiểu tài chính cá nhân",
+    "on_thi": "Ôn thi môn kinh tế lượng",
+    "tap_dau_tu_mo_phong": "Tập đầu tư bằng giao dịch mô phỏng (paper trading)",
+    "nghien_cuu_dinh_luong": "Nghiên cứu định lượng chuyên sâu",
+}
+
+# Gợi ý chế độ theo lớp; người học vẫn có quyền chọn khác.
+_GRADE_TO_MODE = {
+    "lop_10": MODE_HIGHSCHOOL,
+    "lop_11": MODE_HIGHSCHOOL,
+    "lop_12": MODE_HIGHSCHOOL,
+    "sinh_vien": MODE_UNIVERSITY,
+}
+
+
+def default_learner_profile() -> dict[str, Any]:
+    return {"grade_level": "khac", "knowledge_level": "moi_bat_dau", "goals": []}
+
+
+def normalise_learner_profile(raw: Any) -> dict[str, Any]:
+    """Ép hồ sơ về giá trị hợp lệ; bỏ mọi khoá lạ và dữ liệu định danh."""
+
+    if not isinstance(raw, MutableMapping) and not isinstance(raw, dict):
+        return default_learner_profile()
+
+    grade = str(raw.get("grade_level", "")).strip().lower()
+    knowledge = str(raw.get("knowledge_level", "")).strip().lower()
+
+    goals_in = raw.get("goals") or []
+    if isinstance(goals_in, str):
+        goals_in = [goals_in]
+    goals = [g for g in goals_in if isinstance(g, str) and g in GOALS]
+
+    return {
+        "grade_level": grade if grade in GRADE_LEVELS else "khac",
+        "knowledge_level": knowledge if knowledge in KNOWLEDGE_LEVELS else "moi_bat_dau",
+        "goals": list(dict.fromkeys(goals)),
+    }
+
+
+def store_learner_profile(
+    session: MutableMapping[str, Any], raw: Any
+) -> dict[str, Any]:
+    clean = normalise_learner_profile(raw)
+    session[LEARNER_PROFILE_KEY] = clean
+    return clean
+
+
+def get_learner_profile(session: MutableMapping[str, Any] | None) -> dict[str, Any]:
+    if session is None:
+        return default_learner_profile()
+    return normalise_learner_profile(session.get(LEARNER_PROFILE_KEY))
+
+
+def suggested_mode(learner_profile: Any) -> str:
+    """Chế độ gợi ý theo lớp. Chỉ là gợi ý, không tự đổi chế độ của người học."""
+
+    clean = normalise_learner_profile(learner_profile)
+    return _GRADE_TO_MODE.get(clean["grade_level"], DEFAULT_MODE)
+
 # Trạng thái phân tích/danh mục phải sống sót qua mọi lần đổi chế độ.
 # Đây là hợp đồng được kiểm thử khóa lại, không được rút gọn tùy tiện.
 PRESERVED_SESSION_KEYS: tuple[str, ...] = (
@@ -63,6 +156,9 @@ PRESERVED_SESSION_KEYS: tuple[str, ...] = (
     "tickers_val",
     "progress_profile",
     "readiness_state",
+    "learner_profile",
+    "risk_limits",
+    "policy_audit",
 )
 
 # ---------------------------------------------------------------------------

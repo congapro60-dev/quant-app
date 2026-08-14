@@ -134,6 +134,76 @@ def test_features_in_area_filters_correctly():
     assert lm.FEATURE_PAPER not in lab
 
 
+def test_learner_profile_defaults_are_valid():
+    profile = lm.default_learner_profile()
+    assert profile["grade_level"] in lm.GRADE_LEVELS
+    assert profile["knowledge_level"] in lm.KNOWLEDGE_LEVELS
+    assert profile["goals"] == []
+
+
+def test_learner_profile_normalises_unknown_values():
+    messy = lm.normalise_learner_profile({
+        "grade_level": "lop_99", "knowledge_level": "sieu_cap",
+        "goals": ["khong_ton_tai", "on_thi"],
+    })
+    assert messy["grade_level"] == "khac"
+    assert messy["knowledge_level"] == "moi_bat_dau"
+    assert messy["goals"] == ["on_thi"]
+
+
+def test_learner_profile_drops_identity_and_unknown_keys():
+    stored = lm.store_learner_profile({}, {
+        "grade_level": "lop_11", "knowledge_level": "kha", "goals": ["on_thi"],
+        "ho_ten": "Nguyen Van A", "ngay_sinh": "2010-01-01", "cccd": "0123",
+    })
+    assert set(stored) == {"grade_level", "knowledge_level", "goals"}
+
+
+def test_learner_profile_handles_garbage_input():
+    for bad in (None, "chuoi", 123, []):
+        profile = lm.normalise_learner_profile(bad)
+        assert profile == lm.default_learner_profile()
+
+
+def test_learner_profile_deduplicates_goals():
+    profile = lm.normalise_learner_profile({"goals": ["on_thi", "on_thi"]})
+    assert profile["goals"] == ["on_thi"]
+
+
+def test_learner_profile_accepts_single_goal_as_string():
+    profile = lm.normalise_learner_profile({"goals": "on_thi"})
+    assert profile["goals"] == ["on_thi"]
+
+
+def test_suggested_mode_follows_grade_but_does_not_force():
+    assert lm.suggested_mode({"grade_level": "lop_10"}) == lm.MODE_HIGHSCHOOL
+    assert lm.suggested_mode({"grade_level": "sinh_vien"}) == lm.MODE_UNIVERSITY
+    assert lm.suggested_mode({"grade_level": "khac"}) == lm.DEFAULT_MODE
+
+
+def test_learner_profile_survives_mode_switch():
+    session = _session_with_work()
+    lm.store_learner_profile(session, {"grade_level": "lop_12", "goals": ["on_thi"]})
+    lm.switch_mode(session, lm.MODE_UNIVERSITY)
+    assert lm.get_learner_profile(session)["grade_level"] == "lop_12"
+
+
+def test_risk_limits_and_audit_survive_mode_switch():
+    session = _session_with_work()
+    session["risk_limits"] = {"capital_cap_vnd": 5_000_000}
+    session["policy_audit"] = ["su_kien"]
+    lm.switch_mode(session, lm.MODE_UNIVERSITY)
+    assert session["risk_limits"] == {"capital_cap_vnd": 5_000_000}
+    assert session["policy_audit"] == ["su_kien"]
+
+
+@pytest.mark.parametrize("label_map", [lm.GRADE_LABELS, lm.KNOWLEDGE_LABELS,
+                                       lm.GOAL_LABELS])
+def test_learner_profile_labels_are_filled(label_map):
+    for key, label in label_map.items():
+        assert label.strip(), key
+
+
 @pytest.mark.parametrize("mode", list(lm.VALID_MODES))
 def test_mode_labels_are_bilingual(mode):
     """Nhãn chế độ phải có tiếng Việt kèm tiếng Anh trong ngoặc."""

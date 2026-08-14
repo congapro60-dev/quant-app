@@ -153,6 +153,36 @@ with st.sidebar:
                 "sẽ mở sau khi bạn hoàn thành các bài học nền tảng."
             )
 
+    with st.expander("👤 Hồ sơ người học"):
+        st.caption(
+            "Chỉ dùng để gợi ý nội dung phù hợp. Ứng dụng không hỏi họ tên, "
+            "ngày sinh hay giấy tờ."
+        )
+        _lp = lmode.get_learner_profile(st.session_state)
+        _grades = list(lmode.GRADE_LEVELS)
+        _levels = list(lmode.KNOWLEDGE_LEVELS)
+        _grade = st.selectbox(
+            "Lớp:", _grades, index=_grades.index(_lp["grade_level"]),
+            format_func=lambda g: lmode.GRADE_LABELS[g], key="lp_grade",
+        )
+        _level = st.selectbox(
+            "Mức kiến thức:", _levels, index=_levels.index(_lp["knowledge_level"]),
+            format_func=lambda k: lmode.KNOWLEDGE_LABELS[k], key="lp_level",
+        )
+        _goals = st.multiselect(
+            "Mục tiêu:", list(lmode.GOALS), default=_lp["goals"],
+            format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals",
+        )
+        lmode.store_learner_profile(st.session_state, {
+            "grade_level": _grade, "knowledge_level": _level, "goals": _goals,
+        })
+        _suggested = lmode.suggested_mode(st.session_state.get(lmode.LEARNER_PROFILE_KEY))
+        if _suggested != lmode.get_mode(st.session_state):
+            st.caption(
+                f"Gợi ý theo lớp: **{lmode.MODE_LABELS[_suggested]}**. "
+                "Bạn vẫn tự chọn chế độ ở trên."
+            )
+
     st.markdown("---")
     st.header("⚙️ Tham số đầu vào")
 

@@ -68,6 +68,48 @@ def test_unverified_records_show_the_required_notice(provider):
         assert provider.age_policy_source_display() == pd_.UNVERIFIED_NOTICE
 
 
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_fee_and_hotline_fields_exist(provider):
+    for field_name in ("published_fees", "published_fees_source", "hotline"):
+        assert hasattr(provider, field_name), field_name
+
+
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_unverified_fee_and_hotline_show_the_notice(provider):
+    """Biểu phí và tổng đài đổi thường xuyên: chưa xác minh thì không hiện số."""
+
+    if provider.verification_status != pd_.STATUS_VERIFIED:
+        assert provider.published_fees_display() == pd_.UNVERIFIED_NOTICE
+        assert provider.hotline_display() == pd_.UNVERIFIED_NOTICE
+
+
+def test_fee_shown_only_when_record_is_verified():
+    verified = pd_.Provider(
+        key="v", legal_name="V", official_url="https://v.vn/",
+        products=(pd_.P_STOCK,), membership_source=pd_.VSDC_MEMBER_LIST,
+        age_policy="Từ đủ 18 tuổi", age_policy_source="https://v.vn/tos",
+        verified_at="2026-08-11", verification_status=pd_.STATUS_VERIFIED,
+        published_fees="0,15% giá trị giao dịch", hotline="1900 0000",
+    )
+    assert verified.published_fees_display() == "0,15% giá trị giao dịch"
+    assert verified.hotline_display() == "1900 0000"
+
+    stale = pd_.Provider(
+        key="s", legal_name="S", official_url="https://s.vn/",
+        products=(pd_.P_STOCK,), membership_source=pd_.VSDC_MEMBER_LIST,
+        verification_status=pd_.STATUS_EXPIRED,
+        published_fees="0,15%", hotline="1900 1111",
+    )
+    assert stale.published_fees_display() == pd_.UNVERIFIED_NOTICE
+    assert stale.hotline_display() == pd_.UNVERIFIED_NOTICE
+
+
+def test_directory_row_carries_fee_and_hotline_columns():
+    row = pd_.directory_rows()[0]
+    assert "Phí công bố" in row
+    assert "Tổng đài" in row
+
+
 def test_verification_status_values_are_valid():
     for provider in pd_.PROVIDERS:
         assert provider.verification_status in pd_.VALID_STATUSES

@@ -73,6 +73,9 @@ class Provider:
     age_policy_source: str | None = None
     verified_at: str | None = None
     verification_status: str = STATUS_UNVERIFIED
+    published_fees: str | None = None
+    published_fees_source: str | None = None
+    hotline: str | None = None
     notes: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -82,6 +85,18 @@ class Provider:
             and bool(self.age_policy)
             and bool(self.age_policy_source)
         )
+
+    def published_fees_display(self) -> str:
+        """Biểu phí thay đổi thường xuyên nên chỉ hiện khi đã xác minh."""
+
+        if self.verification_status != STATUS_VERIFIED or not self.published_fees:
+            return UNVERIFIED_NOTICE
+        return str(self.published_fees)
+
+    def hotline_display(self) -> str:
+        if self.verification_status != STATUS_VERIFIED or not self.hotline:
+            return UNVERIFIED_NOTICE
+        return str(self.hotline)
 
     def age_policy_display(self) -> str:
         """Chuỗi hiển thị cho chính sách tuổi. Chưa xác minh thì nói rõ."""
@@ -230,6 +245,8 @@ def as_row(provider: Provider) -> dict[str, Any]:
         "Nguồn tra tư cách thành viên": provider.membership_source,
         "Chính sách tuổi": provider.age_policy_display(),
         "Nguồn chính sách tuổi": provider.age_policy_source_display(),
+        "Phí công bố": provider.published_fees_display(),
+        "Tổng đài": provider.hotline_display(),
         "Ngày xác minh": provider.verified_at or UNVERIFIED_NOTICE,
         "Trạng thái xác minh": status_display(provider.verification_status),
     }
