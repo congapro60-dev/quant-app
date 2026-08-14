@@ -23,6 +23,7 @@ from safe_ai_tools import (
 from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
+import learning_modes as lmode
 try:
     from streamlit_autorefresh import st_autorefresh
 except Exception:
@@ -120,12 +121,38 @@ for k, v in {
     'trade_plans': {}, 'backtest_result': None,
     'last_query_uses_today': False, 'intraday_result': None,
     'intraday_active_query_signature': '',
+    lmode.MODE_KEY: lmode.DEFAULT_MODE, lmode.UNLOCK_KEY: False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
+    st.header("🎓 Chế độ học")
+    _mode_values = list(lmode.VALID_MODES)
+    _current_mode = lmode.get_mode(st.session_state)
+    _picked_mode = st.radio(
+        "Chọn lộ trình:",
+        _mode_values,
+        index=_mode_values.index(_current_mode),
+        format_func=lambda m: lmode.MODE_LABELS[m],
+        key="mode_picker",
+    )
+    if _picked_mode != _current_mode:
+        # switch_mode giữ nguyên dữ liệu phân tích và sổ danh mục mô phỏng.
+        lmode.switch_mode(st.session_state, _picked_mode)
+        st.rerun()
+    st.caption(lmode.MODE_DESCRIPTIONS[lmode.get_mode(st.session_state)])
+    if lmode.get_mode(st.session_state) == lmode.MODE_HIGHSCHOOL:
+        if lmode.is_advanced_unlocked(st.session_state):
+            st.success("🔓 Đã mở khóa công cụ nâng cao.")
+        else:
+            st.info(
+                "🔒 Công cụ nâng cao (SIM, Markowitz, EViews, kiểm thử ngoài mẫu) "
+                "sẽ mở sau khi bạn hoàn thành các bài học nền tảng."
+            )
+
+    st.markdown("---")
     st.header("⚙️ Tham số đầu vào")
 
     st.caption("Chọn nhanh danh mục mẫu:")
