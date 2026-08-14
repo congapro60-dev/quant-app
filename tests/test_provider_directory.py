@@ -1,0 +1,147 @@
+"""Kiểm thử danh bạ nhà cung cấp: đủ trường, trung lập, không suy diễn."""
+
+from __future__ import annotations
+
+import pytest
+
+import provider_directory as pd_
+
+
+REQUIRED_FIELDS = (
+    "legal_name",
+    "official_url",
+    "products",
+    "membership_source",
+    "age_policy",
+    "age_policy_source",
+    "verified_at",
+    "verification_status",
+)
+
+EXPECTED_KEYS = {
+    "ssi", "mbs", "tcbs", "vndirect", "vietcap", "hsc", "vnsc", "dragonx",
+}
+
+
+def test_directory_contains_the_eight_required_providers():
+    assert {p.key for p in pd_.all_providers()} == EXPECTED_KEYS
+
+
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_every_record_has_all_required_fields(provider):
+    for field_name in REQUIRED_FIELDS:
+        assert hasattr(provider, field_name), field_name
+
+
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_legal_name_and_products_are_filled(provider):
+    assert provider.legal_name.strip()
+    assert provider.products
+    assert provider.membership_source.strip()
+
+
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_official_url_is_https_and_affiliate_free(provider):
+    assert pd_.is_official_https_url(provider.official_url), provider.official_url
+    assert not pd_.has_affiliate_marker(provider.official_url)
+
+
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_no_affiliate_marker_anywhere_in_record(provider):
+    blob = " ".join(
+        str(x) for x in (
+            provider.official_url,
+            provider.membership_source,
+            provider.age_policy_source or "",
+            " ".join(provider.notes),
+        )
+    )
+    assert not pd_.has_affiliate_marker(blob)
+
+
+@pytest.mark.parametrize("provider", list(pd_.PROVIDERS), ids=lambda p: p.key)
+def test_unverified_records_show_the_required_notice(provider):
+    """Chưa xác minh thì phải nói rõ, không được hiện chính sách đoán."""
+
+    if not provider.is_verified:
+        assert provider.age_policy_display() == pd_.UNVERIFIED_NOTICE
+        assert provider.age_policy_source_display() == pd_.UNVERIFIED_NOTICE
+
+
+def test_verification_status_values_are_valid():
+    for provider in pd_.PROVIDERS:
+        assert provider.verification_status in pd_.VALID_STATUSES
+
+
+def test_record_marked_verified_must_carry_policy_and_source():
+    """Không thể vừa 'đã xác minh' vừa thiếu nội dung hoặc nguồn."""
+
+    good = pd_.Provider(
+        key="x", legal_name="X", official_url="https://x.vn/",
+        products=(pd_.P_STOCK,), membership_source=pd_.VSDC_MEMBER_LIST,
+        age_policy="Từ đủ 18 tuổi", age_policy_source="https://x.vn/dieu-khoan",
+        verified_at="2026-08-11", verification_status=pd_.STATUS_VERIFIED,
+    )
+    assert good.is_verified is True
+    assert good.age_policy_display() == "Từ đủ 18 tuổi"
+
+    missing_source = pd_.Provider(
+        key="y", legal_name="Y", official_url="https://y.vn/",
+        products=(pd_.P_STOCK,), membership_source=pd_.VSDC_MEMBER_LIST,
+        age_policy="Từ đủ 18 tuổi", age_policy_source=None,
+        verification_status=pd_.STATUS_VERIFIED,
+    )
+    assert missing_source.is_verified is False
+    assert missing_source.age_policy_display() == pd_.UNVERIFIED_NOTICE
+
+
+def test_expired_status_falls_back_to_notice():
+    expired = pd_.Provider(
+        key="z", legal_name="Z", official_url="https://z.vn/",
+        products=(pd_.P_STOCK,), membership_source=pd_.VSDC_MEMBER_LIST,
+        age_policy="Từ đủ 18 tuổi", age_policy_source="https://z.vn/tos",
+        verified_at="2020-01-01", verification_status=pd_.STATUS_EXPIRED,
+    )
+    assert expired.age_policy_display() == pd_.UNVERIFIED_NOTICE
+
+
+def test_directory_rows_never_leak_none_into_display():
+    for row in pd_.directory_rows():
+        for key, value in row.items():
+            assert value is not None, key
+            assert str(value).strip() != "", key
+
+
+def test_products_are_separated_not_lumped_together():
+    """Phái sinh phải tách khỏi cổ phiếu/chứng chỉ quỹ."""
+
+    dragonx = pd_.get_provider("dragonx")
+    assert dragonx is not None
+    assert pd_.P_DERIVATIVE not in dragonx.products
+    assert pd_.P_STOCK not in dragonx.products
+    assert pd_.P_FUND in dragonx.products
+
+
+def test_providers_for_product_filters():
+    fund_providers = pd_.providers_for_product(pd_.P_FUND)
+    assert any(p.key == "dragonx" for p in fund_providers)
+    deriv = pd_.providers_for_product(pd_.P_DERIVATIVE)
+    assert all(pd_.P_DERIVATIVE in p.products for p in deriv)
+
+
+def test_directory_is_alphabetical_not_ranked():
+    keys = [p.key for p in pd_.all_providers()]
+    assert keys == sorted(keys)
+
+
+def test_get_provider_is_case_insensitive_and_safe():
+    assert pd_.get_provider("SSI") is not None
+    assert pd_.get_provider("  ssi ") is not None
+    assert pd_.get_provider("khong-ton-tai") is None
+    assert pd_.get_provider("") is None
+
+
+def test_affiliate_detector_catches_common_markers():
+    assert pd_.has_affiliate_marker("https://x.vn/?ref=abc") is True
+    assert pd_.has_affiliate_marker("https://x.vn/?utm_source=y") is True
+    assert pd_.has_affiliate_marker("https://x.vn/mo-tai-khoan") is False
