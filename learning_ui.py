@@ -12,9 +12,11 @@ import streamlit as st
 
 import curriculum as cur
 import learning_modes as lmode
+import policy_audit as audit
 import progress_profile as pp
 import provider_directory as pdir
 import readiness_gate as rg
+import risk_limits as rlim
 
 
 def _profile() -> dict[str, Any]:
@@ -131,9 +133,10 @@ def render_journal_area() -> None:
     st.header("Nhật ký và tiến độ")
     profile = _profile()
 
-    tab_progress, tab_journal, tab_gate, tab_dir = st.tabs(
+    (tab_progress, tab_journal, tab_gate,
+     tab_policy, tab_dir) = st.tabs(
         ["Tiến độ và rubric", "Nhật ký quyết định",
-         "Sẵn sàng dùng vốn thật", "Nơi mở tài khoản"]
+         "Sẵn sàng dùng vốn thật", "Nhật ký chính sách", "Nơi mở tài khoản"]
     )
 
     with tab_progress:
@@ -142,6 +145,8 @@ def render_journal_area() -> None:
         _render_journal(profile)
     with tab_gate:
         render_readiness_gate()
+    with tab_policy:
+        render_policy_audit()
     with tab_dir:
         render_provider_directory()
 
@@ -272,13 +277,19 @@ def render_readiness_gate() -> None:
     )
     risk_ok = st.checkbox("Tôi đã làm bài kiểm tra kiến thức và rủi ro.")
 
-    rg.store_gate_inputs(st.session_state, {
+    gate_inputs = {
         "age_band": band,
         "paper_first_completed": paper_done,
         "guardian_confirmed": guardian,
         "broker_policy_confirmed": broker_ok,
         "risk_check_passed": risk_ok,
-    })
+    }
+    rg.store_gate_inputs(st.session_state, gate_inputs)
+    # Nghiệm thu ROADMAP: mọi thay đổi chính sách phải có nhật ký.
+    audit.sync_and_record(
+        st.session_state, gate_inputs,
+        snapshot_key="_gate_snapshot", note="Người học tự khai tại cổng",
+    )
 
     # Luôn tính lại từ đầu vào, không đọc cờ đã lưu.
     decision = rg.evaluate_session(st.session_state)
@@ -313,6 +324,111 @@ def render_readiness_gate() -> None:
             f"- 🔒 {rg.PRODUCT_LABELS.get(product, product)} — "
             f"{decision.block_reasons.get(product, '')}"
         )
+
+    st.markdown("---")
+    _render_risk_limits(band)
+
+
+def _render_risk_limits(age_band: str) -> None:
+    st.markdown("### Hạn mức rủi ro")
+    ceiling_note = {
+        rg.AGE_UNDER_15: "Nhóm dưới 15 tuổi không dùng vốn thật nên mọi hạn mức bằng 0.",
+        rg.AGE_15_17: "Nhóm 15–dưới 18 tuổi có trần cứng chặt hơn và thời gian chờ dài hơn.",
+        rg.AGE_18_PLUS: "Bạn có thể siết chặt hơn mức mặc định, nhưng không nới quá trần.",
+    }.get(age_band, "Chọn nhóm tuổi để mở phần hạn mức.")
+    st.caption(ceiling_note)
+
+    stored = st.session_state.get("risk_limits")
+    base = rlim.default_limits_for(age_band)
+    if isinstance(stored, dict):
+        try:
+            base = rlim.RiskLimits(**stored)
+        except TypeError:
+            base = rlim.default_limits_for(age_band)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        capital = st.number_input(
+            "Hạn mức vốn (VND):", min_value=0.0,
+            value=float(base.capital_cap_vnd if base.capital_cap_vnd != float("inf") else 0.0),
+            step=1_000_000.0, key="rl_capital",
+        )
+        cooldown = st.number_input(
+            "Thời gian chờ trước lệnh (phút):", min_value=0,
+            value=int(base.cooldown_minutes), step=15, key="rl_cooldown",
+        )
+    with c2:
+        pos = st.slider(
+            "Tỷ trọng tối đa mỗi mã:", 0.0, 1.0,
+            float(base.max_position_fraction), 0.01, key="rl_pos",
+        )
+        sector = st.slider(
+            "Tỷ trọng tối đa mỗi ngành:", 0.0, 1.0,
+            float(base.max_sector_fraction), 0.01, key="rl_sector",
+        )
+    with c3:
+        daily = st.slider(
+            "Mức lỗ tối đa trong ngày:", 0.0, 0.10,
+            float(base.max_daily_loss_fraction), 0.005, key="rl_daily",
+        )
+        monthly = st.slider(
+            "Mức lỗ tối đa trong tháng:", 0.0, 0.25,
+            float(base.max_monthly_loss_fraction), 0.005, key="rl_monthly",
+        )
+
+    # Ép về trần cứng của nhóm tuổi: người học siết được, nới thì không.
+    applied = rlim.clamp_to_age(
+        rlim.RiskLimits(
+            capital_cap_vnd=capital, max_position_fraction=pos,
+            max_sector_fraction=sector, max_daily_loss_fraction=daily,
+            max_monthly_loss_fraction=monthly, cooldown_minutes=int(cooldown),
+        ),
+        age_band,
+    )
+    st.session_state["risk_limits"] = applied.as_dict()
+    audit.sync_and_record(
+        st.session_state, applied.as_dict(),
+        snapshot_key="_limits_snapshot", note="Thay đổi hạn mức rủi ro",
+    )
+
+    if applied.as_dict() != {
+        "capital_cap_vnd": capital, "max_position_fraction": pos,
+        "max_sector_fraction": sector, "max_daily_loss_fraction": daily,
+        "max_monthly_loss_fraction": monthly, "cooldown_minutes": int(cooldown),
+    }:
+        st.warning(
+            "Một vài giá trị đã được siết về trần cứng của nhóm tuổi. "
+            "Bạn có thể đặt chặt hơn, nhưng không nới rộng hơn trần."
+        )
+
+    st.dataframe(
+        [{"Hạn mức": audit.FIELD_LABELS.get(k, k), "Đang áp dụng": v}
+         for k, v in applied.as_dict().items()],
+        width="stretch",
+    )
+    st.caption(
+        "Kế hoạch vượt ngưỡng mềm cần xác nhận hai bước. Chạm giới hạn lỗ ngày "
+        "hoặc tháng thì bị chặn, không có xác nhận nào bỏ qua được."
+    )
+
+
+def render_policy_audit() -> None:
+    st.subheader("Nhật ký thay đổi chính sách")
+    st.caption(
+        "Ghi lại mọi lần đổi nhóm tuổi, đổi xác nhận hay đổi hạn mức rủi ro. "
+        "Nhật ký không chứa giấy tờ định danh và tải xuống được."
+    )
+    rows = audit.audit_rows(st.session_state)
+    if not rows:
+        st.info("Chưa có thay đổi chính sách nào được ghi.")
+        return
+    st.dataframe(rows, width="stretch")
+    st.download_button(
+        "⬇️ Tải nhật ký chính sách (JSON)",
+        audit.export_json(st.session_state).encode("utf-8"),
+        file_name="nhat_ky_chinh_sach.json",
+        mime="application/json",
+    )
 
 
 def render_provider_directory() -> None:
