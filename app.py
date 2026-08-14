@@ -5,8 +5,14 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-from datetime import datetime, timedelta
-from data_loader import fetch_data, calculate_returns, fetch_intraday
+from datetime import timedelta
+from data_loader import (
+    calculate_returns,
+    fetch_data,
+    fetch_intraday,
+    intraday_query_signature,
+    vietnam_now,
+)
 from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm
 from safe_ai_tools import (
     SafeAnalysisError,
@@ -78,10 +84,26 @@ st.markdown("""
 st.markdown("""
 <div class="qa-hero">
   <h1 style="margin:0 0 6px 0">Quant App — Học thuật & Quyết định đầu tư</h1>
-  <div><strong>Phân tích định lượng có kiểm định</strong> · SIM · Markowitz · Backtest · Paper portfolio · EViews</div>
+  <div><strong>Phân tích định lượng có kiểm định</strong> · Mô hình chỉ số đơn (SIM) · Danh mục Markowitz · Kiểm thử quá khứ (backtest) · Danh mục mô phỏng (paper portfolio) · EViews</div>
 </div>
 """, unsafe_allow_html=True)
-st.markdown("<div class='qa-safety'>Công cụ hỗ trợ quyết định, không cam kết lợi nhuận. Chỉ cân nhắc vốn thật sau khi chiến lược vượt kiểm định ngoài mẫu và paper trading.</div>", unsafe_allow_html=True)
+st.markdown("<div class='qa-safety'>Công cụ hỗ trợ quyết định, không cam kết lợi nhuận. Chỉ cân nhắc vốn thật sau khi chiến lược vượt kiểm định ngoài mẫu (OOS) và giao dịch mô phỏng (paper trading).</div>", unsafe_allow_html=True)
+
+with st.expander("📘 Thuật ngữ nhanh — đọc tiếng Việt, làm quen tiếng Anh"):
+    st.markdown("""
+| Thuật ngữ trên ứng dụng | Nghĩa ngắn gọn |
+|---|---|
+| **Trí tuệ nhân tạo (AI)** · **Giao diện lập trình (API)** | AI diễn giải; API là cách ứng dụng kết nối dịch vụ AI. |
+| **Dữ liệu cuối ngày (EOD)** · **thời gian thực (realtime)** | EOD chốt theo phiên; realtime cập nhật gần như tức thời. |
+| **Mô hình chỉ số đơn (SIM)** · **Markowitz** | Hai mô hình học thuật để đo rủi ro và phân bổ danh mục. |
+| **Kiểm thử quá khứ (backtest)** · **ngoài mẫu (OOS)** | Thử chiến lược trên lịch sử; OOS là phần dữ liệu không dùng để xây chiến lược. |
+| **Danh mục/giao dịch mô phỏng (paper portfolio/paper trading)** | Ghi nhận mua bán giả lập, không gửi lệnh thật. |
+| **Lãi/lỗ (P&L)** · **mức sụt giảm (drawdown)** | Kết quả lời/lỗ và mức giảm từ đỉnh xuống đáy. |
+| **Dừng lỗ (stop)** · **mục tiêu giá (target)** | Mức thoát khi sai và mức dự kiến chốt lời. |
+| **Trượt giá (slippage)** · **danh mục tham chiếu (benchmark)** | Chênh lệch giá dự kiến/khớp; chuẩn để so kết quả. |
+| **Điểm cơ bản (bps)** | 100 bps = 1%; thường dùng cho phí, thuế và trượt giá. |
+| **Tệp bảng (CSV)** · **tệp cấu trúc (JSON)** | CSV để xem dữ liệu; JSON để sao lưu và khôi phục trạng thái. |
+""")
 
 # ==================== KHỞI TẠO SESSION STATE ====================
 for k, v in {
@@ -93,6 +115,8 @@ for k, v in {
     'data_status': 'idle', 'data_error': '', 'data_last_date': None,
     'live_refresh_counter': None, 'paper_trades': [], 'paper_ledger': None,
     'trade_plans': {}, 'backtest_result': None,
+    'last_query_uses_today': False, 'intraday_result': None,
+    'intraday_active_query_signature': '',
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -118,30 +142,36 @@ with st.sidebar:
                                       key="tickers_val")
         index_input = st.text_input("Chỉ số thị trường:", "VNINDEX")
         c1, c2 = st.columns(2)
-        end_date = datetime.today()
+        end_date = vietnam_now().date()
         start_date = end_date - timedelta(days=365)
         start_date_input = c1.date_input("Từ ngày:", start_date)
         end_date_input = c2.date_input("Đến ngày:", end_date)
         submitted = st.form_submit_button("🚀 Phân tích", width="stretch", type="primary")
 
     st.markdown("---")
-    st.header("Làm mới dữ liệu EOD")
+    st.header("Làm mới dữ liệu cuối ngày (EOD)")
     live_mode = st.toggle("Tự động làm mới dữ liệu lịch sử", value=False,
-                          help="Đây là OHLCV lịch sử/EOD, không phải báo giá realtime hay sổ lệnh.")
+                          help="Đây là dữ liệu giá mở-cao-thấp-đóng và khối lượng (OHLCV) lịch sử/cuối ngày (EOD), không phải báo giá thời gian thực (realtime) hay sổ lệnh.")
     refresh_min = st.selectbox("Chu kỳ làm mới (phút):", [1, 5, 15], index=1, disabled=not live_mode)
     if live_mode and st_autorefresh is None:
-        st.caption("⚠️ Thiếu gói streamlit-autorefresh nên chưa tự làm mới được.")
+        st.caption("⚠️ Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
 
     st.markdown("---")
-    st.header("Tích hợp AI (tùy chọn)")
-    ai_provider = st.radio("Nhà cung cấp AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"], horizontal=True)
+    st.header("Tích hợp trí tuệ nhân tạo (AI) — tùy chọn")
+    ai_provider = st.radio("Nhà cung cấp (provider) AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"], horizontal=True)
     ai_config = None
     if ai_provider != "Không dùng":
-        api_key = st.text_input("API Key:", type="password", key="api_key_val")
+        api_key = st.text_input("Khóa giao diện lập trình (API key):", type="password", key="api_key_val")
         if ai_provider == "Anthropic (Claude)":
-            model_choice = st.selectbox("Model:", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
+            model_choice = st.selectbox("Mô hình (model):", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
         else:
-            model_choice = st.selectbox("Model:", ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
+            model_choice = st.selectbox("Mô hình (model):", ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
+            if model_choice == "gemini-3.1-pro-preview":
+                st.caption(
+                    "ℹ️ Gemini 3.1 Pro Preview có thể không có hạn mức (quota) ở bậc miễn phí (Free Tier). "
+                    "Nếu API trả QUOTA_OR_TIER, cần bật bậc trả phí (Paid Tier) cho đúng dự án Google Cloud "
+                    "hoặc chọn Flash; đổi mã nguồn hay mã mô hình (model ID) không thể vượt giới hạn tài khoản."
+                )
         ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
 
         current_ai_signature = hashlib.sha256(
@@ -153,7 +183,7 @@ with st.sidebar:
 
         if api_key:
             if st.button("🔌 Kích hoạt & kiểm tra kết nối", width="stretch"):
-                with st.spinner("Đang kiểm tra key..."):
+                with st.spinner("Đang kiểm tra khóa API..."):
                     test = call_llm("Trả lời đúng 1 từ: OK", ai_config)
                 if test and not str(test).startswith("Lỗi"):
                     st.session_state['ai_ok'] = True
@@ -165,14 +195,14 @@ with st.sidebar:
                     st.session_state['ai_connection_signature'] = current_ai_signature
             if (st.session_state.get('ai_ok') is True and
                     st.session_state.get('ai_connection_signature') == current_ai_signature):
-                st.success(f"🟢 Đã kết nối {ai_provider} — {model_choice}. Sẵn sàng dùng ở các tab AI.")
+                st.success(f"🟢 Đã kết nối {ai_provider} — {model_choice}. Sẵn sàng dùng ở các thẻ (tab) AI.")
             elif st.session_state.get('ai_ok') is False:
-                st.error(f"🔴 Key chưa dùng được: {st.session_state.get('ai_err','')}")
+                st.error(f"🔴 Khóa API chưa dùng được: {st.session_state.get('ai_err','')}")
             else:
-                st.info("🔑 Đã nhận key — có thể dùng ngay. Bấm nút trên để xác nhận key hợp lệ (khuyên dùng).")
+                st.info("🔑 Đã nhận khóa API — có thể dùng ngay. Bấm nút trên để xác nhận khóa hợp lệ (khuyên dùng).")
         else:
-            st.caption("Nhập API key để bật phân tích AI.")
-        st.caption("🔒 Key chỉ lưu tạm trong phiên, không ghi vào code.")
+            st.caption("Nhập khóa API để bật phân tích bằng trí tuệ nhân tạo (AI).")
+        st.caption("🔒 Khóa API chỉ lưu tạm trong phiên, không ghi vào mã nguồn (code).")
 
 # ==================== XỬ LÝ KHI BẤM PHÂN TÍCH ====================
 def _clear_market_state(error_message=""):
@@ -199,7 +229,7 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
             st.error(st.session_state.data_error)
         return False
     if len(asset_tickers) > 12:
-        _clear_market_state("Giới hạn 12 mã mỗi lần để bảo vệ quota và độ ổn định.")
+        _clear_market_state("Giới hạn 12 mã mỗi lần để bảo vệ hạn mức (quota) và độ ổn định.")
         if show_msgs:
             st.error(st.session_state.data_error)
         return False
@@ -280,7 +310,7 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
     st.session_state.market_ticker = market_ticker
     st.session_state.valid_assets = valid_assets
     st.session_state.last_query = (asset_tickers, market_ticker, start_str, end_str)
-    st.session_state.last_update = datetime.now()
+    st.session_state.last_update = vietnam_now()
     st.session_state.data_last_date = pd.Timestamp(prices_df.index.max())
     fetch_report = prices_df.attrs.get("fetch_report", {})
     st.session_state.data_source = fetch_report.get("source", "")
@@ -291,8 +321,21 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
 
 # Kích hoạt phân tích khi bấm nút
 if submitted:
-    run_analysis(tickers_input.split(','), index_input,
-                 start_date_input.strftime('%Y-%m-%d'), end_date_input.strftime('%Y-%m-%d'))
+    # A manual query replaces the previous research universe.  Invalidate all
+    # dependent artifacts before attempting it so a failed CTG/FPT request can
+    # never revive an older portfolio, backtest or trade plan on the next tick.
+    st.session_state['last_query'] = None
+    st.session_state['last_query_uses_today'] = False
+    st.session_state['backtest_result'] = None
+    st.session_state['trade_plans'] = {}
+    st.session_state['advice_cache'] = {}
+    submitted_uses_today = end_date_input == vietnam_now().date()
+    submitted_ok = run_analysis(
+        tickers_input.split(','), index_input,
+        start_date_input.strftime('%Y-%m-%d'), end_date_input.strftime('%Y-%m-%d')
+    )
+    if submitted_ok:
+        st.session_state['last_query_uses_today'] = submitted_uses_today
 
 # Chế độ real-time: tự làm mới định kỳ và tính lại
 st.session_state['_live_flag'] = bool(live_mode)
@@ -301,13 +344,16 @@ if live_mode and st_autorefresh is not None:
     is_refresh_tick = refresh_counter != st.session_state.get('live_refresh_counter')
     st.session_state.live_refresh_counter = refresh_counter
     if is_refresh_tick and st.session_state.get('last_query') and not submitted:
-        run_analysis(*st.session_state['last_query'], show_msgs=False)
+        refresh_query = list(st.session_state['last_query'])
+        if st.session_state.get('last_query_uses_today'):
+            refresh_query[3] = vietnam_now().date().isoformat()
+        run_analysis(*refresh_query, show_msgs=False)
 
 # ==================== CÁC TAB ====================
 (invest_tab, intraday_tab, paper_tab, backtest_tab,
  tab1, tab2, tab3, tab4, tab5) = st.tabs([
-    "Bàn đầu tư", "Giá trong phiên", "Paper portfolio", "Backtest OOS",
-    "Rủi ro (SIM)", "Danh mục (Markowitz)", "Trợ lý quyết định",
+    "Bàn đầu tư", "Giá trong phiên", "Danh mục mô phỏng (paper portfolio)", "Kiểm thử ngoài mẫu (backtest OOS)",
+    "Rủi ro chỉ số đơn (SIM)", "Danh mục trung bình–phương sai (Markowitz)", "Trợ lý quyết định",
     "EViews tiếng Việt", "Ôn thi",
 ])
 
@@ -328,16 +374,26 @@ def render_live_prices():
     tickers = [t for t in tickers if t in prices_df.columns]
     lu = st.session_state.get('last_update')
     auto_refresh = st.session_state.get('_live_flag', False)
-    tag = "TỰ LÀM MỚI" if auto_refresh else "DỮ LIỆU EOD"
+    tag = "TỰ LÀM MỚI" if auto_refresh else "DỮ LIỆU CUỐI NGÀY (EOD)"
     if lu is not None:
+        try:
+            lu = pd.Timestamp(lu)
+            if lu.tzinfo is None:
+                lu = lu.tz_localize("Asia/Ho_Chi_Minh")
+            else:
+                lu = lu.tz_convert("Asia/Ho_Chi_Minh")
+        except (TypeError, ValueError):
+            lu = None
         last_session = st.session_state.get('data_last_date')
         last_session_text = pd.Timestamp(last_session).strftime('%d/%m/%Y') if last_session is not None else "không rõ"
         data_source = st.session_state.get('data_source')
         source_text = f" · nguồn {data_source}" if data_source else ""
-        st.caption(
-            f"{tag} · phiên gần nhất {last_session_text}{source_text} · tải lúc {lu.strftime('%H:%M:%S %d/%m/%Y')} · "
-            "không phải báo giá realtime"
-        )
+        if lu is not None:
+            st.caption(
+                f"{tag} · phiên gần nhất {last_session_text}{source_text} · "
+                f"tải lúc {lu.strftime('%H:%M:%S %d/%m/%Y')} (giờ Việt Nam) · "
+                "không phải báo giá thời gian thực (realtime)"
+            )
     if not tickers:
         return
     cols = st.columns(len(tickers))
@@ -394,7 +450,7 @@ def interpret_regression_vn(res):
         else:
             dwt = "**không có tự tương quan** đáng kể"
         L.append(f"- Durbin-Watson = {dw:.3f} → {dwt}.")
-    L.append("- Xem thêm Jarque-Bera (chuẩn tắc phần dư) và VIF (đa cộng tuyến) ở bảng kết quả phía trên.")
+    L.append("- Xem thêm Jarque-Bera (chuẩn tắc phần dư) và hệ số phóng đại phương sai (VIF, đa cộng tuyến) ở bảng kết quả phía trên.")
 
     nonconst = [n for n in params.index if str(n).lower() not in ('const', 'c')]
     if len(nonconst) == 1:
@@ -405,7 +461,10 @@ def interpret_regression_vn(res):
             cls = "**phòng thủ** (0<β<1): biến động yếu hơn thị trường — an toàn hơn."
         else:
             cls = "ngược chiều thị trường (β≤0): hiếm gặp, nên kiểm tra lại dữ liệu."
-        L.append(f"**4. Góc nhìn SIM** — Beta = {b:.3f} → cổ phiếu thuộc nhóm {cls}")
+        L.append(
+            f"**4. Góc nhìn mô hình chỉ số đơn (SIM)** — Beta (độ nhạy) = {b:.3f} "
+            f"→ cổ phiếu thuộc nhóm {cls}"
+        )
     L.append("\n> ⚠️ Đây là diễn giải học thuật trên dữ liệu quá khứ, không phải khuyến nghị mua/bán.")
     return "\n".join(L)
 
@@ -441,7 +500,7 @@ def _prep_returns(df, cols, nobs, reverse, is_returns):
             raise ValueError("Lợi suất chứa giá trị không hữu hạn.")
         return clean, len(data)
     if (data <= 0).any().any():
-        raise ValueError("Giá phải dương để tính log-return.")
+        raise ValueError("Giá phải dương để tính lợi suất logarit (log-return).")
     returns = np.log(data / data.shift(1)).replace([np.inf, -np.inf], np.nan).dropna()
     return returns, len(data)
 
@@ -488,7 +547,9 @@ def compute_sim_portfolio_risk(df, assets, market, weights, nobs=0, reverse=Fals
     w = _validated_weights(assets, weights, normalize)
     R, _ = _prep_returns(df, list(assets) + [market], nobs, reverse, is_returns)
     if len(R) < 20:
-        raise ValueError(f"SIM cần ít nhất 20 lợi suất; hiện chỉ có {len(R)}.")
+        raise ValueError(
+            f"Mô hình chỉ số đơn (SIM) cần ít nhất 20 lợi suất; hiện chỉ có {len(R)}."
+        )
     Rm = R[market]
     sig_m2 = float(Rm.var(ddof=1))
     X = sm.add_constant(Rm)
@@ -527,7 +588,10 @@ def run_ai_analysis(df, request, ai_config, extra_context=""):
         if response and not str(response).startswith("Lỗi"):
             output["narrative"] = f"{bundle.narrative}\n\n{response}"
         elif response:
-            output["error"] = f"Phép tính cục bộ đã hoàn tất nhưng AI không diễn giải được: {response}"
+            output["error"] = (
+                "Phép tính cục bộ đã hoàn tất nhưng trí tuệ nhân tạo (AI) không diễn giải được: "
+                f"{response}"
+            )
     return output
 
 
@@ -557,8 +621,8 @@ with intraday_tab:
     st.header("Giá khớp lệnh trong phiên")
     st.warning(
         "⚠️ **Đây là dữ liệu khớp lệnh có độ trễ, không phải bảng giá tức thời.** "
-        "Đo thực tế độ trễ khoảng **15–30 giây**, nhưng có thể lớn hơn khi thị trường "
-        "biến động mạnh — con số đo được ở từng lần tải luôn hiển thị bên dưới. "
+        "Độ trễ thay đổi theo nhà cung cấp (provider) và đường truyền; ứng dụng chỉ hiển thị dữ liệu "
+        "đúng mã, đúng phiên hiện tại và chưa quá ngưỡng trễ an toàn. "
         "Khớp lệnh liên tục: **9:15–11:30** và **13:00–14:30**. "
         "Trước khi đặt lệnh, hãy đối chiếu bảng giá của công ty chứng khoán."
     )
@@ -570,7 +634,18 @@ with intraday_tab:
     intraday_ticker = c1.text_input(
         "Mã cổ phiếu cần xem:", value=default_text, key="intraday_ticker"
     ).strip().upper()
-    n_ticks = c2.selectbox("Số lệnh gần nhất:", [100, 300, 500, 1000], index=2)
+    n_ticks = c2.selectbox(
+        "Số lệnh gần nhất:", [100, 300, 500, 1000], index=2,
+        key="intraday_page_size",
+    )
+    current_intraday_signature = intraday_query_signature(intraday_ticker, n_ticks)
+    cached_intraday = st.session_state.get('intraday_result')
+    cached_signature = getattr(cached_intraday, 'query_signature', '')
+    if cached_intraday is not None and cached_signature != current_intraday_signature:
+        # A rerun caused by editing CTG -> FPT must never relabel CTG's cached ticks.
+        st.session_state['intraday_result'] = None
+        cached_intraday = None
+    st.session_state['intraday_active_query_signature'] = current_intraday_signature
 
     a1, a2 = st.columns([1, 1])
     intraday_auto = a1.toggle(
@@ -586,7 +661,7 @@ with intraday_tab:
     auto_tick = False
     if intraday_auto:
         if st_autorefresh is None:
-            st.warning("Thiếu gói `streamlit-autorefresh` nên chưa tự làm mới được.")
+            st.warning("Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
         else:
             counter = st_autorefresh(
                 interval=int(intraday_every) * 1000, key="intraday_refresh"
@@ -605,9 +680,15 @@ with intraday_tab:
             )
 
     if intraday_auto and st_autorefresh is not None:
+        refreshed = st.session_state.get('intraday_result')
+        refreshed_at = getattr(refreshed, 'fetched_at', None)
+        if refreshed_at is not None:
+            refreshed_text = refreshed_at.strftime('%H:%M:%S')
+        else:
+            refreshed_text = "chưa có"
         st.caption(
             f"🔁 Đang tự làm mới mỗi **{intraday_every} giây** "
-            f"(lần tải gần nhất: {pd.Timestamp.now().strftime('%H:%M:%S')}). "
+            f"(lần tải dữ liệu gần nhất: {refreshed_text}, giờ Việt Nam). "
             "Tắt công tắc khi không dùng để đỡ tốn băng thông."
         )
 
@@ -619,13 +700,14 @@ with intraday_tab:
         st.caption(
             "**Khi nào dữ liệu trống là bình thường (không phải lỗi phần mềm):**  \n"
             "• Ngoài giờ giao dịch → nhà cung cấp báo 'chuẩn bị phiên mới'.  \n"
-            "• Trong phiên ATO (9:00–9:15) và ATC (14:30–14:45) → là khớp lệnh định kỳ, "
-            "chưa sinh lệnh khớp liên tục nên bảng lệnh còn trống.  \n"
+            "• Trong phiên khớp lệnh định kỳ mở cửa (ATO, 9:00–9:15) và đóng cửa "
+            "(ATC, 14:30–14:45) → chưa sinh lệnh khớp liên tục nên bảng lệnh còn trống.  \n"
             "• Nghỉ trưa 11:30–13:00, hoặc thứ Bảy/Chủ nhật/ngày lễ.  \n"
             "→ Khớp lệnh liên tục chạy **9:15–11:30** và **13:00–14:30**, thử lại lúc đó."
         )
     else:
         ticks = intr.data
+        result_symbol = intr.symbol
         last_price = intr.last_price
         last_time = intr.last_tick_time
         first_price = float(ticks['price'].iloc[0])
@@ -636,28 +718,24 @@ with intraday_tab:
         m1.metric("Giá khớp gần nhất", f"{last_price:,.2f}" if last_price else "—",
                   f"{pct:+.2f}% trong mẫu" if pct is not None else None)
         m2.metric("Thời điểm khớp",
-                  last_time.strftime("%H:%M:%S") if last_time is not None else "—")
+                  last_time.strftime("%H:%M:%S %d/%m/%Y") if last_time is not None else "—")
         m3.metric("Số lệnh lấy về", f"{len(ticks):,}")
         m4.metric("Nguồn dữ liệu", intr.source)
 
-        if intr.fetched_at is not None and last_time is not None:
-            try:
-                lag = (intr.fetched_at - last_time).total_seconds()
-                if lag >= 0:
-                    lag_text = (f"{lag:.0f} giây" if lag < 90
-                                else f"{lag/60:.1f} phút")
-                    st.caption(
-                        f"⏱️ **Độ trễ đo được: {lag_text}** — lệnh khớp gần nhất lúc "
-                        f"{last_time.strftime('%H:%M:%S')}, tải về lúc "
-                        f"{intr.fetched_at.strftime('%H:%M:%S')}. "
-                        "Đây là độ trễ của nhà cung cấp dữ liệu, không phải của app."
-                    )
-            except Exception:
-                pass
+        if intr.fetched_at is not None and last_time is not None and intr.lag_seconds is not None:
+            lag = intr.lag_seconds
+            lag_text = f"{lag:.0f} giây" if lag < 90 else f"{lag/60:.1f} phút"
+            st.caption(
+                f"⏱️ **Khoảng cách tới lệnh mới nhất: {lag_text}** — {result_symbol} "
+                f"khớp lúc {last_time.strftime('%H:%M:%S')}, ứng dụng nhận xong lúc "
+                f"{intr.fetched_at.strftime('%H:%M:%S')} (giờ Việt Nam). "
+                "Khoảng này gồm độ trễ nguồn dữ liệu, mạng và thời gian xử lý; "
+                "không phải phép đo riêng của nhà cung cấp."
+            )
 
         fig_intr = px.line(
             ticks, x="time", y="price",
-            title=f"Diễn biến giá khớp lệnh trong phiên — {intraday_ticker}",
+            title=f"Diễn biến giá khớp lệnh trong phiên — {result_symbol}",
             labels={"time": "Thời gian", "price": "Giá khớp"},
         )
         fig_intr.update_traces(line_width=2)
@@ -672,9 +750,29 @@ with intraday_tab:
             st.plotly_chart(fig_vol, use_container_width=True)
 
         with st.expander("Xem bảng lệnh khớp chi tiết"):
-            st.dataframe(ticks.tail(200), use_container_width=True)
-            _download_df(ticks, "⬇️ Tải toàn bộ lệnh khớp (CSV)",
-                         f"intraday_{intraday_ticker}.csv")
+            ticks_display = ticks.copy()
+            if "side" in ticks_display.columns:
+                def _side_label(value):
+                    raw = str(value).strip()
+                    upper = raw.upper()
+                    if upper in {"BUY", "BU", "B"}:
+                        return f"Mua ({raw})"
+                    if upper in {"SELL", "SD", "S"}:
+                        return f"Bán ({raw})"
+                    return f"Loại khác ({raw})"
+
+                ticks_display["side"] = ticks_display["side"].map(_side_label)
+            ticks_display = ticks_display.rename(
+                columns={
+                    "time": "Thời gian (time)",
+                    "price": "Giá khớp (price)",
+                    "volume": "Khối lượng (volume)",
+                    "side": "Bên giao dịch (side)",
+                }
+            )
+            st.dataframe(ticks_display.tail(200), use_container_width=True)
+            _download_df(ticks_display, "⬇️ Tải toàn bộ lệnh khớp — tệp bảng (CSV)",
+                         f"intraday_{result_symbol}.csv")
 
         st.caption(
             "Số liệu này chỉ phục vụ quan sát và nghiên cứu. Công cụ không đặt lệnh "
@@ -699,37 +797,53 @@ with tab1:
         top_beta_row = sim_df.loc[betas.idxmax()]
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Số mã phân tích", len(sim_df))
-        m2.metric("Beta trung bình", f"{betas.mean():.2f}")
+        m2.metric("Beta (độ nhạy) trung bình", f"{betas.mean():.2f}")
         m3.metric("Mã năng động nhất", top_beta_row['Mã CP'], f"β = {top_beta_row['Beta (Độ nhạy)']:.2f}")
         m4.metric("R² trung bình", f"{sim_df['R^2'].mean():.2%}")
 
-        st.subheader("Bảng chỉ số SIM")
+        st.subheader("Bảng mô hình chỉ số đơn (SIM)")
 
         def _hl_beta(v):
             if v > 1:
                 return 'color:#ff6b6b; font-weight:600'
             return 'color:#00c48c; font-weight:600'
-        styled = sim_df.style.map(_hl_beta, subset=['Beta (Độ nhạy)']).format({
-            'Beta (Độ nhạy)': '{:.3f}', 'Alpha': '{:.5f}', 'Rủi ro Hệ thống': '{:.5f}',
+        sim_display = sim_df.rename(
+            columns={
+                "Alpha": "Alpha (lợi suất riêng)",
+                "White p-value": "Giá trị p kiểm định White",
+                "B-G p-value": "Giá trị p kiểm định B-G",
+                "RESET p-value": "Giá trị p kiểm định RESET",
+                "JB p-value": "Giá trị p kiểm định JB",
+            }
+        ).replace(
+            {
+                "N/A": "Không áp dụng (N/A)",
+                "ok": "Đạt (ok)",
+                "warning": "Cảnh báo (warning)",
+                "unknown": "Không rõ (unknown)",
+            }
+        )
+        styled = sim_display.style.map(_hl_beta, subset=['Beta (Độ nhạy)']).format({
+            'Beta (Độ nhạy)': '{:.3f}', 'Alpha (lợi suất riêng)': '{:.5f}', 'Rủi ro Hệ thống': '{:.5f}',
             'Rủi ro Phi hệ thống': '{:.5f}', 'Tổng Rủi ro': '{:.5f}', 'R^2': '{:.3f}',
-            'White p-value': '{:.4f}', 'B-G p-value': '{:.4f}',
-            'RESET p-value': '{:.4f}', 'JB p-value': '{:.4f}',
-        }, na_rep='N/A')
+            'Giá trị p kiểm định White': '{:.4f}', 'Giá trị p kiểm định B-G': '{:.4f}',
+            'Giá trị p kiểm định RESET': '{:.4f}', 'Giá trị p kiểm định JB': '{:.4f}',
+        }, na_rep='Không áp dụng (N/A)')
         st.dataframe(styled, width="stretch")
-        _download_df(sim_df, "⬇️ Tải bảng SIM (CSV)", "sim_results.csv")
+        _download_df(sim_display, "⬇️ Tải bảng mô hình chỉ số đơn (SIM) — tệp bảng (CSV)", "sim_results.csv")
 
         with st.expander("📚 Giải thích ý nghĩa các chỉ số Kinh tế lượng"):
             st.markdown("""
-*   **Beta ($\\beta$):** Đo mức biến động của cổ phiếu so với thị trường. $\\beta>1$: *năng động* (rủi ro & kỳ vọng cao); $\\beta<1$: *thụ động* (an toàn hơn).
-*   **Alpha ($\\alpha$):** Lợi suất vượt trội do yếu tố riêng của cổ phiếu.
+*   **Beta (độ nhạy, $\\beta$):** Đo mức biến động của cổ phiếu so với thị trường. $\\beta>1$: *năng động* (rủi ro & kỳ vọng cao); $\\beta<1$: *thụ động* (an toàn hơn).
+*   **Alpha (lợi suất riêng, $\\alpha$):** Lợi suất vượt trội do yếu tố riêng của cổ phiếu.
 *   **Rủi ro Hệ thống:** Do biến động chung của thị trường (không thể đa dạng hoá để loại bỏ).
 *   **Rủi ro Phi hệ thống:** Do đặc thù công ty (loại bỏ được bằng đa dạng hoá).
 *   **R² :** Tỷ lệ biến động giá cổ phiếu được giải thích bởi VNINDEX.
-*   **White Test:** 'Yes' = có phương sai sai số thay đổi (cần sai số chuẩn vững).
-*   **Breusch-Godfrey:** 'Yes' = có tự tương quan chuỗi.\n*   **Dạng hàm (Ramsey RESET):** 'Có thể có' = mô hình có thể bị sai dạng hàm / bỏ sót biến (Chương 5).\n*   **Phân phối chuẩn (Jarque-Bera):** 'Không chuẩn' = phần dư không phân phối chuẩn, ảnh hưởng suy diễn thống kê mẫu nhỏ.
+*   **Kiểm định White (White test):** `Yes` (Có) = có phương sai sai số thay đổi (cần sai số chuẩn vững).
+*   **Kiểm định Breusch-Godfrey:** `Yes` (Có) = có tự tương quan chuỗi.\n*   **Dạng hàm (Ramsey RESET):** 'Có thể có' = mô hình có thể bị sai dạng hàm / bỏ sót biến (Chương 5).\n*   **Phân phối chuẩn (Jarque-Bera):** 'Không chuẩn' = phần dư không phân phối chuẩn, ảnh hưởng suy diễn thống kê mẫu nhỏ.
             """)
 
-        st.subheader("Biểu đồ Hồi quy SIM")
+        st.subheader("Biểu đồ hồi quy mô hình chỉ số đơn (SIM)")
         selected_ticker = st.selectbox("Chọn cổ phiếu để xem biểu đồ hồi quy:", valid_assets)
         if selected_ticker in returns_df.columns:
             fig = px.scatter(returns_df, x=market_ticker, y=selected_ticker, trendline="ols",
@@ -754,14 +868,14 @@ with tab2:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("🛡️ Danh mục An toàn nhất")
-            st.caption("Min Volatility — rủi ro thấp nhất")
+            st.caption("Biến động tối thiểu (Min Volatility) — rủi ro thấp nhất")
             min_vol_df = pd.DataFrame({'Tài sản': opt_res['assets'], 'Tỷ trọng': opt_res['min_vol_weights']})
             fig_mv = px.pie(min_vol_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
                             color_discrete_sequence=px.colors.sequential.Teal)
             st.plotly_chart(fig_mv, width="stretch")
         with c2:
             st.subheader("🚀 Danh mục Hiệu quả nhất")
-            st.caption("Max Sharpe trong mô hình — có thể chọn tiền mặt")
+            st.caption("Chỉ số Sharpe tối đa (Max Sharpe) trong mô hình — có thể chọn tiền mặt")
             max_sharpe_assets = list(opt_res['assets']) + ['Tiền mặt']
             max_sharpe_values = list(opt_res['max_sharpe_weights']) + [
                 float(opt_res.get('max_sharpe_cash_weight', 0.0))
@@ -774,19 +888,19 @@ with tab2:
 
         w_table = pd.DataFrame({
             'Tài sản': list(opt_res['assets']) + ['Tiền mặt'],
-            'Min Volatility (%)': np.append(np.array(opt_res['min_vol_weights']) * 100, 0.0).round(2),
-            'Max Sharpe (%)': np.append(
+            'Biến động tối thiểu (Min Volatility, %)': np.append(np.array(opt_res['min_vol_weights']) * 100, 0.0).round(2),
+            'Sharpe tối đa (Max Sharpe, %)': np.append(
                 np.array(opt_res['max_sharpe_weights']) * 100,
                 float(opt_res.get('max_sharpe_cash_weight', 0.0)) * 100,
             ).round(2),
         })
         st.dataframe(w_table, width="stretch")
-        _download_df(w_table, "⬇️ Tải tỷ trọng danh mục (CSV)", "portfolio_weights.csv")
+        _download_df(w_table, "⬇️ Tải tỷ trọng danh mục — tệp bảng (CSV)", "portfolio_weights.csv")
 
         q1, q2, q3 = st.columns(3)
         q1.metric("Số phiên hợp lệ", int(opt_res.get('n_observations', len(returns_df))))
         q2.metric("Lãi suất phi rủi ro", f"{float(opt_res.get('risk_free_rate', 0.04)):.2%}")
-        q3.metric("Điều chỉnh covariance", f"{float(opt_res.get('covariance_regularization', 0.0)):.2e}")
+        q3.metric("Điều chỉnh hiệp phương sai (covariance)", f"{float(opt_res.get('covariance_regularization', 0.0)):.2e}")
 
         st.subheader("Đường Biên hiệu quả (Efficient Frontier)")
         # Toạ độ 2 danh mục tối ưu để đánh dấu sao
@@ -805,16 +919,16 @@ with tab2:
         ef_fig = go.Figure()
         ef_fig.add_trace(go.Scatter(x=opt_res['ef_vols'], y=opt_res['ef_rets'], mode='markers',
                                     marker=dict(color=opt_res['ef_sharpes'], colorscale='Viridis',
-                                                showscale=True, size=6, colorbar=dict(title="Sharpe")),
+                                                showscale=True, size=6, colorbar=dict(title="Chỉ số Sharpe")),
                                     name='Danh mục rủi ro mô phỏng'))
         ef_fig.add_trace(go.Scatter(x=[mv_std], y=[mv_ret], mode='markers',
                                     marker=dict(color='#4dd0e1', size=18, symbol='star',
                                                 line=dict(color='white', width=1)),
-                                    name='🛡️ Min Volatility'))
+                                    name='🛡️ Biến động tối thiểu (Min Volatility)'))
         ef_fig.add_trace(go.Scatter(x=[ms_std], y=[ms_ret], mode='markers',
                                     marker=dict(color='#ffd166', size=18, symbol='star',
                                                 line=dict(color='white', width=1)),
-                                    name='🚀 Max Sharpe'))
+                                    name='🚀 Sharpe tối đa (Max Sharpe)'))
         ef_fig.update_layout(title='Không gian danh mục rủi ro và phương án tiền mặt',
                              xaxis_title='Rủi ro (Độ lệch chuẩn năm hoá)',
                              yaxis_title='Lợi suất kỳ vọng (năm hoá)',
@@ -828,7 +942,7 @@ with tab3:
         st.info("👈 Chạy **Phân tích** trước để nhận khuyến nghị.")
     else:
         st.subheader("Trợ lý quyết định có điều kiện")
-        st.caption("Máy tính tạo số liệu; AI chỉ diễn giải. Mọi kế hoạch phải có điểm vô hiệu, giới hạn lỗ và ngày hết hiệu lực.")
+        st.caption("Máy tính tạo số liệu; trí tuệ nhân tạo (AI) chỉ diễn giải. Mọi kế hoạch phải có điểm vô hiệu, giới hạn lỗ và ngày hết hiệu lực.")
         sim_results_list = st.session_state.sim_results_list
         opt_res = st.session_state.opt_res
         prices_df = st.session_state.prices_df
@@ -842,35 +956,36 @@ with tab3:
                 f"{','.join(st.session_state.valid_assets)}"
             )
             advice_key = hashlib.sha256(cache_material.encode('utf-8')).hexdigest()
-            if st.button("Tạo bản diễn giải AI", width="stretch", type="primary", key="generate_investment_advice"):
+            if st.button("Tạo bản diễn giải bằng trí tuệ nhân tạo (AI)", width="stretch", type="primary", key="generate_investment_advice"):
                 with st.spinner(f"Đang chờ {ai_provider} diễn giải kết quả đã kiểm định..."):
                     st.session_state.advice_cache[advice_key] = generate_expert_advice(
                         sim_results_list, opt_res, prices_df[market_ticker], ai_config
                     )
             if advice_key in st.session_state.advice_cache:
-                st.markdown("#### Bản diễn giải AI")
+                st.markdown("#### Bản diễn giải bằng trí tuệ nhân tạo (AI)")
                 st.markdown(st.session_state.advice_cache[advice_key])
         else:
-            st.info("Nhập API key nếu muốn AI diễn giải sâu hơn. Phần tính toán định lượng vẫn chạy cục bộ.")
+            st.info("Nhập khóa API nếu muốn trí tuệ nhân tạo (AI) diễn giải sâu hơn. Phần tính toán định lượng vẫn chạy cục bộ.")
 
         st.warning(
-            "Không dùng phần này làm lệnh mua/bán trực tiếp. Hãy kiểm tra tab Backtest, mức drawdown, "
-            "phí giao dịch và paper portfolio trước."
+            "Không dùng phần này làm lệnh mua/bán trực tiếp. Hãy kiểm tra thẻ kiểm thử quá khứ (backtest), "
+            "mức sụt giảm (drawdown), phí giao dịch và danh mục mô phỏng (paper portfolio) trước."
         )
 
 
 # ---------- TAB 4: EVIEWS ----------
 with tab4:
     st.subheader("📈 Eviews tiếng Việt (Giả lập)")
-    st.markdown("Tải file, chọn sheet, rồi dùng menu **Chọn nhanh** hoặc gõ lệnh Eviews. "
-                "Hỗ trợ: `LS` (hồi quy), `GENR` (LOG/D/trễ X(-1)/@TREND), `ADF` (nghiệm đơn vị), "
-                "`STATS` (thống kê mô tả), `COR` (tương quan), `PLOT/SCAT/HIST` (đồ thị).")
+    st.markdown("Tải tệp (file), chọn trang tính (sheet), rồi dùng trình đơn (menu) **Chọn nhanh** hoặc gõ lệnh EViews. "
+                "Hỗ trợ: `LS` (hồi quy bình phương tối thiểu), `GENR` (tạo biến: LOG/D/trễ X(-1)/@TREND), "
+                "`ADF` (kiểm định nghiệm đơn vị), `STATS` (thống kê mô tả), `COR` (tương quan), "
+                "`PLOT/SCAT/HIST` (đồ thị đường/phân tán/tần suất).")
     from eviews_emulator import parse_and_execute_command, format_eviews_output
 
     col_ev1, col_ev2 = st.columns([1, 2])
     with col_ev1:
-        st.markdown("#### 📂 Workfile (Dữ liệu)")
-        uploaded_file = st.file_uploader("Tải lên file (CSV/Excel)", type=["csv", "xlsx", "xls"])
+        st.markdown("#### 📂 Tệp làm việc (Workfile)")
+        uploaded_file = st.file_uploader("Tải tệp dữ liệu dạng bảng (CSV/Excel)", type=["csv", "xlsx", "xls"])
 
         if uploaded_file is not None:
             raw_bytes = uploaded_file.getvalue()
@@ -882,8 +997,8 @@ with tab4:
             sheets = dc.list_sheets(_mkbuf())
             chosen_sheet = None
             if sheets:
-                st.caption(f"📑 File có **{len(sheets)}** sheet.")
-                chosen_sheet = st.selectbox("Chọn sheet để làm việc:", sheets)
+                st.caption(f"📑 Tệp có **{len(sheets)}** trang tính (sheet).")
+                chosen_sheet = st.selectbox("Chọn trang tính (sheet) để làm việc:", sheets)
             mode_label = st.radio("Cách đọc dữ liệu:",
                                   ["Tự động (thông minh)", "Thô (nguyên bản)"], horizontal=True)
             mode = 'auto' if mode_label.startswith("Tự") else 'raw'
@@ -895,7 +1010,7 @@ with tab4:
                     st.success("Nạp dữ liệu thành công!")
                     st.info(report)
                 except Exception as e:
-                    st.error(f"Lỗi đọc file: {e}")
+                    st.error(f"Lỗi đọc tệp (file): {e}")
 
         if not st.session_state.eviews_data.empty:
             st.markdown("**Các biến trong bộ nhớ:**")
@@ -903,7 +1018,7 @@ with tab4:
             with st.expander("👁️ Xem trước dữ liệu"):
                 st.dataframe(st.session_state.eviews_data.head(20), width="stretch")
         else:
-            st.info("Chưa có dữ liệu. Hãy tải file và bấm **Nạp dữ liệu**.")
+            st.info("Chưa có dữ liệu. Hãy tải tệp (file) và bấm **Nạp dữ liệu**.")
 
     with col_ev2:
         st.markdown("#### 🧮 Bảng lệnh")
@@ -919,7 +1034,7 @@ with tab4:
 
             if input_mode.startswith("🖱️"):
                 op = st.selectbox("Bạn muốn làm gì?", [
-                    "Hồi quy OLS / Ước lượng SIM (LS)",
+                    "Hồi quy bình phương tối thiểu (OLS) / Ước lượng mô hình chỉ số đơn (SIM, lệnh LS)",
                     "Tạo biến mới (GENR)",
                     "Kiểm định nghiệm đơn vị (ADF)",
                     "Thống kê mô tả (STATS)",
@@ -946,7 +1061,7 @@ with tab4:
                     xs = [x_market] + [e for e in extra if e != x_market]
                     command_to_run = f"LS {y} C {' '.join(xs)}"
                 elif op.startswith("Tạo biến"):
-                    st.caption("Có thể dùng hàm: LOG(), D() (sai phân), biến trễ X(-1), @TREND, hoặc điều kiện tạo biến giả (VD: BID>20).")
+                    st.caption("Có thể dùng hàm: LOG() (logarit), D() (sai phân), biến trễ X(-1), @TREND (xu hướng), hoặc điều kiện tạo biến giả (ví dụ: BID>20).")
                     newname = st.text_input("Tên biến mới:", "Z")
                     gmode = st.radio("Kiểu tạo:", ["Hai biến + phép toán", "Tự gõ biểu thức"],
                                      horizontal=True, key="genr_mode")
@@ -957,7 +1072,7 @@ with tab4:
                         v2 = cc3.selectbox("Biến 2:", cols_list, key="genr_v2")
                         expr = f"{v1} {opr} {v2}"
                     else:
-                        expr = st.text_input("Biểu thức (VD: LOG(BID) - LOG(BID(-1))):",
+                        expr = st.text_input("Biểu thức (ví dụ: LOG(BID) - LOG(BID(-1))):",
                                              f"LOG({cols_list[0]})", key="genr_expr")
                     if newname.strip() and expr.strip():
                         command_to_run = f"GENR {newname.strip()} = {expr}"
@@ -991,15 +1106,15 @@ with tab4:
                             command_to_run = "PLOT " + " ".join(vs)
 
                 if command_to_run:
-                    st.caption("📋 Câu lệnh Eviews tương ứng (học thuộc để sau tự gõ tay):")
+                    st.caption("📋 Câu lệnh EViews tương ứng (học thuộc để sau tự gõ tay):")
                     st.code(command_to_run, language="text")
                     run_now = st.button("▶️ Xem kết quả", width="stretch", type="primary")
             else:
                 command_to_run = st.text_input(
-                    "Nhập lệnh (VD: LS Y C X | GENR Z=LOG(X) | ADF X | STATS X | COR | PLOT X Y):", key="eviews_cmd")
+                    "Nhập lệnh (ví dụ: LS Y C X | GENR Z=LOG(X) | ADF X | STATS X | COR | PLOT X Y):", key="eviews_cmd")
                 run_now = st.button("▶️ Chạy lệnh", width="stretch")
 
-            deep_ai = st.checkbox("🤖 Kèm phân tích chuyên sâu bằng AI (cần API key ở sidebar)")
+            deep_ai = st.checkbox("🤖 Kèm phân tích chuyên sâu bằng trí tuệ nhân tạo (AI) — cần khóa API ở thanh bên (sidebar)")
 
             if run_now:
                 if not command_to_run:
@@ -1019,7 +1134,7 @@ with tab4:
                         with st.expander("👁️ Xem dữ liệu sau khi tạo biến"):
                             st.dataframe(st.session_state.eviews_data.head(20), width="stretch")
                     else:
-                        st.markdown("##### 📤 Output (Kết quả)")
+                        st.markdown("##### 📤 Kết quả (Output)")
                         html_output = format_eviews_output(res)
                         st.components.v1.html(html_output, height=460, scrolling=True)
 
@@ -1041,19 +1156,19 @@ with tab4:
                                           "hình nếu có, (4) gợi ý cải thiện. Trình bày gọn bằng Markdown, có emoji hợp lý. "
                                           "Nhấn mạnh đây là phân tích học thuật, không phải khuyến nghị đầu tư.\n\n"
                                           f"KẾT QUẢ: {summary}")
-                                with st.spinner("AI đang phân tích chuyên sâu..."):
+                                with st.spinner("Trí tuệ nhân tạo (AI) đang phân tích chuyên sâu..."):
                                     out = call_llm(prompt, ai_config)
                                 if out:
-                                    st.markdown("##### 🤖 Phân tích chuyên sâu bằng AI")
+                                    st.markdown("##### 🤖 Phân tích chuyên sâu bằng trí tuệ nhân tạo (AI)")
                                     st.markdown(out)
                             else:
-                                st.warning("Hãy nhập API key ở sidebar (mục Tích hợp AI) để dùng phân tích chuyên sâu.")
+                                st.warning("Hãy nhập khóa API ở thanh bên (sidebar), mục Tích hợp trí tuệ nhân tạo (AI), để dùng phân tích chuyên sâu.")
 
 
 # ---------- TAB 5: ÔN THI ----------
 with tab5:
     st.subheader("🎓 Công cụ Ôn thi Kinh tế lượng")
-    st.markdown("Tính nhanh các đại lượng để làm bài kiểm tra thực hành. Dùng chung dữ liệu đã nạp ở tab **Eviews**.")
+    st.markdown("Tính nhanh các đại lượng để làm bài kiểm tra thực hành. Dùng chung dữ liệu đã nạp ở thẻ (tab) **EViews**.")
     from exam_calculator import (
         calc_return_formula, calc_returns_data,
         calc_sim_risks_formula, calc_sim_risks_data,
@@ -1062,16 +1177,16 @@ with tab5:
     )
 
     if st.session_state.eviews_data.empty:
-        st.info("Hãy nạp file số liệu ở tab **📈 Eviews tiếng Việt** để dùng công cụ tính nhanh.")
+        st.info("Hãy nạp tệp (file) số liệu ở thẻ (tab) **📈 EViews tiếng Việt** để dùng công cụ tính nhanh.")
     else:
         exam_data = st.session_state.eviews_data
         with st.expander("👁️ Dữ liệu hiện tại"):
             st.dataframe(exam_data.head(20), width="stretch")
 
-        st.caption("💡 Chọn **cột giá** (không phải cột r_...) làm Asset & Market — công cụ tự tính lợi suất.")
+        st.caption("💡 Chọn **cột giá** (không phải cột r_...) làm tài sản (Asset) và thị trường (Market) — công cụ tự tính lợi suất.")
         c1, c2 = st.columns(2)
-        selected_asset = c1.selectbox("Mã Cổ phiếu (Asset):", exam_data.columns)
-        selected_market = c2.selectbox("Chỉ số Thị trường (Market):", exam_data.columns,
+        selected_asset = c1.selectbox("Mã cổ phiếu — tài sản (Asset):", exam_data.columns)
+        selected_market = c2.selectbox("Chỉ số thị trường (Market):", exam_data.columns,
                                        index=min(1, len(exam_data.columns) - 1))
 
         st.markdown("##### Các lệnh tính nhanh")
@@ -1087,14 +1202,21 @@ with tab5:
             except Exception as e:
                 st.error(f"Lỗi: {e}. Đảm bảo cột là dạng số hợp lệ.")
 
-        if b2.button("2️⃣ Rủi ro HT / Phi HT (SIM)", width="stretch"):
+        if b2.button("2️⃣ Rủi ro hệ thống / phi hệ thống — mô hình chỉ số đơn (SIM)", width="stretch"):
             st.latex(calc_sim_risks_formula())
             try:
                 r_asset = calc_returns_data(exam_data[selected_asset])
                 r_market = calc_returns_data(exam_data[selected_market])
                 risks = calc_sim_risks_data(r_asset, r_market)
                 st.write(f"Kết quả **{selected_asset}** so với **{selected_market}**:")
-                st.json({k: float(v) for k, v in risks.items()})
+                risk_labels = {
+                    "Beta": "Beta (độ nhạy)",
+                    "Sys_Risk": "Rủi ro hệ thống (systematic risk)",
+                    "Unsys_Risk": "Rủi ro phi hệ thống (unsystematic risk)",
+                    "Total_Risk": "Tổng rủi ro (total risk)",
+                    "Market_Var": "Phương sai thị trường (market variance)",
+                }
+                st.json({risk_labels.get(k, k): float(v) for k, v in risks.items()})
             except Exception as e:
                 st.error(f"Lỗi: {e}")
 
@@ -1132,7 +1254,7 @@ with tab5:
                                  key="pf_order", horizontal=True)
             pc3, pc4 = st.columns(2)
             pf_isret = pc3.checkbox("Dữ liệu đã là lợi suất", key="pf_isret",
-                                    help="Tick nếu cột đã là r_... (không tính lợi suất lại).")
+                                    help="Đánh dấu (tick) nếu cột đã là r_... để không tính lợi suất lại.")
             pf_ddofr = pc4.radio("Kiểu phương sai:", ["Mẫu ÷(n−1)", "Tổng thể ÷n"],
                                  key="pf_ddof", horizontal=True,
                                  help="Bảng Excel của giảng viên thường dùng Tổng thể ÷n; EViews dùng Mẫu ÷(n−1).")
@@ -1173,8 +1295,8 @@ with tab5:
 
         # ===== Rủi ro danh mục theo mô hình SIM =====
         st.markdown("---")
-        st.markdown("##### 🎯 Rủi ro danh mục theo mô hình SIM (hệ thống / phi hệ thống)")
-        st.caption("Chọn các mã + chỉ số thị trường + trọng số → app chạy SIM từng mã, tách rủi ro hệ thống & phi hệ thống của danh mục.")
+        st.markdown("##### 🎯 Rủi ro danh mục theo mô hình chỉ số đơn (SIM): hệ thống / phi hệ thống")
+        st.caption("Chọn các mã + chỉ số thị trường + trọng số → ứng dụng chạy mô hình chỉ số đơn (SIM) từng mã, tách rủi ro hệ thống và phi hệ thống của danh mục.")
         num_cols2 = list(exam_data.select_dtypes(include=[np.number]).columns)
         s_assets = st.multiselect("Các mã trong danh mục:", num_cols2, key="sim_assets")
         sc1, sc2 = st.columns(2)
@@ -1193,33 +1315,37 @@ with tab5:
                                             step=0.05, format="%.4f", key=f"sim_w_{a}")
                 s_weights.append(wv)
             s_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="sim_norm")
-            if st.button("🎯 Tính rủi ro SIM danh mục", width="stretch", type="primary", key="sim_btn"):
+            if st.button("🎯 Tính rủi ro danh mục theo mô hình chỉ số đơn (SIM)", width="stretch", type="primary", key="sim_btn"):
                 try:
                     r = compute_sim_portfolio_risk(exam_data, s_assets, s_market, s_weights,
                                                    nobs=s_n, reverse=s_order.startswith("Đảo"),
                                                    normalize=s_norm, is_returns=s_isret)
                     st.caption(f"{r['n_returns']} lợi suất | σ²_thị trường = {r['sigma_market2']:.8f} | "
                                f"Beta danh mục β_P = {r['beta_p']:.6f}")
-                    st.write("Chi tiết từng cổ phiếu (SIM):")
-                    st.dataframe(pd.DataFrame(r['per_stock']), width="stretch")
+                    st.write("Chi tiết từng cổ phiếu theo mô hình chỉ số đơn (SIM):")
+                    sim_detail = pd.DataFrame(r['per_stock']).rename(
+                        columns={"Beta": "Beta (độ nhạy)"}
+                    )
+                    st.dataframe(sim_detail, width="stretch")
                     k1, k2, k3 = st.columns(3)
                     k1.metric("Rủi ro hệ thống", f"{r['systematic']:.8f}")
                     k2.metric("Rủi ro phi hệ thống", f"{r['unsystematic']:.8f}")
                     k3.metric("TỔNG rủi ro danh mục", f"{r['total']:.8f}")
                     st.markdown(
-                        f"**Diễn giải:** Rủi ro danh mục P theo SIM = **{r['total']:.8f}** "
+                        f"**Diễn giải:** Rủi ro danh mục P theo mô hình chỉ số đơn (SIM) = **{r['total']:.8f}** "
                         f"(= hệ thống {r['systematic']:.8f} + phi hệ thống {r['unsystematic']:.8f}); "
                         f"độ lệch chuẩn ≈ **{r['total_std']*100:.4f}%**. "
-                        f"Hệ thống = β²_P·σ²_I; phi hệ thống = Σ wᵢ²·ηᵢ² (ηᵢ² = phương sai phần dư hồi quy SIM).")
+                        f"Hệ thống = β²_P·σ²_I; phi hệ thống = Σ wᵢ²·ηᵢ² "
+                        f"(ηᵢ² = phương sai phần dư hồi quy mô hình chỉ số đơn, SIM).")
                 except Exception as e:
                     st.error(f"Lỗi: {e}")
 
     # ===== Trợ lý học tập an toàn (không thực thi mã do AI sinh) =====
     st.markdown("---")
-    st.markdown("#### Trợ lý học tập — tính cục bộ, AI chỉ diễn giải")
-    st.caption("Các phép tính chạy bằng bộ công cụ cố định đã kiểm thử. Ứng dụng không còn chạy Python do AI sinh ra.")
+    st.markdown("#### Trợ lý học tập — tính cục bộ, trí tuệ nhân tạo (AI) chỉ diễn giải")
+    st.caption("Các phép tính chạy bằng bộ công cụ cố định đã kiểm thử. Ứng dụng không chạy mã Python do trí tuệ nhân tạo (AI) sinh ra.")
 
-    ai_upload = st.file_uploader("Tải file dữ liệu (bỏ trống thì dùng dữ liệu ở Tab EViews):",
+    ai_upload = st.file_uploader("Tải tệp (file) dữ liệu — bỏ trống thì dùng dữ liệu ở thẻ (tab) EViews:",
                                  type=["csv", "xlsx", "xls"], key="ai_upload")
     ai_df = None
     if ai_upload is not None:
@@ -1228,17 +1354,17 @@ with tab5:
         def _aibuf():
             b = io.BytesIO(_raw_b); b.name = _fn; return b
         _sheets = dc.list_sheets(_aibuf())
-        _chosen = st.selectbox("Chọn sheet:", _sheets, key="ai_sheet") if _sheets else None
+        _chosen = st.selectbox("Chọn trang tính (sheet):", _sheets, key="ai_sheet") if _sheets else None
         try:
             ai_df, _ = dc.smart_import(_aibuf(), sheet=_chosen, mode='auto')
             st.success(f"Đã đọc dữ liệu cục bộ ({ai_df.shape[0]} dòng, {ai_df.shape[1]} cột).")
         except Exception as e:
-            st.error(f"Lỗi đọc file: {e}")
+            st.error(f"Lỗi đọc tệp (file): {e}")
     elif not st.session_state.eviews_data.empty:
         ai_df = st.session_state.eviews_data
-        st.caption("→ Đang dùng dữ liệu đã nạp ở Tab 4.")
+        st.caption("→ Đang dùng dữ liệu đã nạp ở thẻ (tab) EViews.")
     else:
-        st.info("Tải file ở đây, hoặc nạp ở Tab 4 để AI có dữ liệu làm việc.")
+        st.info("Tải tệp (file) ở đây, hoặc nạp ở thẻ (tab) EViews để trí tuệ nhân tạo (AI) có dữ liệu làm việc.")
 
     ai_req = st.text_area("Yêu cầu / đề bài của bạn:",
                           placeholder="VD: Với 200 quan sát đầu, tính danh mục GAS HDB HPG "
@@ -1247,14 +1373,14 @@ with tab5:
     allow_ai_explanation = False
     if ai_config and ai_config.get('api_key'):
         allow_ai_explanation = st.checkbox(
-            "Cho phép gửi yêu cầu và kết quả tính đã rút gọn tới nhà cung cấp AI để diễn giải",
+            "Cho phép gửi yêu cầu và kết quả tính đã rút gọn tới nhà cung cấp (provider) AI để diễn giải",
             value=False,
             help="Không gửi các dòng dữ liệu thô; chỉ gửi yêu cầu, giả định và kết quả định lượng rút gọn.",
             key="allow_ai_explanation",
         )
     if st.button("Tính và giải thích", width="stretch", type="primary", key="ai_calc_btn"):
         if ai_df is None:
-            st.warning("Chưa có dữ liệu — tải file hoặc nạp ở Tab 4.")
+            st.warning("Chưa có dữ liệu — tải tệp (file) hoặc nạp ở thẻ (tab) EViews.")
         elif not ai_req.strip():
             st.warning("Hãy nhập yêu cầu.")
         else:
@@ -1284,4 +1410,4 @@ with tab5:
                             st.write(f"**{_k}:** {_v}")
                 else:
                     st.write(res)
-            st.caption("Phép tính là cục bộ; phần diễn giải AI (nếu bật) vẫn cần được kiểm chứng trước khi nộp bài.")
+            st.caption("Phép tính là cục bộ; phần diễn giải bằng trí tuệ nhân tạo (AI), nếu bật, vẫn cần được kiểm chứng trước khi nộp bài.")

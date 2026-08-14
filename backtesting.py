@@ -1,9 +1,11 @@
 """Bias-aware walk-forward backtesting utilities.
 
 The engine deliberately accepts only price data with a clean, shared calendar.
-At every rebalance, a strategy receives returns ending strictly before the
-return period being traded.  This makes the execution convention explicit and
-prevents accidental look-ahead through the engine API.
+At every rebalance, a strategy receives returns ending before execution.  By
+default, one complete close-to-close period separates the signal close from
+the execution close, and performance starts with the following period.  This
+conservative convention prevents a close-derived signal from earning an
+overnight or one-bar move that occurred before it could be executed.
 
 The module is independent from Streamlit.  ``BacktestResult`` contains pandas
 objects and plain dictionaries, so it can be stored directly in
@@ -43,6 +45,12 @@ class BacktestConfig:
     Costs are expressed in basis points of risky-asset notional.  Fees and
     slippage apply to buys and sells; ``sell_tax_bps`` applies only to sells.
     Unallocated capital earns ``risk_free_rate_annual``.
+
+    ``execution_lag_periods`` is the number of complete return periods between
+    the signal/decision close and the execution close.  The safe default is
+    one: a signal calculated at close T executes at close T+1 and first earns
+    the return ending at T+2.  Set it to zero only to reproduce the optimistic
+    convention that execution occurs at the same close used by the signal.
     """
 
     min_train_size: int = 126
@@ -59,37 +67,63 @@ class BacktestConfig:
     max_gross_leverage: float = 1.0
     allow_short: bool = False
     max_abs_period_return: float | None = 1.0
+    # Appended to preserve positional compatibility with earlier configs.
+    execution_lag_periods: int = 1
 
     def __post_init__(self) -> None:
         if self.min_train_size < 2:
-            raise BacktestValidationError("min_train_size must be at least 2.")
+            raise BacktestValidationError(
+                "Cỡ mẫu huấn luyện tối thiểu (min_train_size) phải từ 2 trở lên."
+            )
         if self.min_test_size < 1:
-            raise BacktestValidationError("min_test_size must be positive.")
+            raise BacktestValidationError(
+                "Cỡ mẫu kiểm định tối thiểu (min_test_size) phải lớn hơn 0."
+            )
         if self.train_window is not None and self.train_window < self.min_train_size:
             raise BacktestValidationError(
-                "train_window cannot be smaller than min_train_size."
+                "Cửa sổ huấn luyện (train_window) không được nhỏ hơn cỡ mẫu "
+                "huấn luyện tối thiểu (min_train_size)."
             )
         if self.rebalance_every < 1 or self.annualization < 1:
             raise BacktestValidationError(
-                "rebalance_every and annualization must be positive."
+                "Chu kỳ tái cân bằng (rebalance_every) và hệ số năm hóa "
+                "(annualization) phải lớn hơn 0."
+            )
+        if (
+            isinstance(self.execution_lag_periods, bool)
+            or not isinstance(self.execution_lag_periods, (int, np.integer))
+            or self.execution_lag_periods < 0
+        ):
+            raise BacktestValidationError(
+                "Độ trễ thực thi theo kỳ (execution_lag_periods) phải là số nguyên không âm."
             )
         if self.risk_free_rate_annual <= -1:
-            raise BacktestValidationError("risk_free_rate_annual must be greater than -1.")
+            raise BacktestValidationError(
+                "Lãi suất phi rủi ro hằng năm (risk_free_rate_annual) phải lớn hơn -1."
+            )
         for name in ("fee_bps", "slippage_bps", "sell_tax_bps"):
             if not np.isfinite(getattr(self, name)) or getattr(self, name) < 0:
-                raise BacktestValidationError(f"{name} must be finite and non-negative.")
+                raise BacktestValidationError(
+                    f"Tham số {name} phải là số hữu hạn và không âm."
+                )
         if not np.isfinite(self.initial_capital) or self.initial_capital <= 0:
-            raise BacktestValidationError("initial_capital must be finite and positive.")
+            raise BacktestValidationError(
+                "Vốn ban đầu (initial_capital) phải là số hữu hạn và lớn hơn 0."
+            )
         if not 0 < self.max_weight <= self.max_gross_leverage:
             raise BacktestValidationError(
-                "max_weight must be positive and no larger than max_gross_leverage."
+                "Tỷ trọng tối đa (max_weight) phải lớn hơn 0 và không vượt đòn bẩy "
+                "gộp tối đa (max_gross_leverage)."
             )
         if self.max_gross_leverage <= 0:
-            raise BacktestValidationError("max_gross_leverage must be positive.")
+            raise BacktestValidationError(
+                "Đòn bẩy gộp tối đa (max_gross_leverage) phải lớn hơn 0."
+            )
         if self.max_abs_period_return is not None:
             if not np.isfinite(self.max_abs_period_return) or self.max_abs_period_return <= 0:
                 raise BacktestValidationError(
-                    "max_abs_period_return must be positive or None."
+                    "Mức lợi suất tuyệt đối tối đa theo kỳ (max_abs_period_return) "
+                    "phải lớn hơn 0 hoặc để trống (None)."
                 )
 
 
@@ -97,14 +131,23 @@ class BacktestConfig:
 class StrategyContext:
     """Information available to a strategy at a rebalance.
 
-    ``decision_time`` is the final timestamp in ``training_returns`` and is
-    always strictly earlier than ``execution_time``.
+    ``decision_time`` is the final timestamp in ``training_returns``.
+    ``execution_time`` is the close at which the target weights are assumed
+    acquired, while ``first_return_time`` is the end of the first return period
+    those weights may earn.  With the default lag, the timestamps are strictly
+    ordered ``decision_time < execution_time < first_return_time``.
+    ``previous_weights`` is the portfolio snapshot at ``decision_time`` and
+    deliberately excludes drift during the execution lag.  Turnover and costs
+    are instead calculated from the actual drifted weights at
+    ``execution_time``.
     """
 
     rebalance_number: int
     decision_time: pd.Timestamp
     execution_time: pd.Timestamp
     previous_weights: pd.Series
+    first_return_time: pd.Timestamp | None = None
+    execution_lag_periods: int = 1
 
 
 class WalkForwardStrategy(Protocol):
@@ -154,7 +197,7 @@ def equal_weight_strategy(
 
     del context
     if training_returns.shape[1] == 0:
-        raise BacktestValidationError("The strategy received no assets.")
+        raise BacktestValidationError("Chiến lược (strategy) không nhận được tài sản nào.")
     return pd.Series(
         1.0 / training_returns.shape[1], index=training_returns.columns, dtype=float
     )
@@ -178,34 +221,45 @@ def _validated_datetime_index(index: pd.Index, label: str) -> pd.DatetimeIndex:
     try:
         result = pd.DatetimeIndex(pd.to_datetime(index, errors="raise"))
     except Exception as exc:  # pragma: no cover - pandas error wording varies
-        raise BacktestValidationError(f"{label} index must be datetime-like.") from exc
+        raise BacktestValidationError(
+            f"Chỉ mục của {label} phải có dạng ngày giờ (datetime)."
+        ) from exc
     if result.has_duplicates:
-        raise BacktestValidationError(f"{label} index contains duplicate timestamps.")
+        raise BacktestValidationError(
+            f"Chỉ mục của {label} chứa thời điểm (timestamp) bị trùng."
+        )
     if not result.is_monotonic_increasing:
         raise BacktestValidationError(
-            f"{label} index must be sorted from oldest to newest."
+            f"Chỉ mục của {label} phải được sắp xếp từ cũ đến mới."
         )
     return result
 
 
 def _validate_prices(prices: pd.DataFrame) -> pd.DataFrame:
     if not isinstance(prices, pd.DataFrame) or prices.empty:
-        raise BacktestValidationError("prices must be a non-empty DataFrame.")
+        raise BacktestValidationError(
+            "Bảng giá (prices) phải là bảng dữ liệu pandas (DataFrame) không rỗng."
+        )
     if prices.shape[1] == 0 or prices.columns.has_duplicates:
-        raise BacktestValidationError("prices must have unique asset columns.")
+        raise BacktestValidationError(
+            "Bảng giá (prices) phải có các cột tài sản không trùng nhau."
+        )
     clean = prices.copy()
     clean.index = _validated_datetime_index(clean.index, "prices")
     try:
         clean = clean.apply(pd.to_numeric, errors="raise").astype(float)
     except Exception as exc:
-        raise BacktestValidationError("prices must contain only numeric values.") from exc
+        raise BacktestValidationError(
+            "Bảng giá (prices) chỉ được chứa giá trị số."
+        ) from exc
     values = clean.to_numpy(dtype=float)
     if not np.isfinite(values).all():
         raise BacktestValidationError(
-            "prices contains missing or non-finite values; align/repair data explicitly."
+            "Bảng giá (prices) có giá trị thiếu hoặc không hữu hạn; hãy căn chỉnh hoặc "
+            "sửa dữ liệu một cách tường minh."
         )
     if (values <= 0).any():
-        raise BacktestValidationError("prices must be strictly positive.")
+        raise BacktestValidationError("Mọi giá trong bảng giá (prices) phải lớn hơn 0.")
     return clean
 
 
@@ -213,18 +267,23 @@ def _validate_benchmark(
     benchmark_prices: pd.Series, expected_index: pd.DatetimeIndex
 ) -> pd.Series:
     if not isinstance(benchmark_prices, pd.Series) or benchmark_prices.empty:
-        raise BacktestValidationError("benchmark_prices must be a non-empty Series.")
+        raise BacktestValidationError(
+            "Chuỗi giá chuẩn đối chiếu (benchmark_prices) phải là chuỗi pandas "
+            "(Series) không rỗng."
+        )
     benchmark = benchmark_prices.copy()
     benchmark.index = _validated_datetime_index(benchmark.index, "benchmark_prices")
     if not benchmark.index.equals(expected_index):
         raise BacktestValidationError(
-            "benchmark_prices must use exactly the same timestamps as prices; "
-            "implicit inner joins are not allowed."
+            "Chuỗi giá chuẩn đối chiếu (benchmark_prices) phải dùng đúng cùng các thời "
+            "điểm với bảng giá (prices); không cho phép phép nối trong ngầm định "
+            "(implicit inner join)."
         )
     benchmark = pd.to_numeric(benchmark, errors="coerce").astype(float)
     if not np.isfinite(benchmark.to_numpy()).all() or (benchmark <= 0).any():
         raise BacktestValidationError(
-            "benchmark_prices must be finite, non-missing, and strictly positive."
+            "Chuỗi giá chuẩn đối chiếu (benchmark_prices) phải hữu hạn, không thiếu "
+            "và lớn hơn 0."
         )
     return benchmark
 
@@ -236,28 +295,37 @@ def _validate_weights(
 ) -> pd.Series:
     if not isinstance(raw_weights, (Mapping, pd.Series)):
         raise BacktestValidationError(
-            "Strategy must return a mapping or Series of asset weights."
+            "Chiến lược (strategy) phải trả về ánh xạ (mapping) hoặc chuỗi pandas "
+            "(Series) chứa tỷ trọng tài sản."
         )
     weights = pd.Series(dict(raw_weights), dtype=float)
     unknown = weights.index.difference(assets)
     if len(unknown):
         raise BacktestValidationError(
-            f"Strategy returned unknown assets: {', '.join(map(str, unknown))}."
+            f"Chiến lược (strategy) trả về tài sản không xác định: "
+            f"{', '.join(map(str, unknown))}."
         )
     weights = weights.reindex(assets, fill_value=0.0).astype(float)
     if not np.isfinite(weights.to_numpy()).all():
-        raise BacktestValidationError("Strategy weights must be finite.")
+        raise BacktestValidationError("Tỷ trọng của chiến lược (strategy) phải hữu hạn.")
     tolerance = 1e-10
     if not config.allow_short and (weights < -tolerance).any():
-        raise BacktestValidationError("Negative weights require allow_short=True.")
+        raise BacktestValidationError(
+            "Tỷ trọng âm yêu cầu bật bán khống (allow_short=True)."
+        )
     if (weights.abs() > config.max_weight + tolerance).any():
-        raise BacktestValidationError("A strategy weight exceeds max_weight.")
+        raise BacktestValidationError(
+            "Một tỷ trọng chiến lược vượt tỷ trọng tối đa (max_weight)."
+        )
     gross = float(weights.abs().sum())
     if gross > config.max_gross_leverage + tolerance:
-        raise BacktestValidationError("Strategy exceeds max_gross_leverage.")
+        raise BacktestValidationError(
+            "Chiến lược vượt đòn bẩy gộp tối đa (max_gross_leverage)."
+        )
     if not config.allow_short and float(weights.sum()) > 1.0 + tolerance:
         raise BacktestValidationError(
-            "Long-only risky weights cannot exceed 100%; omitted weight is cash."
+            "Tổng tỷ trọng tài sản rủi ro chỉ mua (long-only) không được vượt 100%; "
+            "phần tỷ trọng còn lại được xem là tiền mặt."
         )
     weights[weights.abs() < tolerance] = 0.0
     return weights
@@ -288,14 +356,23 @@ def performance_metrics(
     """
 
     if not isinstance(returns, pd.Series) or returns.empty:
-        raise BacktestValidationError("returns must be a non-empty Series.")
+        raise BacktestValidationError(
+            "Chuỗi lợi suất (returns) phải là chuỗi pandas (Series) không rỗng."
+        )
     r = pd.to_numeric(returns, errors="coerce").astype(float)
     if not np.isfinite(r.to_numpy()).all():
-        raise BacktestValidationError("returns contains missing or non-finite values.")
+        raise BacktestValidationError(
+            "Chuỗi lợi suất (returns) chứa giá trị thiếu hoặc không hữu hạn."
+        )
     if (r <= -1).any():
-        raise BacktestValidationError("Simple returns must be greater than -100%.")
+        raise BacktestValidationError(
+            "Lợi suất đơn (simple returns) phải lớn hơn -100%."
+        )
     if annualization < 1 or risk_free_rate_annual <= -1:
-        raise BacktestValidationError("Invalid annualization or risk-free rate.")
+        raise BacktestValidationError(
+            "Hệ số năm hóa (annualization) hoặc lãi suất phi rủi ro "
+            "(risk-free rate) không hợp lệ."
+        )
 
     growth = float((1.0 + r).prod())
     total_return = growth - 1.0
@@ -326,7 +403,9 @@ def performance_metrics(
     else:
         t = pd.to_numeric(turnover, errors="coerce").astype(float)
         if not np.isfinite(t.to_numpy()).all() or (t < 0).any():
-            raise BacktestValidationError("turnover must be finite and non-negative.")
+            raise BacktestValidationError(
+                "Mức xoay vòng danh mục (turnover) phải hữu hạn và không âm."
+            )
         total_turnover = float(t.sum())
         annualized_turnover = total_turnover / years if years > 0 else np.nan
 
@@ -350,17 +429,21 @@ def run_walk_forward(
     strategy: Strategy,
     config: BacktestConfig | None = None,
 ) -> BacktestResult:
-    """Run a no-look-ahead, close-to-next-period walk-forward backtest.
+    """Run a no-look-ahead walk-forward backtest with explicit execution lag.
 
-    For an OOS return stamped ``t``, the strategy sees returns only through the
-    previous timestamp.  Target weights are assumed executable at the start of
-    period ``t``; configurable costs are deducted before that period's return.
+    With the default one-period lag, a target calculated using data through
+    close T executes at close T+1 and can first earn the close-to-close return
+    from T+1 to T+2.  Configurable costs are deducted at execution immediately
+    before that first eligible return.  ``execution_lag_periods=0`` preserves
+    the older, optimistic same-close execution convention for comparison only.
     This is a research convention, not a promise of executable market prices.
     """
 
     cfg = config or BacktestConfig()
     if not callable(strategy):
-        raise BacktestValidationError("strategy must be callable.")
+        raise BacktestValidationError(
+            "Chiến lược (strategy) phải là đối tượng có thể gọi như hàm (callable)."
+        )
     clean_prices = _validate_prices(prices)
     benchmark = _validate_benchmark(benchmark_prices, clean_prices.index)
 
@@ -372,15 +455,18 @@ def run_walk_forward(
             timestamp, asset = extreme.stack().loc[lambda x: x].index[0]
             value = asset_returns.loc[timestamp, asset]
             raise BacktestValidationError(
-                f"Implausible return {value:.2%} for {asset} at {timestamp}; "
-                "verify corporate actions, listing history, and price units."
+                f"Lợi suất bất thường {value:.2%} của {asset} tại {timestamp}; hãy kiểm tra "
+                "sự kiện doanh nghiệp (corporate actions), lịch sử niêm yết và đơn vị giá."
             )
 
-    required = cfg.min_train_size + cfg.min_test_size
+    required = (
+        cfg.min_train_size + cfg.execution_lag_periods + cfg.min_test_size
+    )
     if len(asset_returns) < required:
         raise BacktestValidationError(
-            f"Need at least {required} returns ({cfg.min_train_size} train + "
-            f"{cfg.min_test_size} OOS), received {len(asset_returns)}."
+            f"Cần ít nhất {required} quan sát lợi suất ({cfg.min_train_size} huấn luyện "
+            f"(train) + {cfg.execution_lag_periods} kỳ trễ thực thi (execution lag) + "
+            f"{cfg.min_test_size} ngoài mẫu (OOS)); hiện có {len(asset_returns)}."
         )
 
     assets = asset_returns.columns
@@ -397,11 +483,19 @@ def run_walk_forward(
     turnover_by_period: list[float] = []
     total_cost_amount = 0.0
     rebalance_number = 0
+    # Snapshot weights at each close so StrategyContext never reveals drift
+    # that occurred after its decision_time but before delayed execution.
+    weights_at_close: dict[pd.Timestamp, pd.Series] = {}
 
-    for i in range(cfg.min_train_size, len(asset_returns)):
-        execution_time = pd.Timestamp(asset_returns.index[i])
+    first_oos_position = cfg.min_train_size + cfg.execution_lag_periods
+    for i in range(first_oos_position, len(asset_returns)):
+        first_return_time = pd.Timestamp(asset_returns.index[i])
+        # Return i runs from clean_prices[i] to clean_prices[i + 1].  Target
+        # weights are acquired at its start, after the configured number of
+        # complete periods has elapsed since the signal close.
+        execution_time = pd.Timestamp(clean_prices.index[i])
         period_asset_returns = asset_returns.iloc[i]
-        did_rebalance = (i - cfg.min_train_size) % cfg.rebalance_every == 0
+        did_rebalance = (i - first_oos_position) % cfg.rebalance_every == 0
         turnover = 0.0
         buy_turnover = 0.0
         sell_turnover = 0.0
@@ -409,18 +503,56 @@ def run_walk_forward(
         cost_amount = 0.0
 
         if did_rebalance:
-            train_start = 0 if cfg.train_window is None else max(0, i - cfg.train_window)
-            training_returns = asset_returns.iloc[train_start:i].copy(deep=True)
+            decision_end = i - cfg.execution_lag_periods
+            train_start = (
+                0
+                if cfg.train_window is None
+                else max(0, decision_end - cfg.train_window)
+            )
+            training_returns = asset_returns.iloc[train_start:decision_end].copy(
+                deep=True
+            )
             if len(training_returns) < cfg.min_train_size:
-                raise BacktestValidationError("Training slice is below min_train_size.")
+                raise BacktestValidationError(
+                    "Lát dữ liệu huấn luyện (training slice) nhỏ hơn cỡ mẫu tối thiểu "
+                    "(min_train_size)."
+                )
             decision_time = pd.Timestamp(training_returns.index[-1])
-            if not decision_time < execution_time:
-                raise RuntimeError("Look-ahead guard failed: train_end >= execution_time.")
+            expected_order = (
+                decision_time == execution_time
+                if cfg.execution_lag_periods == 0
+                else decision_time < execution_time
+            )
+            if not expected_order or not execution_time < first_return_time:
+                raise RuntimeError(
+                    "Cơ chế chống nhìn trước tương lai (look-ahead guard) thất bại: thứ tự "
+                    "quyết định/thực thi/lợi suất không hợp lệ."
+                )
+            if decision_time == execution_time:
+                previous_weights_at_decision = current_weights.copy()
+            elif decision_end < first_oos_position:
+                # Before the first execution the simulated portfolio is cash,
+                # so no historical risky-weight snapshot exists by design.
+                previous_weights_at_decision = pd.Series(
+                    0.0, index=assets, dtype=float
+                )
+            else:
+                try:
+                    previous_weights_at_decision = weights_at_close[
+                        decision_time
+                    ].copy()
+                except KeyError as exc:
+                    raise RuntimeError(
+                        "Bất biến ảnh chụp tỷ trọng (weight snapshot) thất bại tại thời điểm "
+                        "quyết định (decision_time)."
+                    ) from exc
             context = StrategyContext(
                 rebalance_number=rebalance_number,
                 decision_time=decision_time,
                 execution_time=execution_time,
-                previous_weights=current_weights.copy(),
+                previous_weights=previous_weights_at_decision,
+                first_return_time=first_return_time,
+                execution_lag_periods=cfg.execution_lag_periods,
             )
             target_weights = _validate_weights(
                 strategy(training_returns, context), assets, cfg
@@ -437,7 +569,9 @@ def run_walk_forward(
                 + sell_turnover * (round_trip_bps + cfg.sell_tax_bps)
             ) / 10_000.0
             if cost_rate >= 1.0:
-                raise BacktestValidationError("Transaction costs consume all capital.")
+                raise BacktestValidationError(
+                    "Chi phí giao dịch (transaction costs) làm cạn toàn bộ vốn."
+                )
             cost_amount = equity * cost_rate
             total_cost_amount += cost_amount
             equity -= cost_amount
@@ -446,6 +580,8 @@ def run_walk_forward(
                 "rebalance_number": rebalance_number,
                 "decision_time": decision_time,
                 "execution_time": execution_time,
+                "first_return_time": first_return_time,
+                "execution_lag_periods": cfg.execution_lag_periods,
                 "train_start": pd.Timestamp(training_returns.index[0]),
                 "train_end": decision_time,
                 "training_observations": int(len(training_returns)),
@@ -461,6 +597,10 @@ def run_walk_forward(
             rebalance_rows.append(rebalance_row)
             rebalance_number += 1
 
+        # Record post-trade weights at the execution close.  A future delayed
+        # decision may legitimately see this snapshot, but never later drift.
+        weights_at_close[execution_time] = current_weights.copy()
+
         # Preserve the exact start-of-period weights used for this return.  The
         # internal weights are drifted only after the period is booked.
         period_weights = current_weights.copy()
@@ -469,7 +609,8 @@ def run_walk_forward(
         gross_return = float(current_weights @ period_asset_returns + cash_weight * rf_period)
         if gross_return <= -1.0 or not np.isfinite(gross_return):
             raise BacktestValidationError(
-                f"Portfolio was wiped out or non-finite at {execution_time}."
+                f"Danh mục đã mất toàn bộ vốn hoặc có giá trị không hữu hạn tại "
+                f"{first_return_time}."
             )
         equity *= 1.0 + gross_return
         net_return = equity / (equity_before_period + cost_amount) - 1.0
@@ -481,7 +622,7 @@ def run_walk_forward(
         period_growth = float(end_values.sum() + end_cash)
         current_weights = end_values / period_growth
 
-        result_index.append(execution_time)
+        result_index.append(first_return_time)
         return_rows.append(
             {
                 "gross_return": gross_return,

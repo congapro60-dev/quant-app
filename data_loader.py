@@ -9,10 +9,14 @@ errors without exceptions can use ``fetch_data_result``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime, time
 import os
 from pathlib import Path
 import re
+import threading
+from time import monotonic
 from typing import Any, Iterable
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -59,11 +63,17 @@ MAX_DATE_RANGE_DAYS = 3655
 DEFAULT_MIN_COVERAGE = 0.70
 DEFAULT_MAX_STALENESS_BUSINESS_DAYS = 5
 DEFAULT_MIN_OBSERVATIONS = 3
-# KBS/VCI are Vietnamese brokers and are the most accurate locally, but both
-# IP-block Streamlit Cloud (every ticker returns PROVIDER_ERROR there). MSN is
-# Microsoft's global source and stays reachable from cloud IPs, so it is kept as
-# a last-resort fallback that keeps the deployed app working when the VN brokers
-# are blocked. See _MSN_PRICE_SCALE below for the unit-normalisation MSN needs.
+VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+INTRADAY_MAX_LAG_SECONDS = 15 * 60
+INTRADAY_SESSION_START = time(9, 0)
+INTRADAY_SESSION_END = time(15, 0)
+HISTORY_SOURCE_COOLDOWN_SECONDS = 5 * 60
+INTRADAY_SOURCE_COOLDOWN_SECONDS = 60
+# Prefer the Vietnam-focused sources, then use MSN as a last-resort fallback.
+# Provider reachability can change by network, account and deployment region;
+# the circuit breaker below learns only from current process-local failures
+# instead of assuming that a provider is permanently blocked.  See
+# _MSN_PRICE_SCALE below for the unit normalisation MSN needs.
 DEFAULT_DATA_SOURCES = ("KBS", "VCI", "MSN")
 
 # MSN quotes VN equities in absolute VND (e.g. FPT ~109,000) whereas VCI/KBS use
@@ -92,6 +102,91 @@ _INTRADAY_SOURCES = ("KBS", "VCI")
 _TICKER_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,19}$")
 _SOURCE_RE = re.compile(r"^[A-Z][A-Z0-9_-]{1,15}$")
 _SOURCE_LIST_SPLIT_RE = re.compile(r"[\s,;|]+")
+_TIME_ONLY_RE = re.compile(
+    r"^\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})"
+    r"(?::(?P<second>\d{2})(?:\.(?P<microsecond>\d{1,6}))?)?\s*$"
+)
+_SOURCE_CIRCUIT_LOCK = threading.Lock()
+_SOURCE_CIRCUIT_OPEN_UNTIL: dict[tuple[str, str], float] = {}
+
+
+def vietnam_now() -> pd.Timestamp:
+    """Return one timezone-aware wall-clock timestamp for Vietnam."""
+
+    return pd.Timestamp.now(tz=VIETNAM_TZ)
+
+
+def _vietnam_today_naive() -> pd.Timestamp:
+    """Return Vietnam's current calendar date as a naive normalized stamp."""
+
+    return vietnam_now().tz_localize(None).normalize()
+
+
+def _source_cooldown_remaining(operation: str, source_name: str) -> float:
+    """Return remaining cooldown using a clock immune to wall-clock changes."""
+
+    key = (str(operation).lower(), str(source_name).upper())
+    now = monotonic()
+    with _SOURCE_CIRCUIT_LOCK:
+        open_until = _SOURCE_CIRCUIT_OPEN_UNTIL.get(key)
+        if open_until is None:
+            return 0.0
+        remaining = open_until - now
+        if remaining <= 0:
+            _SOURCE_CIRCUIT_OPEN_UNTIL.pop(key, None)
+            return 0.0
+        return float(remaining)
+
+
+def _open_source_circuit(operation: str, source_name: str, seconds: float) -> None:
+    """Open or extend one provider-operation cooldown without storing results."""
+
+    key = (str(operation).lower(), str(source_name).upper())
+    open_until = monotonic() + max(0.0, float(seconds))
+    with _SOURCE_CIRCUIT_LOCK:
+        existing = _SOURCE_CIRCUIT_OPEN_UNTIL.get(key, 0.0)
+        _SOURCE_CIRCUIT_OPEN_UNTIL[key] = max(existing, open_until)
+
+
+def _reset_source_circuit(operation: str, source_name: str) -> None:
+    key = (str(operation).lower(), str(source_name).upper())
+    with _SOURCE_CIRCUIT_LOCK:
+        _SOURCE_CIRCUIT_OPEN_UNTIL.pop(key, None)
+
+
+def _reset_source_circuit_breakers() -> None:
+    """Clear process-local breaker state; primarily for deterministic tests."""
+
+    with _SOURCE_CIRCUIT_LOCK:
+        _SOURCE_CIRCUIT_OPEN_UNTIL.clear()
+
+
+def _source_cooldown_issue(
+    source_name: str,
+    operation: str,
+    remaining_seconds: float,
+    *,
+    severity: str = "error",
+) -> FetchIssue:
+    cooldown_seconds = (
+        HISTORY_SOURCE_COOLDOWN_SECONDS
+        if operation == "history"
+        else INTRADAY_SOURCE_COOLDOWN_SECONDS
+    )
+    return FetchIssue(
+        code="SOURCE_COOLDOWN",
+        message=(
+            "Nguồn dữ liệu thị trường (market-data source) đang tạm nghỉ sau lỗi "
+            "nhà cung cấp (provider error)."
+        ),
+        severity=severity,
+        details={
+            "source": source_name,
+            "operation": operation,
+            "remaining_seconds": round(max(0.0, remaining_seconds), 3),
+            "cooldown_seconds": cooldown_seconds,
+        },
+    )
 
 
 @dataclass(frozen=True)
@@ -181,24 +276,27 @@ class DataFetchError(RuntimeError):
             sample = []
             for issue in provider_errors[:4]:
                 source = issue.details.get("source")
-                subject = issue.ticker or "request"
+                subject = issue.ticker or "yêu-cầu(request)"
                 sample.append(
                     f"{source}:{subject}:PROVIDER_ERROR"
                     if source
                     else f"{subject}:PROVIDER_ERROR"
                 )
             if len(provider_errors) > len(sample):
-                sample.append(f"+{len(provider_errors) - len(sample)} more")
-            summary = "; ".join(sample) or "unknown error"
+                sample.append(f"+{len(provider_errors) - len(sample)} lỗi khác")
+            summary = "; ".join(sample) or "lỗi chưa xác định (unknown error)"
             super().__init__(
-                "Market-data validation failed after trying sources "
-                f"{', '.join(source_names)} ({summary})."
+                "Kiểm định dữ liệu thị trường (market data) thất bại sau khi thử các "
+                f"nguồn {', '.join(source_names)} ({summary})."
             )
             return
         summary = "; ".join(
-            f"{issue.ticker or 'request'}:{issue.code}" for issue in report.errors
+            f"{issue.ticker or 'yêu-cầu(request)'}:{issue.code}" for issue in report.errors
         )
-        super().__init__(f"Market-data validation failed ({summary or 'unknown error'}).")
+        super().__init__(
+            "Kiểm định dữ liệu thị trường (market data) thất bại "
+            f"({summary or 'lỗi chưa xác định (unknown error)'})."
+        )
 
 
 class DataQualityError(ValueError):
@@ -219,11 +317,13 @@ def _normalise_tickers(tickers: Iterable[str] | str) -> list[str]:
     try:
         values = list(tickers)
     except TypeError as exc:
-        raise ValueError("tickers must be a string or an iterable of strings") from exc
+        raise ValueError(
+            "Danh sách mã chứng khoán (tickers) phải là chuỗi hoặc tập chuỗi có thể lặp."
+        ) from exc
     result: list[str] = []
     for raw in values:
         if not isinstance(raw, str):
-            raise ValueError("every ticker must be a string")
+            raise ValueError("Mỗi mã chứng khoán (ticker) phải là chuỗi.")
         ticker = str(raw).strip().upper()
         if ticker and ticker not in result:
             result.append(ticker)
@@ -239,11 +339,13 @@ def _source_values(value: Any) -> list[str]:
         try:
             raw_values = list(value)
         except TypeError as exc:
-            raise ValueError("source must be a string or an iterable of strings") from exc
+            raise ValueError(
+                "Nguồn dữ liệu (source) phải là chuỗi hoặc tập chuỗi có thể lặp."
+            ) from exc
         values = []
         for item in raw_values:
             if not isinstance(item, str):
-                raise ValueError("every source must be a string")
+                raise ValueError("Mỗi nguồn dữ liệu (source) phải là chuỗi.")
             values.extend(_SOURCE_LIST_SPLIT_RE.split(item))
     sources: list[str] = []
     for raw in values:
@@ -264,9 +366,11 @@ def _normalise_source_order(
         if fallback not in sources:
             sources.append(fallback)
     if not sources:
-        raise ValueError("at least one market-data source is required")
+        raise ValueError(
+            "Cần ít nhất một nguồn dữ liệu thị trường (market-data source)."
+        )
     if any(not _SOURCE_RE.fullmatch(source_name) for source_name in sources):
-        raise ValueError("source has an invalid format")
+        raise ValueError("Nguồn dữ liệu (source) có định dạng không hợp lệ.")
     return sources
 
 
@@ -274,16 +378,16 @@ def _normalise_date(value: Any, field_name: str) -> pd.Timestamp:
     try:
         stamp = pd.Timestamp(value)
     except Exception as exc:
-        raise ValueError(f"{field_name} is not a valid date") from exc
+        raise ValueError(f"Trường ngày {field_name} không hợp lệ.") from exc
     if pd.isna(stamp):
-        raise ValueError(f"{field_name} is not a valid date")
+        raise ValueError(f"Trường ngày {field_name} không hợp lệ.")
     if stamp.tzinfo is not None:
-        stamp = stamp.tz_convert(None)
+        stamp = stamp.tz_convert(VIETNAM_TZ).tz_localize(None)
     return stamp.normalize()
 
 
 def _business_dates(start: pd.Timestamp, end: pd.Timestamp) -> pd.DatetimeIndex:
-    effective_end = min(end, pd.Timestamp.today().normalize())
+    effective_end = min(end, _vietnam_today_naive())
     if start > effective_end:
         return pd.DatetimeIndex([])
     return pd.bdate_range(start=start, end=effective_end)
@@ -330,7 +434,10 @@ def _constant_sequence_issue(
         return FetchIssue(
             code="CONSTANT_SERIES",
             ticker=ticker,
-            message="All close prices are constant; returns and risk are not identifiable.",
+            message=(
+                "Mọi giá đóng cửa (close price) đều không đổi; không thể nhận diện "
+                "lợi suất và rủi ro."
+            ),
             details={"rows": len(closes), "close": float(closes[0])},
         )
 
@@ -362,8 +469,8 @@ def _constant_sequence_issue(
                 code=code,
                 ticker=ticker,
                 message=(
-                    "A long constant-price segment was detected; it may be "
-                    "pre-listing placeholder or stale data."
+                    "Phát hiện một đoạn giá không đổi kéo dài; đây có thể là dữ liệu giữ "
+                    "chỗ trước niêm yết (pre-listing placeholder) hoặc dữ liệu cũ (stale data)."
                 ),
                 details={
                     "side": side,
@@ -393,7 +500,7 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="EMPTY_RESPONSE",
                 ticker=ticker,
-                message="The provider returned no rows.",
+                message="Nhà cung cấp dữ liệu (provider) không trả về dòng nào.",
             )
         )
         return None, metadata, issues
@@ -404,7 +511,9 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="SCHEMA_MISMATCH",
                 ticker=ticker,
-                message="Provider response is missing required columns.",
+                message=(
+                    "Phản hồi của nhà cung cấp (provider response) thiếu các cột bắt buộc."
+                ),
                 details={"missing": missing, "columns": list(map(str, raw.columns))},
             )
         )
@@ -419,7 +528,9 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="INVALID_TIMESTAMPS",
                 ticker=ticker,
-                message="Rows with invalid timestamps were rejected.",
+                message=(
+                    "Đã loại các dòng có thời điểm (timestamp) không hợp lệ."
+                ),
                 details={"count": invalid_times},
             )
         )
@@ -436,7 +547,9 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="INVALID_CLOSE_VALUES",
                 ticker=ticker,
-                message="Non-finite, zero, or negative close prices were found.",
+                message=(
+                    "Phát hiện giá đóng cửa (close price) không hữu hạn, bằng 0 hoặc âm."
+                ),
                 details={"count": int(invalid_closes.sum())},
             )
         )
@@ -453,7 +566,10 @@ def _clean_symbol_frame(
                 code="DUPLICATE_TIMESTAMPS_DROPPED",
                 ticker=ticker,
                 severity="warning",
-                message="Duplicate timestamps were deterministically reduced to the last row.",
+                message=(
+                    "Các thời điểm (timestamp) bị trùng đã được xử lý xác định bằng cách "
+                    "giữ lại dòng cuối."
+                ),
                 details={"count": int(duplicate_count)},
             )
         )
@@ -464,7 +580,9 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="INSUFFICIENT_OBSERVATIONS",
                 ticker=ticker,
-                message="Too few valid observations remain in the requested date range.",
+                message=(
+                    "Khoảng ngày yêu cầu còn quá ít quan sát hợp lệ (valid observations)."
+                ),
                 details={"rows": len(work), "minimum": min_observations},
             )
         )
@@ -492,7 +610,9 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="INSUFFICIENT_COVERAGE",
                 ticker=ticker,
-                message="Date coverage is below the required threshold.",
+                message=(
+                    "Mức bao phủ ngày (date coverage) thấp hơn ngưỡng yêu cầu."
+                ),
                 details={
                     "coverage": ticker_coverage,
                     "minimum": min_coverage,
@@ -506,7 +626,9 @@ def _clean_symbol_frame(
             FetchIssue(
                 code="STALE_SERIES",
                 ticker=ticker,
-                message="The latest observation is too far behind the requested end date.",
+                message=(
+                    "Quan sát mới nhất chậm quá xa so với ngày kết thúc được yêu cầu."
+                ),
                 details={
                     "latest": latest.date().isoformat(),
                     "staleness_business_days": staleness,
@@ -556,6 +678,8 @@ def _fetch_data_result_from_source(
         source=source_name,
     )
     frames: dict[str, pd.DataFrame] = {}
+    provider_error_tickers: set[str] = set()
+    provider_success_count = 0
     for ticker in requested:
         try:
             raw = Quote(symbol=ticker, source=source_name).history(
@@ -568,7 +692,10 @@ def _fetch_data_result_from_source(
                 FetchIssue(
                     code="PROVIDER_ERROR",
                     ticker=ticker,
-                    message="The market-data provider request failed.",
+                    message=(
+                        "Yêu cầu tới nhà cung cấp dữ liệu thị trường "
+                        "(market-data provider) đã thất bại."
+                    ),
                     details={
                         "source": source_name,
                         "exception_type": type(exc).__name__,
@@ -576,7 +703,9 @@ def _fetch_data_result_from_source(
                     },
                 )
             )
+            provider_error_tickers.add(ticker)
             continue
+        provider_success_count += 1
         frame, metadata, issues = _clean_symbol_frame(
             raw,
             ticker,
@@ -593,6 +722,15 @@ def _fetch_data_result_from_source(
         if frame is not None:
             frames[ticker] = frame
 
+    # A breaker tracks provider reachability, not local validation quality. Open
+    # it only when every requested symbol raised at the provider boundary.
+    if requested and provider_error_tickers == set(requested):
+        _open_source_circuit(
+            "history", source_name, HISTORY_SOURCE_COOLDOWN_SECONDS
+        )
+    elif provider_success_count:
+        _reset_source_circuit("history", source_name)
+
     # Never return a partial portfolio: any failed symbol invalidates the result.
     if report.errors or set(frames) != set(requested):
         missing = [ticker for ticker in requested if ticker not in frames]
@@ -602,7 +740,10 @@ def _fetch_data_result_from_source(
             report.issues.append(
                 FetchIssue(
                     code="INCOMPLETE_PORTFOLIO",
-                    message="No partial portfolio is returned when any ticker fails validation.",
+                    message=(
+                        "Không trả về danh mục thiếu (partial portfolio) khi bất kỳ mã "
+                        "chứng khoán nào không vượt qua kiểm định."
+                    ),
                     details={"missing_or_invalid": missing},
                 )
             )
@@ -621,7 +762,9 @@ def _fetch_data_result_from_source(
         report.issues.append(
             FetchIssue(
                 code="INSUFFICIENT_COMMON_OBSERVATIONS",
-                message="Too few dates are shared by every requested ticker.",
+                message=(
+                    "Có quá ít ngày chung giữa mọi mã chứng khoán (ticker) được yêu cầu."
+                ),
                 details={"rows": len(final_df), "minimum": min_observations},
             )
         )
@@ -634,7 +777,9 @@ def _fetch_data_result_from_source(
         report.issues.append(
             FetchIssue(
                 code="STALE_COMMON_SAMPLE",
-                message="The latest date shared by the complete portfolio is too stale.",
+                message=(
+                    "Ngày chung mới nhất của toàn danh mục đã quá cũ (stale)."
+                ),
                 details={
                     "latest": common_latest.date().isoformat(),
                     "staleness_business_days": report.common_staleness_business_days,
@@ -647,7 +792,10 @@ def _fetch_data_result_from_source(
         report.issues.append(
             FetchIssue(
                 code="INSUFFICIENT_COMMON_COVERAGE",
-                message="The aligned portfolio sample has insufficient date coverage.",
+                message=(
+                    "Mẫu danh mục đã căn chỉnh (aligned portfolio sample) không đủ mức "
+                    "bao phủ ngày."
+                ),
                 details={
                     "coverage": report.common_coverage,
                     "minimum": min_coverage,
@@ -673,7 +821,10 @@ def _combine_failed_fetch_reports(reports: list[FetchReport]) -> FetchResult:
         empty_report.issues.append(
             FetchIssue(
                 code="ALL_DATA_SOURCES_FAILED",
-                message="No configured market-data source returned a complete validated portfolio.",
+                message=(
+                    "Không nguồn dữ liệu thị trường (market-data source) đã cấu hình nào "
+                    "trả về danh mục hoàn chỉnh đã kiểm định."
+                ),
             )
         )
         return _empty_result(empty_report)
@@ -686,7 +837,10 @@ def _combine_failed_fetch_reports(reports: list[FetchReport]) -> FetchResult:
     combined.issues.append(
         FetchIssue(
             code="ALL_DATA_SOURCES_FAILED",
-            message="No configured market-data source returned a complete validated portfolio.",
+            message=(
+                "Không nguồn dữ liệu thị trường (market-data source) đã cấu hình nào "
+                "trả về danh mục hoàn chỉnh đã kiểm định."
+            ),
             details={"sources": [report.source for report in reports]},
         )
     )
@@ -743,19 +897,25 @@ def fetch_data_result(
         end = _normalise_date(end_date, "end_date")
         report.start, report.end = start.date().isoformat(), end.date().isoformat()
         if start > end:
-            raise ValueError("start_date must be on or before end_date")
-        if end > pd.Timestamp.today().normalize():
-            raise ValueError("end_date cannot be in the future")
+            raise ValueError(
+                "Ngày bắt đầu (start_date) phải trước hoặc bằng ngày kết thúc (end_date)."
+            )
+        if end > _vietnam_today_naive():
+            raise ValueError("Ngày kết thúc (end_date) không được nằm trong tương lai.")
         if (end - start).days > MAX_DATE_RANGE_DAYS:
             raise ValueError(
-                f"date range exceeds the {MAX_DATE_RANGE_DAYS}-day safety limit"
+                f"Khoảng ngày vượt giới hạn an toàn {MAX_DATE_RANGE_DAYS} ngày."
             )
         if not 0 < float(min_coverage) <= 1:
-            raise ValueError("min_coverage must be in (0, 1]")
+            raise ValueError(
+                "Mức bao phủ tối thiểu (min_coverage) phải thuộc khoảng (0, 1]."
+            )
         source_order = _normalise_source_order(source, fallback_sources)
         report.source = ",".join(source_order)
         if int(max_staleness_business_days) < 0 or int(min_observations) < 2:
-            raise ValueError("staleness and observation limits are invalid")
+            raise ValueError(
+                "Giới hạn độ cũ dữ liệu (staleness) hoặc số quan sát không hợp lệ."
+            )
     except (TypeError, ValueError) as exc:
         report.issues.append(
             FetchIssue(code="INVALID_REQUEST", message=str(exc))
@@ -764,14 +924,19 @@ def fetch_data_result(
 
     if not requested:
         report.issues.append(
-            FetchIssue(code="NO_TICKERS", message="At least one ticker is required.")
+            FetchIssue(
+                code="NO_TICKERS",
+                message="Cần ít nhất một mã chứng khoán (ticker).",
+            )
         )
         return _empty_result(report)
     if len(requested) > MAX_TICKERS:
         report.issues.append(
             FetchIssue(
                 code="TOO_MANY_TICKERS",
-                message=f"At most {MAX_TICKERS} tickers may be fetched at once.",
+                message=(
+                    f"Chỉ được tải tối đa {MAX_TICKERS} mã chứng khoán (tickers) mỗi lần."
+                ),
                 details={"requested": len(requested), "maximum": MAX_TICKERS},
             )
         )
@@ -781,7 +946,9 @@ def fetch_data_result(
         report.issues.append(
             FetchIssue(
                 code="INVALID_TICKERS",
-                message="One or more ticker symbols have an invalid format.",
+                message=(
+                    "Một hoặc nhiều mã chứng khoán (ticker symbol) có định dạng không hợp lệ."
+                ),
                 details={"tickers": invalid_tickers},
             )
         )
@@ -792,7 +959,9 @@ def fetch_data_result(
         report.issues.append(
             FetchIssue(
                 code="REQUEST_WINDOW_TOO_SHORT",
-                message="The requested window has too few business days.",
+                message=(
+                    "Khoảng thời gian yêu cầu có quá ít ngày làm việc (business days)."
+                ),
                 details={"business_days": len(expected), "minimum": min_observations},
             )
         )
@@ -800,6 +969,21 @@ def fetch_data_result(
 
     failed_reports: list[FetchReport] = []
     for source_name in source_order:
+        cooldown_remaining = _source_cooldown_remaining("history", source_name)
+        if cooldown_remaining > 0:
+            cooldown_report = FetchReport(
+                requested_tickers=list(requested),
+                start=start.date().isoformat(),
+                end=end.date().isoformat(),
+                source=source_name,
+            )
+            cooldown_report.issues.append(
+                _source_cooldown_issue(
+                    source_name, "history", cooldown_remaining
+                )
+            )
+            failed_reports.append(cooldown_report)
+            continue
         result = _fetch_data_result_from_source(
             requested,
             start,
@@ -812,10 +996,25 @@ def fetch_data_result(
         )
         if result.ok:
             if failed_reports:
+                for failed_report in failed_reports:
+                    for issue in failed_report.issues:
+                        if issue.code == "SOURCE_COOLDOWN":
+                            result.report.issues.append(
+                                FetchIssue(
+                                    code=issue.code,
+                                    message=issue.message,
+                                    ticker=issue.ticker,
+                                    severity="warning",
+                                    details=dict(issue.details),
+                                )
+                            )
                 result.report.issues.append(
                     FetchIssue(
                         code="DATA_SOURCE_FALLBACK_USED",
-                        message="A fallback market-data source returned the complete portfolio.",
+                        message=(
+                            "Nguồn dữ liệu thị trường dự phòng (fallback source) đã trả về "
+                            "danh mục hoàn chỉnh."
+                        ),
                         severity="warning",
                         details={
                             "selected_source": result.report.source,
@@ -850,13 +1049,25 @@ class IntradayResult:
     """Matched-order ticks for one symbol, plus provenance for the UI."""
 
     data: pd.DataFrame
+    symbol: str = ""
+    page_size: int = 0
+    query_signature: str = ""
     source: str = ""
     error: str = ""
     fetched_at: pd.Timestamp | None = None
+    trading_date: date | None = None
+    freshness: str = "unavailable"
+    lag_seconds: float | None = None
+    issues: list[FetchIssue] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return not self.data.empty
+        return bool(self.symbol) and self.freshness == "fresh" and not self.data.empty
+
+    def matches_query(self, ticker: Any, page_size: Any) -> bool:
+        """Prevent a cached result from being relabelled after inputs change."""
+
+        return self.query_signature == intraday_query_signature(ticker, page_size)
 
     @property
     def last_price(self) -> float | None:
@@ -869,8 +1080,117 @@ class IntradayResult:
     def last_tick_time(self):
         if self.data.empty or "time" not in self.data.columns:
             return None
-        stamps = pd.to_datetime(self.data["time"], errors="coerce").dropna()
-        return stamps.iloc[-1] if len(stamps) else None
+        values = self.data["time"].dropna()
+        if values.empty:
+            return None
+        try:
+            return _as_vietnam_timestamp(values.iloc[-1])
+        except (TypeError, ValueError):
+            return None
+
+
+@dataclass
+class _IntradayFrameResult:
+    data: pd.DataFrame
+    error: str = ""
+    freshness: str = "invalid"
+    trading_date: date | None = None
+    lag_seconds: float | None = None
+
+
+def _normalise_intraday_page_size(page_size: Any) -> int:
+    try:
+        size = int(page_size)
+    except (TypeError, ValueError):
+        size = 500
+    return max(1, min(size, 5000))
+
+
+def intraday_query_signature(ticker: Any, page_size: Any) -> str:
+    """Canonical cache key for an intraday query."""
+
+    symbol = str(ticker or "").strip().upper()
+    return f"{symbol}:{_normalise_intraday_page_size(page_size)}"
+
+
+def _as_vietnam_timestamp(value: Any) -> pd.Timestamp:
+    stamp = pd.Timestamp(value)
+    if pd.isna(stamp):
+        raise ValueError("Thiếu thời điểm (timestamp).")
+    if stamp.tzinfo is None:
+        return stamp.tz_localize(VIETNAM_TZ)
+    return stamp.tz_convert(VIETNAM_TZ)
+
+
+def _clock_from_time_only(value: Any) -> time | None:
+    match = _TIME_ONLY_RE.fullmatch(str(value))
+    if match is None:
+        return None
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    second = int(match.group("second") or 0)
+    microsecond_text = (match.group("microsecond") or "").ljust(6, "0")
+    microsecond = int(microsecond_text or 0)
+    try:
+        return time(hour, minute, second, microsecond)
+    except ValueError:
+        return None
+
+
+def _can_infer_intraday_date(fetched_at: pd.Timestamp) -> bool:
+    local_time = fetched_at.timetz().replace(tzinfo=None)
+    return (
+        fetched_at.weekday() < 5
+        and INTRADAY_SESSION_START <= local_time <= INTRADAY_SESSION_END
+    )
+
+
+def _parse_intraday_times(
+    values: pd.Series,
+    *,
+    explicit_dates: pd.Series | None,
+    fetched_at: pd.Timestamp,
+) -> tuple[pd.Series | None, str]:
+    """Parse provider times without borrowing the cloud server's UTC date."""
+
+    non_missing = values.dropna()
+    if non_missing.empty:
+        return None, "Nhà cung cấp không trả về thời điểm khớp lệnh."
+
+    clocks = non_missing.map(_clock_from_time_only)
+    time_only = clocks.notna()
+    if time_only.any() and not time_only.all():
+        return None, "Nhà cung cấp trộn thời gian đầy đủ và giờ rời rạc trong cùng dữ liệu."
+
+    parsed = pd.Series(pd.NaT, index=values.index, dtype="object")
+    if time_only.all():
+        if explicit_dates is not None:
+            dates: dict[Any, date] = {}
+            for idx in non_missing.index:
+                raw_date = explicit_dates.loc[idx]
+                try:
+                    dates[idx] = _as_vietnam_timestamp(raw_date).date()
+                except (TypeError, ValueError):
+                    return None, "Ngày giao dịch đi kèm giờ khớp lệnh không hợp lệ."
+        elif _can_infer_intraday_date(fetched_at):
+            dates = {idx: fetched_at.date() for idx in non_missing.index}
+        else:
+            return (
+                None,
+                "Dữ liệu chỉ có giờ nhưng không có ngày giao dịch; ngoài phiên không thể suy đoán an toàn.",
+            )
+
+        for idx in non_missing.index:
+            combined = datetime.combine(dates[idx], clocks.loc[idx])
+            parsed.loc[idx] = pd.Timestamp(combined, tz=VIETNAM_TZ)
+        return parsed, ""
+
+    for idx, value in non_missing.items():
+        try:
+            parsed.loc[idx] = _as_vietnam_timestamp(value)
+        except (TypeError, ValueError):
+            continue
+    return parsed, ""
 
 
 def fetch_intraday(ticker, *, page_size=500, source=None, fallback_sources=None):
@@ -883,16 +1203,20 @@ def fetch_intraday(ticker, *, page_size=500, source=None, fallback_sources=None)
     """
 
     symbol = str(ticker or "").strip().upper()
+    size = _normalise_intraday_page_size(page_size)
+    signature = intraday_query_signature(symbol, size)
     if not symbol:
-        return IntradayResult(pd.DataFrame(), error="Chưa nhập mã cổ phiếu.")
+        return IntradayResult(
+            pd.DataFrame(), symbol=symbol, page_size=size,
+            query_signature=signature, error="Chưa nhập mã cổ phiếu.",
+            freshness="invalid",
+        )
     if not _TICKER_RE.fullmatch(symbol):
-        return IntradayResult(pd.DataFrame(), error=f"Mã '{ticker}' không hợp lệ.")
-
-    try:
-        size = int(page_size)
-    except (TypeError, ValueError):
-        size = 500
-    size = max(1, min(size, 5000))
+        return IntradayResult(
+            pd.DataFrame(), symbol=symbol, page_size=size,
+            query_signature=signature, error=f"Mã '{ticker}' không hợp lệ.",
+            freshness="invalid",
+        )
 
     source_order = _normalise_source_order(source, fallback_sources)
     # MSN exposes no intraday endpoint at all, so querying it only produces a
@@ -902,36 +1226,109 @@ def fetch_intraday(ticker, *, page_size=500, source=None, fallback_sources=None)
     if not source_order:
         return IntradayResult(
             pd.DataFrame(),
+            symbol=symbol,
+            page_size=size,
+            query_signature=signature,
             error="Không có nguồn nào hỗ trợ dữ liệu khớp lệnh trong phiên.",
+            freshness="unavailable",
         )
     problems: list[str] = []
+    failure_state = "unavailable"
+    last_fetched_at: pd.Timestamp | None = None
+    last_trading_date: date | None = None
+    last_lag_seconds: float | None = None
+    issues: list[FetchIssue] = []
 
     for source_name in source_order:
+        cooldown_remaining = _source_cooldown_remaining("intraday", source_name)
+        if cooldown_remaining > 0:
+            issues.append(
+                _source_cooldown_issue(
+                    source_name,
+                    "intraday",
+                    cooldown_remaining,
+                    severity="warning",
+                )
+            )
+            problems.append(
+                f"{source_name}: nguồn đang tạm nghỉ còn "
+                f"{cooldown_remaining:.0f} giây sau lỗi nhà cung cấp."
+            )
+            continue
         try:
             raw = Quote(symbol=symbol, source=source_name).intraday(page_size=size)
         except Exception as exc:
-            problems.append(f"{source_name}: {_unwrap_provider_reason(exc)}")
+            reason = _unwrap_provider_reason(exc)
+            _open_source_circuit(
+                "intraday", source_name, INTRADAY_SOURCE_COOLDOWN_SECONDS
+            )
+            issues.append(
+                FetchIssue(
+                    code="PROVIDER_ERROR",
+                    message=(
+                        "Yêu cầu dữ liệu trong phiên tới nhà cung cấp dữ liệu thị trường "
+                        "(intraday market-data provider) đã thất bại."
+                    ),
+                    severity="warning",
+                    details={
+                        "source": source_name,
+                        "operation": "intraday",
+                        "exception_type": type(exc).__name__,
+                        "reason": reason,
+                    },
+                )
+            )
+            problems.append(
+                f"{source_name}: lỗi nhà cung cấp (provider error), chi tiết nguyên văn: "
+                f"{reason}"
+            )
             continue
+
+        # Empty or locally invalid data is not a provider transport failure.
+        _reset_source_circuit("intraday", source_name)
 
         if raw is None or getattr(raw, "empty", True):
             problems.append(f"{source_name}: nhà cung cấp không trả về dữ liệu khớp lệnh.")
             continue
 
-        frame = _clean_intraday_frame(raw, symbol, source_name)
-        if frame.empty:
-            problems.append(f"{source_name}: dữ liệu khớp lệnh không đọc được.")
+        fetched_at = vietnam_now()
+        cleaned = _clean_intraday_frame(
+            raw, symbol, source_name, fetched_at=fetched_at
+        )
+        last_fetched_at = fetched_at
+        last_trading_date = cleaned.trading_date
+        last_lag_seconds = cleaned.lag_seconds
+        if cleaned.data.empty or cleaned.freshness != "fresh":
+            failure_state = cleaned.freshness
+            problems.append(
+                f"{source_name}: {cleaned.error or 'dữ liệu khớp lệnh không đạt kiểm định.'}"
+            )
             continue
 
         return IntradayResult(
-            data=frame,
+            data=cleaned.data,
+            symbol=symbol,
+            page_size=size,
+            query_signature=signature,
             source=source_name,
-            fetched_at=pd.Timestamp.now(),
+            fetched_at=fetched_at,
+            trading_date=cleaned.trading_date,
+            freshness=cleaned.freshness,
+            lag_seconds=cleaned.lag_seconds,
+            issues=issues,
         )
 
     return IntradayResult(
         pd.DataFrame(),
+        symbol=symbol,
+        page_size=size,
+        query_signature=signature,
         error=" | ".join(problems) or "Không lấy được dữ liệu khớp lệnh.",
-        fetched_at=pd.Timestamp.now(),
+        fetched_at=last_fetched_at if last_fetched_at is not None else vietnam_now(),
+        trading_date=last_trading_date,
+        freshness=failure_state,
+        lag_seconds=last_lag_seconds,
+        issues=issues,
     )
 
 
@@ -953,60 +1350,198 @@ def _unwrap_provider_reason(exc):
     return text[:200] if text else type(cause).__name__
 
 
-def _clean_intraday_frame(raw, symbol, source_name):
-    """Normalise provider tick columns to time/price/volume/side."""
+def _clean_intraday_frame(
+    raw,
+    symbol,
+    source_name,
+    *,
+    fetched_at: pd.Timestamp | None = None,
+    max_lag_seconds: int = INTRADAY_MAX_LAG_SECONDS,
+) -> _IntradayFrameResult:
+    """Normalise and fail-closed validate one provider's matched-order ticks."""
 
     frame = raw.copy()
     frame.columns = [str(c).strip().lower() for c in frame.columns]
+    fetched_at = _as_vietnam_timestamp(
+        fetched_at if fetched_at is not None else vietnam_now()
+    )
 
-    rename = {}
-    for candidate in ("time", "tradingdate", "timestamp", "trading_time"):
-        if candidate in frame.columns:
-            rename[candidate] = "time"
-            break
-    for candidate in ("price", "matchprice", "close", "last_price"):
-        if candidate in frame.columns:
-            rename[candidate] = "price"
-            break
-    for candidate in ("volume", "matchvol", "vol", "quantity"):
-        if candidate in frame.columns:
-            rename[candidate] = "volume"
-            break
-    for candidate in ("match_type", "side", "buysell", "type"):
-        if candidate in frame.columns:
-            rename[candidate] = "side"
-            break
-    frame = frame.rename(columns=rename)
+    provider_symbols: set[str] = set()
+    metadata_symbol = str(frame.attrs.get("symbol", "") or "").strip().upper()
+    if metadata_symbol:
+        provider_symbols.add(metadata_symbol)
+    for column in ("symbol", "ticker", "organ_code", "organcode"):
+        if column in frame.columns:
+            provider_symbols.update(
+                str(value).strip().upper()
+                for value in frame[column].dropna().unique()
+                if str(value).strip()
+            )
+    if provider_symbols and provider_symbols != {symbol}:
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error=(
+                f"nhà cung cấp trả mã {', '.join(sorted(provider_symbols))} "
+                f"thay vì mã được yêu cầu {symbol}."
+            ),
+            freshness="symbol_mismatch",
+        )
 
-    if "time" not in frame.columns or "price" not in frame.columns:
-        return pd.DataFrame()
+    metadata_source = str(frame.attrs.get("source", "") or "").strip().upper()
+    if metadata_source and metadata_source != source_name:
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error=(
+                f"siêu dữ liệu (metadata) ghi nguồn {metadata_source} thay vì nguồn truy "
+                f"vấn {source_name}."
+            ),
+            freshness="source_mismatch",
+        )
 
-    frame["time"] = pd.to_datetime(frame["time"], errors="coerce")
-    frame["price"] = pd.to_numeric(frame["price"], errors="coerce")
-    if "volume" in frame.columns:
-        frame["volume"] = pd.to_numeric(frame["volume"], errors="coerce")
+    def _first_column(candidates: tuple[str, ...]) -> str | None:
+        return next((candidate for candidate in candidates if candidate in frame.columns), None)
 
-    keep = [c for c in ("time", "price", "volume", "side") if c in frame.columns]
-    frame = frame[keep].dropna(subset=["time", "price"])
-    frame = frame[frame["price"] > 0]
-    if frame.empty:
-        return pd.DataFrame()
+    time_candidates = tuple(
+        candidate
+        for candidate in ("timestamp", "datetime", "trading_time", "tradingtime", "time", "tradingdate")
+        if candidate in frame.columns
+    )
+
+    def _contains_full_timestamp(column: str) -> bool:
+        for value in frame[column].dropna():
+            if _clock_from_time_only(value) is not None:
+                continue
+            try:
+                stamp = _as_vietnam_timestamp(value)
+            except (TypeError, ValueError):
+                continue
+            if stamp.timetz().replace(tzinfo=None) != time(0, 0):
+                return True
+        return False
+
+    # A provider may expose both a full timestamp and a time-only convenience
+    # column. Prefer the full value so the trading date is never guessed.
+    time_column = next(
+        (candidate for candidate in time_candidates if _contains_full_timestamp(candidate)),
+        time_candidates[0] if time_candidates else None,
+    )
+    price_column = _first_column(("price", "matchprice", "close", "last_price"))
+    volume_column = _first_column(("volume", "matchvol", "vol", "quantity"))
+    side_column = _first_column(("match_type", "side", "buysell", "type"))
+    date_column = _first_column(
+        tuple(
+            candidate
+            for candidate in ("tradingdate", "trading_date", "date", "tradingday", "trading_day")
+            if candidate != time_column
+        )
+    )
+    if time_column is None or price_column is None:
+        return _IntradayFrameResult(
+            pd.DataFrame(), error="thiếu cột thời gian hoặc giá khớp.", freshness="invalid"
+        )
+
+    parsed_times, time_error = _parse_intraday_times(
+        frame[time_column],
+        explicit_dates=frame[date_column] if date_column else None,
+        fetched_at=fetched_at,
+    )
+    if parsed_times is None:
+        return _IntradayFrameResult(
+            pd.DataFrame(), error=time_error, freshness="ambiguous_date"
+        )
+
+    work = pd.DataFrame(index=frame.index)
+    work["time"] = parsed_times
+    work["price"] = pd.to_numeric(frame[price_column], errors="coerce")
+    if volume_column:
+        work["volume"] = pd.to_numeric(frame[volume_column], errors="coerce")
+    if side_column:
+        work["side"] = frame[side_column]
+    work = work.dropna(subset=["time", "price"]).copy()
+    work["time"] = pd.to_datetime(work["time"], utc=True).dt.tz_convert(VIETNAM_TZ)
+    work = work[work["price"] > 0]
+    if work.empty:
+        return _IntradayFrameResult(
+            pd.DataFrame(), error="dữ liệu khớp lệnh không đọc được.", freshness="invalid"
+        )
+
+    trading_dates = {stamp.date() for stamp in work["time"]}
+    if len(trading_dates) != 1:
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error="dữ liệu chứa lệnh khớp từ nhiều ngày giao dịch.",
+            freshness="session_mismatch",
+        )
+    trading_date = next(iter(trading_dates))
+
+    local_clocks = [stamp.timetz().replace(tzinfo=None) for stamp in work["time"]]
+    if any(
+        clock < INTRADAY_SESSION_START or clock > INTRADAY_SESSION_END
+        for clock in local_clocks
+    ):
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error="thời điểm khớp nằm ngoài khung phiên giao dịch Việt Nam.",
+            freshness="session_mismatch",
+            trading_date=trading_date,
+        )
+
+    latest = max(work["time"])
+    lag_seconds = float((fetched_at - latest).total_seconds())
+    if trading_date > fetched_at.date() or lag_seconds < 0:
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error="thời điểm khớp nằm trong tương lai so với giờ Việt Nam của máy chủ.",
+            freshness="future",
+            trading_date=trading_date,
+            lag_seconds=lag_seconds,
+        )
+    if trading_date < fetched_at.date():
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error=f"dữ liệu thuộc phiên cũ {trading_date.strftime('%d/%m/%Y')}.",
+            freshness="stale",
+            trading_date=trading_date,
+            lag_seconds=lag_seconds,
+        )
+    if lag_seconds > max(0, int(max_lag_seconds)):
+        return _IntradayFrameResult(
+            pd.DataFrame(),
+            error=(
+                f"lệnh gần nhất đã chậm {lag_seconds / 60:.1f} phút; "
+                "không dùng như dữ liệu trong phiên hiện tại."
+            ),
+            freshness="stale",
+            trading_date=trading_date,
+            lag_seconds=lag_seconds,
+        )
 
     # MSN quotes equities in absolute VND; keep the nghìn-đồng convention.
     if source_name == "MSN" and symbol not in _INDEX_SYMBOLS:
-        frame["price"] = frame["price"] / _MSN_PRICE_SCALE
+        work["price"] = work["price"] / _MSN_PRICE_SCALE
 
-    frame = frame.sort_values("time").reset_index(drop=True)
-    frame.attrs["symbol"] = symbol
-    frame.attrs["source"] = source_name
-    return frame
+    work = work.sort_values("time").reset_index(drop=True)
+    work.attrs["symbol"] = symbol
+    work.attrs["source"] = source_name
+    work.attrs["fetched_at"] = fetched_at
+    work.attrs["trading_date"] = trading_date.isoformat()
+    work.attrs["freshness"] = "fresh"
+    work.attrs["lag_seconds"] = lag_seconds
+    return _IntradayFrameResult(
+        work,
+        freshness="fresh",
+        trading_date=trading_date,
+        lag_seconds=lag_seconds,
+    )
 
 
 def calculate_returns(prices_df):
     """Calculate aligned daily log returns from validated positive prices."""
 
     if not isinstance(prices_df, pd.DataFrame):
-        raise DataQualityError("prices_df must be a pandas DataFrame")
+        raise DataQualityError(
+            "Bảng giá (prices_df) phải là bảng dữ liệu pandas (DataFrame)."
+        )
     if prices_df.empty:
         return pd.DataFrame(index=prices_df.index, columns=prices_df.columns, dtype=float)
     data = prices_df.copy()
@@ -1016,6 +1551,9 @@ def calculate_returns(prices_df):
     returns = np.log(data / data.shift(1))
     returns = returns.replace([np.inf, -np.inf], np.nan).dropna(how="any")
     if returns.empty:
-        raise DataQualityError("No aligned finite log returns could be calculated")
+        raise DataQualityError(
+            "Không tính được lợi suất logarit hữu hạn đã căn chỉnh "
+            "(aligned finite log returns)."
+        )
     returns.attrs.update(prices_df.attrs)
     return returns

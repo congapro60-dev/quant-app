@@ -230,6 +230,44 @@ def test_call_llm_uses_per_call_google_genai_client_and_default_model(monkeypatc
     assert captured["closed"] is True
 
 
+def test_call_llm_classifies_quota_error_and_redacts_key(monkeypatch):
+    secret = "secret-key-never-echo"
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            del kwargs
+            raise RuntimeError(
+                "429 RESOURCE_EXHAUSTED key=secret-key-never-echo quota exceeded"
+            )
+
+    class FakeClient:
+        def __init__(self, api_key):
+            assert api_key == secret
+            self.models = FakeModels()
+
+        def close(self):
+            pass
+
+    fake_genai = SimpleNamespace(Client=FakeClient)
+    fake_google = types.ModuleType("google")
+    fake_google.genai = fake_genai
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+
+    output = analytics.call_llm(
+        "prompt",
+        {
+            "provider": "Google (Gemini)",
+            "model": "gemini-3.1-pro-preview",
+            "api_key": secret,
+        },
+    )
+
+    assert output.startswith("Lỗi gọi API [QUOTA_OR_TIER]")
+    assert "Free Tier" in output
+    assert secret not in output
+
+
 def test_expert_advice_sends_structured_metrics_only(monkeypatch):
     captured = {}
 
@@ -265,3 +303,23 @@ def test_expert_advice_rejects_actionable_llm_language(monkeypatch):
     assert "đã bị loại" in output
     assert "giải ngân phần lớn ngay" not in output
     assert "không phải khuyến nghị mua/bán" in output.lower()
+
+
+@pytest.mark.parametrize(
+    "unsafe_text",
+    [
+        "Có thể cân nhắc tích lũy AAA quanh vùng giá hiện tại.",
+        "Hãy gia tăng tỷ trọng và chốt lời khi đạt mục tiêu.",
+        "Overweight AAA now and set a stop loss below support.",
+    ],
+)
+def test_expert_advice_rejects_actionable_synonyms(monkeypatch, unsafe_text):
+    monkeypatch.setattr(analytics, "call_llm", lambda prompt, config: unsafe_text)
+    output = analytics.generate_expert_advice(
+        _sim_rows(),
+        _opt_result(),
+        pd.Series(np.linspace(100, 110, 40)),
+        {"provider": "Google (Gemini)", "api_key": "secret"},
+    )
+    assert "đã bị loại" in output
+    assert unsafe_text not in output

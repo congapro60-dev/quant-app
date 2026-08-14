@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Mapping
 
 import numpy as np
@@ -40,7 +41,9 @@ def _finite_series(values, name):
 def run_sim(asset_returns, market_returns, min_observations=MIN_SIM_OBSERVATIONS):
     """Run the Single Index Model after validating the aligned return sample."""
     if int(min_observations) < 3:
-        raise AnalyticsValidationError("min_observations phải >= 3.")
+        raise AnalyticsValidationError(
+            "Số quan sát tối thiểu (min_observations) phải từ 3 trở lên."
+        )
 
     asset = _finite_series(asset_returns, "Lợi suất tài sản")
     market = _finite_series(market_returns, "Lợi suất thị trường")
@@ -49,12 +52,17 @@ def run_sim(asset_returns, market_returns, min_observations=MIN_SIM_OBSERVATIONS
 
     if len(df) < int(min_observations):
         raise AnalyticsValidationError(
-            f"SIM cần ít nhất {int(min_observations)} quan sát hữu hạn; hiện có {len(df)}."
+            f"Mô hình chỉ số đơn (SIM) cần ít nhất {int(min_observations)} quan sát "
+            f"hữu hạn; hiện có {len(df)}."
         )
     if not np.isfinite(df.to_numpy(dtype=float)).all():
-        raise AnalyticsValidationError("Mẫu SIM còn chứa giá trị không hữu hạn.")
+        raise AnalyticsValidationError(
+            "Mẫu của mô hình chỉ số đơn (SIM) còn chứa giá trị không hữu hạn."
+        )
     if float(df["Market"].var(ddof=1)) <= np.finfo(float).eps:
-        raise AnalyticsValidationError("Lợi suất thị trường không có đủ biến động để ước lượng Beta.")
+        raise AnalyticsValidationError(
+            "Lợi suất thị trường không có đủ biến động để ước lượng hệ số độ nhạy (Beta)."
+        )
 
     y = df["Asset"]
     X = sm.add_constant(df["Market"], has_constant="add")
@@ -70,7 +78,9 @@ def run_sim(asset_returns, market_returns, min_observations=MIN_SIM_OBSERVATIONS
         dtype=float,
     )
     if not np.isfinite(values).all():
-        raise AnalyticsValidationError("SIM tạo ra hệ số hoặc rủi ro không hữu hạn.")
+        raise AnalyticsValidationError(
+            "Mô hình chỉ số đơn (SIM) tạo ra hệ số hoặc rủi ro không hữu hạn."
+        )
 
     return {
         "alpha": alpha,
@@ -87,11 +97,15 @@ def run_sim(asset_returns, market_returns, min_observations=MIN_SIM_OBSERVATIONS
 
 def _validated_diagnostic_inputs(sim_results, min_observations):
     if not isinstance(sim_results, Mapping):
-        raise AnalyticsValidationError("Kết quả SIM phải là một mapping.")
+        raise AnalyticsValidationError(
+            "Kết quả mô hình chỉ số đơn (SIM) phải là một ánh xạ (mapping)."
+        )
     model = sim_results.get("model")
     X = sim_results.get("X")
     if model is None or X is None or not hasattr(model, "resid"):
-        raise AnalyticsValidationError("Kết quả SIM thiếu model hoặc ma trận X.")
+        raise AnalyticsValidationError(
+            "Kết quả mô hình chỉ số đơn (SIM) thiếu mô hình (model) hoặc ma trận X."
+        )
 
     resid = np.asarray(model.resid, dtype=float).reshape(-1)
     exog = np.asarray(X, dtype=float)
@@ -101,19 +115,24 @@ def _validated_diagnostic_inputs(sim_results, min_observations):
         raise AnalyticsValidationError("Số dòng phần dư không khớp ma trận X.")
     if len(resid) < int(min_observations):
         raise AnalyticsValidationError(
-            f"Chẩn đoán SIM cần ít nhất {int(min_observations)} quan sát; hiện có {len(resid)}."
+            f"Chẩn đoán mô hình chỉ số đơn (SIM) cần ít nhất "
+            f"{int(min_observations)} quan sát; hiện có {len(resid)}."
         )
     if exog.shape[1] < 2:
         raise AnalyticsValidationError("Ma trận X phải chứa hằng số và biến thị trường.")
     if not np.isfinite(resid).all() or not np.isfinite(exog).all():
-        raise AnalyticsValidationError("Dữ liệu chẩn đoán chứa NaN hoặc vô cực.")
+        raise AnalyticsValidationError(
+            "Dữ liệu chẩn đoán chứa giá trị không phải số (NaN) hoặc vô cực."
+        )
     return model, exog, resid
 
 
 def _validated_pvalue(value, test_name):
     pvalue = float(value)
     if not np.isfinite(pvalue) or not 0.0 <= pvalue <= 1.0:
-        raise AnalyticsValidationError(f"{test_name} trả về p-value không hợp lệ.")
+        raise AnalyticsValidationError(
+            f"Kiểm định {test_name} trả về giá trị xác suất (p-value) không hợp lệ."
+        )
     return pvalue
 
 
@@ -122,16 +141,16 @@ def run_diagnostics(sim_results, min_observations=MIN_SIM_OBSERVATIONS):
     model, X, resid = _validated_diagnostic_inputs(sim_results, min_observations)
     diagnostics = {
         "White_pvalue": None,
-        "Heteroskedasticity": "Error",
+        "Heteroskedasticity": "Lỗi (Error)",
         "BG_pvalue": None,
-        "Autocorrelation": "Error",
+        "Autocorrelation": "Lỗi (Error)",
         "RESET_pvalue": None,
-        "SpecificationError": "Error",
+        "SpecificationError": "Lỗi (Error)",
         "JB_stat": None,
         "JB_pvalue": None,
         "JB_skewness": None,
         "JB_kurtosis": None,
-        "Normality": "Error",
+        "Normality": "Lỗi (Error)",
     }
     errors = {}
 
@@ -139,7 +158,7 @@ def run_diagnostics(sim_results, min_observations=MIN_SIM_OBSERVATIONS):
         white_test = het_white(resid, X)
         pvalue = _validated_pvalue(white_test[1], "White")
         diagnostics["White_pvalue"] = pvalue
-        diagnostics["Heteroskedasticity"] = "Yes" if pvalue < 0.05 else "No"
+        diagnostics["Heteroskedasticity"] = "Có (Yes)" if pvalue < 0.05 else "Không (No)"
     except Exception as exc:
         errors["White"] = str(exc)
 
@@ -147,7 +166,7 @@ def run_diagnostics(sim_results, min_observations=MIN_SIM_OBSERVATIONS):
         bg_test = acorr_breusch_godfrey(model, nlags=1)
         pvalue = _validated_pvalue(bg_test[1], "Breusch-Godfrey")
         diagnostics["BG_pvalue"] = pvalue
-        diagnostics["Autocorrelation"] = "Yes" if pvalue < 0.05 else "No"
+        diagnostics["Autocorrelation"] = "Có (Yes)" if pvalue < 0.05 else "Không (No)"
     except Exception as exc:
         errors["Breusch-Godfrey"] = str(exc)
 
@@ -164,7 +183,9 @@ def run_diagnostics(sim_results, min_observations=MIN_SIM_OBSERVATIONS):
         pvalue = _validated_pvalue(jb_pvalue, "Jarque-Bera")
         jb_values = np.asarray([jb_stat, jb_skew, jb_kurt], dtype=float)
         if not np.isfinite(jb_values).all():
-            raise AnalyticsValidationError("Jarque-Bera trả về thống kê không hữu hạn.")
+            raise AnalyticsValidationError(
+                "Kiểm định Jarque-Bera trả về thống kê không hữu hạn."
+            )
         diagnostics["JB_stat"] = float(jb_stat)
         diagnostics["JB_pvalue"] = pvalue
         diagnostics["JB_skewness"] = float(jb_skew)
@@ -184,13 +205,17 @@ def _prepare_portfolio_returns(returns_df, min_observations):
         try:
             returns_df = pd.DataFrame(returns_df)
         except Exception as exc:
-            raise AnalyticsValidationError("Lợi suất danh mục phải chuyển được thành DataFrame.") from exc
+            raise AnalyticsValidationError(
+                "Lợi suất danh mục phải chuyển được thành bảng dữ liệu pandas (DataFrame)."
+            ) from exc
     if returns_df.shape[1] == 0:
         raise AnalyticsValidationError("Cần ít nhất một tài sản để tối ưu danh mục.")
     if returns_df.columns.duplicated().any():
         raise AnalyticsValidationError("Tên tài sản trong danh mục không được trùng nhau.")
     if int(min_observations) < 3:
-        raise AnalyticsValidationError("min_observations phải >= 3.")
+        raise AnalyticsValidationError(
+            "Số quan sát tối thiểu (min_observations) phải từ 3 trở lên."
+        )
 
     numeric = returns_df.apply(pd.to_numeric, errors="coerce")
     numeric = numeric.replace([np.inf, -np.inf], np.nan).dropna(how="any")
@@ -217,7 +242,10 @@ def _prepare_portfolio_returns(returns_df, min_observations):
 def _regularize_covariance(cov_matrix, strength):
     strength = float(strength)
     if not np.isfinite(strength) or strength < 0:
-        raise AnalyticsValidationError("covariance_regularization phải là số hữu hạn >= 0.")
+        raise AnalyticsValidationError(
+            "Mức điều chuẩn hiệp phương sai (covariance_regularization) phải là số "
+            "hữu hạn và không âm."
+        )
     covariance = np.asarray(cov_matrix, dtype=float)
     if covariance.ndim != 2 or covariance.shape[0] != covariance.shape[1]:
         raise AnalyticsValidationError("Ma trận hiệp phương sai không vuông.")
@@ -241,8 +269,10 @@ def _regularize_covariance(cov_matrix, strength):
 
 def _validated_solver_weights(result, num_assets, label):
     if result is None or not bool(getattr(result, "success", False)):
-        message = getattr(result, "message", "không có phản hồi từ solver")
-        raise AnalyticsValidationError(f"{label} thất bại: {message}")
+        message = getattr(result, "message", "không có phản hồi từ bộ giải")
+        raise AnalyticsValidationError(
+            f"{label} thất bại; thông báo từ bộ giải (solver): {message}"
+        )
     weights = np.asarray(getattr(result, "x", []), dtype=float).reshape(-1)
     if weights.shape != (num_assets,) or not np.isfinite(weights).all():
         raise AnalyticsValidationError(f"{label} trả về vector trọng số không hợp lệ.")
@@ -275,13 +305,22 @@ def markowitz_optimization(
     trading_days = int(trading_days)
     num_portfolios = int(num_portfolios)
     if not np.isfinite(risk_free_rate):
-        raise AnalyticsValidationError("risk_free_rate phải là số hữu hạn.")
+        raise AnalyticsValidationError(
+            "Lãi suất phi rủi ro (risk_free_rate) phải là số hữu hạn."
+        )
     if trading_days <= 0:
-        raise AnalyticsValidationError("trading_days phải > 0.")
+        raise AnalyticsValidationError(
+            "Số ngày giao dịch (trading_days) phải lớn hơn 0."
+        )
     if not 1 <= num_portfolios <= 100_000:
-        raise AnalyticsValidationError("num_portfolios phải nằm trong [1, 100000].")
+        raise AnalyticsValidationError(
+            "Số danh mục mô phỏng (num_portfolios) phải nằm trong [1, 100000]."
+        )
     if random_seed is None:
-        raise AnalyticsValidationError("random_seed phải được đặt để frontier có thể tái lập.")
+        raise AnalyticsValidationError(
+            "Hạt giống ngẫu nhiên (random_seed) phải được đặt để đường biên "
+            "(frontier) có thể tái lập."
+        )
 
     clean_returns, dropped_rows = _prepare_portfolio_returns(
         returns_df, min_observations=min_observations
@@ -330,11 +369,13 @@ def markowitz_optimization(
         options=solver_options,
     )
     min_vol_weights = _validated_solver_weights(
-        min_vol_result, num_assets, "Tối ưu Min Volatility"
+        min_vol_result, num_assets, "Tối ưu biến động tối thiểu (Min Volatility)"
     )
     min_vol_perf = performance(min_vol_weights)
     if not np.isfinite(min_vol_perf).all():
-        raise AnalyticsValidationError("Min Volatility tạo ra hiệu suất không hữu hạn.")
+        raise AnalyticsValidationError(
+            "Tối ưu biến động tối thiểu (Min Volatility) tạo ra hiệu suất không hữu hạn."
+        )
 
     warning_msg = None
     cash_weight = 0.0
@@ -361,11 +402,13 @@ def markowitz_optimization(
             options=solver_options,
         )
         max_sharpe_weights = _validated_solver_weights(
-            max_sharpe_result, num_assets, "Tối ưu Max Sharpe"
+            max_sharpe_result, num_assets, "Tối ưu tỷ số Sharpe tối đa (Max Sharpe)"
         )
         max_sharpe_perf = performance(max_sharpe_weights)
         if not np.isfinite(max_sharpe_perf).all():
-            raise AnalyticsValidationError("Max Sharpe tạo ra hiệu suất không hữu hạn.")
+            raise AnalyticsValidationError(
+                "Tối ưu tỷ số Sharpe tối đa (Max Sharpe) tạo ra hiệu suất không hữu hạn."
+            )
         max_sharpe_status = {
             "success": True,
             "mode": "risky_portfolio",
@@ -393,7 +436,9 @@ def markowitz_optimization(
         and np.isfinite(frontier_volatility).all()
         and np.isfinite(frontier_sharpes).all()
     ):
-        raise AnalyticsValidationError("Efficient frontier chứa giá trị không hữu hạn.")
+        raise AnalyticsValidationError(
+            "Đường biên hiệu quả (efficient frontier) chứa giá trị không hữu hạn."
+        )
 
     return {
         "min_vol_weights": min_vol_weights,
@@ -454,6 +499,63 @@ def _extract_gemini_text(response):
     return "\n".join(texts)
 
 
+def _friendly_llm_error(exc, *, provider="", model="", api_key=""):
+    """Return a stable, redacted error that the UI can act on safely."""
+
+    raw = " ".join(str(exc).split()) or type(exc).__name__
+    if api_key:
+        raw = raw.replace(str(api_key), "[REDACTED]")
+    # Some SDK exceptions include a request URL. Never allow an API key query
+    # parameter to be echoed back into Streamlit logs or the visible UI.
+    raw = re.sub(
+        r"(?i)([?&](?:key|api_key)=)[^&\s]+",
+        r"\1[REDACTED]",
+        raw,
+    )
+    lowered = raw.lower()
+
+    if any(token in lowered for token in ("resource_exhausted", "quota", "rate limit", "429")):
+        code = "QUOTA_OR_TIER"
+        guidance = (
+            "Kiểm tra thanh toán (Billing), giới hạn tần suất (Rate limits) của dự án "
+            "(project)"
+        )
+        if "gemini" in str(provider).lower() or "gemini" in str(model).lower():
+            guidance += (
+                "; nếu dự án (project) đang ở gói miễn phí (Free Tier), hãy chọn "
+                "Gemini Flash hoặc bật gói trả phí (Paid Tier)"
+            )
+    elif any(token in lowered for token in ("permission_denied", "access denied", "403")):
+        code = "ACCESS_DENIED"
+        guidance = (
+            "Kiểm tra quyền mô hình (model), dự án (project) gắn với khóa API "
+            "(API key) và khu vực hỗ trợ"
+        )
+    elif any(token in lowered for token in ("unauthenticated", "invalid api key", "api key not valid", "401")):
+        code = "INVALID_KEY"
+        guidance = "Tạo hoặc kiểm tra lại khóa API (API key) trong đúng dự án (project)"
+    elif any(token in lowered for token in ("not_found", "model not found", "404")):
+        code = "MODEL_UNAVAILABLE"
+        guidance = (
+            "Mô hình (model) không khả dụng cho dự án (project) này; chọn mô hình khác "
+            "và thử lại"
+        )
+    elif any(token in lowered for token in ("unavailable", "timeout", "timed out", "503", "500")):
+        code = "TEMPORARY"
+        guidance = "Dịch vụ đang bận; chờ một lúc rồi thử lại"
+    else:
+        code = "API_ERROR"
+        guidance = (
+            "Kiểm tra cấu hình nhà cung cấp/mô hình (provider/model) và thử lại"
+        )
+
+    detail = raw[:240]
+    return (
+        f"Lỗi gọi API [{code}] (giao diện lập trình ứng dụng): {guidance}. "
+        f"Chi tiết kỹ thuật nguyên văn (raw detail): {detail}"
+    )
+
+
 def call_llm(prompt, config):
     """Call a configured provider without process-global SDK configuration."""
     if not config or not config.get("api_key"):
@@ -463,13 +565,13 @@ def call_llm(prompt, config):
     if not api_key:
         return None
 
+    model_name = str(config.get("model") or "").strip()
     try:
         if provider == "Anthropic (Claude)":
             import anthropic
 
-            model_name = str(config.get("model") or "").strip()
             if not model_name:
-                raise AnalyticsValidationError("Chưa cấu hình model Anthropic.")
+                raise AnalyticsValidationError("Chưa cấu hình mô hình (model) Anthropic.")
             client = anthropic.Anthropic(api_key=api_key)
             try:
                 message = client.messages.create(
@@ -483,13 +585,15 @@ def call_llm(prompt, config):
                 if callable(close):
                     close()
             if not text:
-                raise AnalyticsValidationError("Anthropic không trả về content block dạng text.")
+                raise AnalyticsValidationError(
+                    "Anthropic không trả về khối nội dung (content block) dạng văn bản (text)."
+                )
             return text
 
         if provider == "Google (Gemini)":
             from google import genai
 
-            model_name = str(config.get("model") or DEFAULT_GEMINI_MODEL).strip()
+            model_name = model_name or DEFAULT_GEMINI_MODEL
             client = genai.Client(api_key=api_key)
             try:
                 response = client.models.generate_content(
@@ -502,12 +606,19 @@ def call_llm(prompt, config):
                 if callable(close):
                     close()
             if not text:
-                raise AnalyticsValidationError("Gemini không trả về nội dung text.")
+                raise AnalyticsValidationError(
+                    "Gemini không trả về nội dung văn bản (text)."
+                )
             return text
 
         raise AnalyticsValidationError(f"Nhà cung cấp AI không được hỗ trợ: {provider!r}.")
     except Exception as exc:
-        return f"Lỗi gọi API: {exc}"
+        return _friendly_llm_error(
+            exc,
+            provider=provider,
+            model=model_name,
+            api_key=api_key,
+        )
 
 
 _ACTIONABLE_LANGUAGE = (
@@ -518,6 +629,23 @@ _ACTIONABLE_LANGUAGE = (
     "giải ngân",
     "đầu tư ngay",
     "phân bổ phần lớn vốn",
+    "cân nhắc mua",
+    "cân nhắc bán",
+    "tích lũy",
+    "gia tăng tỷ trọng",
+    "tăng tỷ trọng",
+    "giảm tỷ trọng",
+    "chốt lời",
+    "cắt lỗ",
+    "đặt lệnh",
+    "vào lệnh",
+    "thoát lệnh",
+    "buy now",
+    "sell now",
+    "take profit",
+    "stop loss",
+    "overweight",
+    "underweight",
 )
 
 
@@ -569,7 +697,10 @@ def _structured_metrics(sim_results_list, opt_res, market_prices):
     weights = np.asarray(opt_res.get("max_sharpe_weights", []), dtype=float).reshape(-1)
     allocation_warning = None
     if weights.shape != (len(assets),) or not np.isfinite(weights).all():
-        allocation_warning = "Vector trọng số Max Sharpe không hợp lệ nên không được diễn giải."
+        allocation_warning = (
+            "Vector trọng số tỷ số Sharpe tối đa (Max Sharpe) không hợp lệ nên không "
+            "được diễn giải."
+        )
         allocations = []
     else:
         allocations = [
@@ -635,7 +766,10 @@ def _fallback_metric_explanation(metrics):
         allocation_text = "; ".join(
             f"{item['asset']}={item['model_weight']:.1%}" for item in allocations
         )
-        lines.append(f"- Phân bổ toán học Max Sharpe trong mẫu: {allocation_text}.")
+        lines.append(
+            f"- Phân bổ toán học theo tỷ số Sharpe tối đa (Max Sharpe) trong mẫu: "
+            f"{allocation_text}."
+        )
     if portfolio["cash_weight"] > _WEIGHT_TOLERANCE:
         lines.append(
             f"- Phương án tiền mặt trong mô hình: {portfolio['cash_weight']:.1%}."
@@ -670,12 +804,16 @@ def generate_expert_advice(sim_results_list, opt_res, market_prices, ai_config=N
     )
     llm_explanation = call_llm(prompt, ai_config)
     if not llm_explanation:
-        return "⚠️ **Không nhận được phản hồi AI; dùng diễn giải định lượng mặc định.**\n\n" + fallback
+        return (
+            "⚠️ **Không nhận được phản hồi trí tuệ nhân tạo (AI); dùng diễn giải "
+            "định lượng mặc định.**\n\n" + fallback
+        )
     if llm_explanation.startswith("Lỗi gọi API"):
         return f"⚠️ **{llm_explanation}; dùng diễn giải định lượng mặc định.**\n\n{fallback}"
     if _contains_actionable_language(llm_explanation):
         return (
-            "⚠️ **Phản hồi AI chứa ngôn ngữ chỉ dẫn giao dịch nên đã bị loại; "
+            "⚠️ **Phản hồi trí tuệ nhân tạo (AI) chứa ngôn ngữ chỉ dẫn giao dịch "
+            "nên đã bị loại; "
             "dùng diễn giải định lượng mặc định.**\n\n"
             + fallback
         )

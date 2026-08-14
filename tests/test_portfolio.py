@@ -54,26 +54,26 @@ def test_average_cost_cash_realized_and_unrealized_pnl():
 
 def test_ledger_rejects_oversell_insufficient_cash_and_duplicate_fill():
     ledger = PortfolioLedger(1_000)
-    with pytest.raises(PortfolioValidationError, match="Insufficient cash"):
+    with pytest.raises(PortfolioValidationError, match="Không đủ tiền mặt"):
         ledger.record_fill(Fill("FPT", T0, "BUY", 100, 20, fill_id="too-big"))
 
     buy = Fill("FPT", T0, "BUY", 10, 20, fill_id="buy")
     ledger.record_fill(buy)
-    with pytest.raises(PortfolioValidationError, match="Duplicate fill_id"):
+    with pytest.raises(PortfolioValidationError, match="fill_id.*bị trùng"):
         ledger.record_fill(buy)
-    with pytest.raises(PortfolioValidationError, match="only 10"):
+    with pytest.raises(PortfolioValidationError, match="chỉ có 10"):
         ledger.record_fill(
             Fill("FPT", T0 + timedelta(minutes=1), "SELL", 11, 20, fill_id="sell")
         )
 
 
 def test_fill_validation_rejects_impossible_costs_and_mixed_timezones():
-    with pytest.raises(PortfolioValidationError, match="smaller than fill notional"):
+    with pytest.raises(PortfolioValidationError, match="phải nhỏ hơn giá trị"):
         Fill("FPT", T0, "BUY", 1, 10, commission=10, fill_id="bad-cost")
 
     ledger = PortfolioLedger(1_000)
     ledger.record_fill(Fill("FPT", T0, "BUY", 1, 10, fill_id="aware"))
-    with pytest.raises(PortfolioValidationError, match="timezone awareness"):
+    with pytest.raises(PortfolioValidationError, match="múi giờ"):
         ledger.record_fill(
             Fill("FPT", datetime(2026, 8, 3, 10), "BUY", 1, 10, fill_id="naive")
         )
@@ -151,17 +151,17 @@ def test_trade_plan_has_conservative_risk_reward_expiry_and_disclaimer():
     payload = plan.to_dict()
     assert payload["disclaimer"] == NO_PROFIT_GUARANTEE
     assert "không cam kết" in payload["disclaimer"]
-    assert "not a success probability" in payload["confidence_note"]
+    assert "không phải xác suất thành công" in payload["confidence_note"]
     assert TradePlan.from_dict(payload) == plan
 
 
 @pytest.mark.parametrize(
     "changes, message",
     [
-        ({"stop_price": 101}, "below the entire entry zone"),
-        ({"targets": (101, 110)}, "above the entire entry zone"),
-        ({"confidence": 1.1}, "between 0 and 1"),
-        ({"expires_at": T0}, "after created_at"),
+        ({"stop_price": 101}, "thấp hơn toàn bộ vùng vào lệnh"),
+        ({"targets": (101, 110)}, "cao hơn toàn bộ vùng vào lệnh"),
+        ({"confidence": 1.1}, "nằm giữa 0 và 1"),
+        ({"expires_at": T0}, "phải sau thời điểm tạo"),
     ],
 )
 def test_invalid_trade_plans_are_rejected(changes, message):

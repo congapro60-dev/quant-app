@@ -17,7 +17,7 @@ from uuid import uuid4
 
 NO_PROFIT_GUARANTEE = (
     "Đây là kịch bản quản trị rủi ro, không cam kết hoặc đảm bảo lợi nhuận; "
-    "giá thực tế có thể gap qua điểm dừng lỗ và làm khoản lỗ lớn hơn dự kiến."
+    "giá thực tế có thể nhảy qua (gap) điểm dừng lỗ và làm khoản lỗ lớn hơn dự kiến."
 )
 
 __all__ = [
@@ -52,11 +52,11 @@ def _finite_positive(value: float, name: str, *, allow_zero: bool = False) -> fl
     try:
         number = float(value)
     except (TypeError, ValueError) as exc:
-        raise PortfolioValidationError(f"{name} must be numeric.") from exc
+        raise PortfolioValidationError(f"Trường {name} phải là giá trị số.") from exc
     valid = number >= 0 if allow_zero else number > 0
     if not math.isfinite(number) or not valid:
-        qualifier = "non-negative" if allow_zero else "positive"
-        raise PortfolioValidationError(f"{name} must be finite and {qualifier}.")
+        qualifier = "không âm" if allow_zero else "lớn hơn 0"
+        raise PortfolioValidationError(f"Trường {name} phải hữu hạn và {qualifier}.")
     return number
 
 
@@ -67,8 +67,12 @@ def _datetime(value: datetime | str, name: str) -> datetime:
         try:
             return datetime.fromisoformat(value)
         except ValueError as exc:
-            raise PortfolioValidationError(f"{name} must be ISO-8601 datetime.") from exc
-    raise PortfolioValidationError(f"{name} must be a datetime or ISO-8601 string.")
+            raise PortfolioValidationError(
+                f"Trường {name} phải là ngày giờ theo chuẩn ISO-8601."
+            ) from exc
+    raise PortfolioValidationError(
+        f"Trường {name} phải là đối tượng ngày giờ (datetime) hoặc chuỗi ISO-8601."
+    )
 
 
 @dataclass(frozen=True)
@@ -88,11 +92,13 @@ class Fill:
     def __post_init__(self) -> None:
         symbol = str(self.symbol).strip().upper()
         if not symbol:
-            raise PortfolioValidationError("symbol is required.")
+            raise PortfolioValidationError("Bắt buộc có mã chứng khoán (symbol).")
         try:
             side = self.side if isinstance(self.side, Side) else Side(str(self.side).upper())
         except ValueError as exc:
-            raise PortfolioValidationError("side must be BUY or SELL.") from exc
+            raise PortfolioValidationError(
+                "Chiều giao dịch (side) phải là mua (BUY) hoặc bán (SELL)."
+            ) from exc
         timestamp = _datetime(self.timestamp, "timestamp")
         quantity = _finite_positive(self.quantity, "quantity")
         price = _finite_positive(self.price, "price")
@@ -100,10 +106,11 @@ class Fill:
         tax = _finite_positive(self.tax, "tax", allow_zero=True)
         fill_id = str(self.fill_id).strip()
         if not fill_id:
-            raise PortfolioValidationError("fill_id is required.")
+            raise PortfolioValidationError("Bắt buộc có mã khớp lệnh (fill_id).")
         if commission + tax >= quantity * price:
             raise PortfolioValidationError(
-                "commission plus tax must be smaller than fill notional."
+                "Tổng phí hoa hồng (commission) và thuế (tax) phải nhỏ hơn giá trị "
+                "khớp lệnh (fill notional)."
             )
         object.__setattr__(self, "symbol", symbol)
         object.__setattr__(self, "side", side)
@@ -198,19 +205,24 @@ class PortfolioLedger:
         """Apply one fill atomically and return the resulting position copy."""
 
         if not isinstance(fill, Fill):
-            raise PortfolioValidationError("record_fill expects a Fill instance.")
+            raise PortfolioValidationError(
+                "Hàm ghi khớp lệnh (record_fill) yêu cầu một bản ghi khớp lệnh (Fill)."
+            )
         if fill.fill_id in self._fill_ids:
-            raise PortfolioValidationError(f"Duplicate fill_id: {fill.fill_id}.")
+            raise PortfolioValidationError(
+                f"Mã khớp lệnh (fill_id) bị trùng: {fill.fill_id}."
+            )
         if self._fills:
             try:
                 is_older = fill.timestamp < self._fills[-1].timestamp
             except TypeError as exc:
                 raise PortfolioValidationError(
-                    "All fill timestamps must use compatible timezone awareness."
+                    "Mọi thời điểm khớp lệnh (fill timestamp) phải có thông tin múi giờ "
+                    "(timezone) tương thích."
                 ) from exc
             if is_older:
                 raise PortfolioValidationError(
-                    "Fills must be recorded in non-decreasing timestamp order."
+                    "Các khớp lệnh (fills) phải được ghi theo thứ tự thời gian không giảm."
                 )
         current = self._positions.get(fill.symbol, Position(fill.symbol)).copy()
 
@@ -218,8 +230,8 @@ class PortfolioLedger:
             cash_required = fill.notional + fill.transaction_cost
             if not self.allow_negative_cash and cash_required > self._cash + 1e-9:
                 raise PortfolioValidationError(
-                    f"Insufficient cash for {fill.symbol}: need {cash_required:.2f}, "
-                    f"have {self._cash:.2f}."
+                    f"Không đủ tiền mặt (insufficient cash) cho {fill.symbol}: cần "
+                    f"{cash_required:.2f}, hiện có {self._cash:.2f}."
                 )
             new_quantity = current.quantity + fill.quantity
             capitalized_cost = (
@@ -233,8 +245,8 @@ class PortfolioLedger:
         else:
             if fill.quantity > current.quantity + 1e-9:
                 raise PortfolioValidationError(
-                    f"Cannot sell {fill.quantity:g} {fill.symbol}; "
-                    f"only {current.quantity:g} available."
+                    f"Không thể bán {fill.quantity:g} {fill.symbol}; chỉ có "
+                    f"{current.quantity:g} cổ phiếu khả dụng."
                 )
             proceeds = fill.notional - fill.transaction_cost
             cost_basis = current.average_cost * fill.quantity
@@ -261,7 +273,9 @@ class PortfolioLedger:
         unrealized_pnl = 0.0
         for symbol, position in self.positions().items():
             if symbol not in marks:
-                raise PortfolioValidationError(f"Missing mark price for {symbol}.")
+                raise PortfolioValidationError(
+                    f"Thiếu giá đánh dấu theo thị trường (mark price) cho {symbol}."
+                )
             mark = _finite_positive(marks[symbol], f"mark price for {symbol}")
             value = position.quantity * mark
             unrealized = position.quantity * (mark - position.average_cost)
@@ -303,7 +317,9 @@ class PortfolioLedger:
     @classmethod
     def from_session_state(cls, payload: Mapping[str, Any]) -> "PortfolioLedger":
         if int(payload.get("schema_version", -1)) != cls.SCHEMA_VERSION:
-            raise PortfolioValidationError("Unsupported ledger schema_version.")
+            raise PortfolioValidationError(
+                "Phiên bản cấu trúc sổ giao dịch (schema_version) không được hỗ trợ."
+            )
         ledger = cls(
             payload["initial_cash"],
             allow_negative_cash=bool(payload.get("allow_negative_cash", False)),
@@ -350,22 +366,30 @@ def size_long_position_by_risk(
     entry_price = _finite_positive(entry_price, "entry_price")
     stop_price = _finite_positive(stop_price, "stop_price")
     if stop_price >= entry_price:
-        raise PortfolioValidationError("A long-position stop must be below entry_price.")
+        raise PortfolioValidationError(
+            "Điểm dừng lỗ của vị thế mua (long position) phải thấp hơn giá vào lệnh "
+            "(entry_price)."
+        )
     try:
         risk_fraction = float(risk_fraction)
         max_position_fraction = float(max_position_fraction)
     except (TypeError, ValueError) as exc:
         raise PortfolioValidationError(
-            "risk_fraction and max_position_fraction must be numeric."
+            "Tỷ lệ rủi ro (risk_fraction) và tỷ lệ vị thế tối đa "
+            "(max_position_fraction) phải là giá trị số."
         ) from exc
     if not math.isfinite(risk_fraction) or not 0 < risk_fraction < 1:
-        raise PortfolioValidationError("risk_fraction must be between 0 and 1.")
+        raise PortfolioValidationError(
+            "Tỷ lệ rủi ro (risk_fraction) phải nằm giữa 0 và 1."
+        )
     if not math.isfinite(max_position_fraction) or not 0 < max_position_fraction <= 1:
         raise PortfolioValidationError(
-            "max_position_fraction must be in the interval (0, 1]."
+            "Tỷ lệ vị thế tối đa (max_position_fraction) phải thuộc khoảng (0, 1]."
         )
     if not isinstance(lot_size, int) or lot_size <= 0:
-        raise PortfolioValidationError("lot_size must be a positive integer.")
+        raise PortfolioValidationError(
+            "Kích thước lô (lot_size) phải là số nguyên lớn hơn 0."
+        )
     entry_cost_bps = _finite_positive(
         estimated_entry_cost_bps, "estimated_entry_cost_bps", allow_zero=True
     )
@@ -419,7 +443,9 @@ class TradePlan:
         plan_id = str(self.plan_id).strip()
         symbol = str(self.symbol).strip().upper()
         if not plan_id or not symbol:
-            raise PortfolioValidationError("plan_id and symbol are required.")
+            raise PortfolioValidationError(
+                "Bắt buộc có mã kế hoạch (plan_id) và mã chứng khoán (symbol)."
+            )
         try:
             direction = (
                 self.direction
@@ -427,52 +453,72 @@ class TradePlan:
                 else Direction(str(self.direction).upper())
             )
         except ValueError as exc:
-            raise PortfolioValidationError("direction must be LONG or SHORT.") from exc
+            raise PortfolioValidationError(
+                "Hướng vị thế (direction) phải là mua (LONG) hoặc bán khống (SHORT)."
+            ) from exc
         created_at = _datetime(self.created_at, "created_at")
         expires_at = _datetime(self.expires_at, "expires_at")
         if (created_at.tzinfo is None) != (expires_at.tzinfo is None):
             raise PortfolioValidationError(
-                "created_at and expires_at must use compatible timezone awareness."
+                "Thời điểm tạo (created_at) và hết hạn (expires_at) phải có thông tin "
+                "múi giờ (timezone) tương thích."
             )
         if expires_at <= created_at:
-            raise PortfolioValidationError("expires_at must be after created_at.")
+            raise PortfolioValidationError(
+                "Thời điểm hết hạn (expires_at) phải sau thời điểm tạo (created_at)."
+            )
         low = _finite_positive(self.entry_zone_low, "entry_zone_low")
         high = _finite_positive(self.entry_zone_high, "entry_zone_high")
         if low > high:
-            raise PortfolioValidationError("entry_zone_low cannot exceed entry_zone_high.")
+            raise PortfolioValidationError(
+                "Cận dưới vùng vào lệnh (entry_zone_low) không được vượt cận trên "
+                "(entry_zone_high)."
+            )
         stop = _finite_positive(self.stop_price, "stop_price")
         targets = tuple(_finite_positive(v, "target") for v in self.targets)
         if not targets:
-            raise PortfolioValidationError("At least one target is required.")
+            raise PortfolioValidationError("Cần ít nhất một giá mục tiêu (target).")
         trigger = str(self.trigger).strip()
         if not trigger:
-            raise PortfolioValidationError("trigger is required and must be observable.")
+            raise PortfolioValidationError(
+                "Bắt buộc có điều kiện kích hoạt (trigger) và điều kiện này phải quan sát được."
+            )
         confidence = float(self.confidence)
         if not math.isfinite(confidence) or not 0 <= confidence <= 1:
-            raise PortfolioValidationError("confidence must be between 0 and 1.")
+            raise PortfolioValidationError(
+                "Điểm tin cậy (confidence) phải nằm giữa 0 và 1."
+            )
 
         if direction is Direction.LONG:
             if stop >= low:
                 raise PortfolioValidationError(
-                    "LONG stop_price must be below the entire entry zone."
+                    "Giá dừng lỗ (stop_price) của vị thế mua (LONG) phải thấp hơn toàn "
+                    "bộ vùng vào lệnh."
                 )
             if any(target <= high for target in targets):
                 raise PortfolioValidationError(
-                    "Every LONG target must be above the entire entry zone."
+                    "Mọi giá mục tiêu (target) của vị thế mua (LONG) phải cao hơn toàn "
+                    "bộ vùng vào lệnh."
                 )
             if tuple(sorted(targets)) != targets:
-                raise PortfolioValidationError("LONG targets must be increasing.")
+                raise PortfolioValidationError(
+                    "Các giá mục tiêu (targets) của vị thế mua (LONG) phải tăng dần."
+                )
         else:
             if stop <= high:
                 raise PortfolioValidationError(
-                    "SHORT stop_price must be above the entire entry zone."
+                    "Giá dừng lỗ (stop_price) của vị thế bán khống (SHORT) phải cao hơn "
+                    "toàn bộ vùng vào lệnh."
                 )
             if any(target >= low for target in targets):
                 raise PortfolioValidationError(
-                    "Every SHORT target must be below the entire entry zone."
+                    "Mọi giá mục tiêu (target) của vị thế bán khống (SHORT) phải thấp hơn "
+                    "toàn bộ vùng vào lệnh."
                 )
             if tuple(sorted(targets, reverse=True)) != targets:
-                raise PortfolioValidationError("SHORT targets must be decreasing.")
+                raise PortfolioValidationError(
+                    "Các giá mục tiêu (targets) của vị thế bán khống (SHORT) phải giảm dần."
+                )
 
         object.__setattr__(self, "plan_id", plan_id)
         object.__setattr__(self, "symbol", symbol)
@@ -506,7 +552,9 @@ class TradePlan:
     def is_expired(self, now: datetime | str) -> bool:
         current = _datetime(now, "now")
         if (current.tzinfo is None) != (self.expires_at.tzinfo is None):
-            raise PortfolioValidationError("now has incompatible timezone awareness.")
+            raise PortfolioValidationError(
+                "Thời điểm hiện tại (now) có thông tin múi giờ (timezone) không tương thích."
+            )
         return current >= self.expires_at
 
     def is_price_in_entry_zone(self, price: float, now: datetime | str) -> bool:
@@ -526,7 +574,9 @@ class TradePlan:
             "stop_price": self.stop_price,
             "targets": list(self.targets),
             "confidence": self.confidence,
-            "confidence_note": "Heuristic score only; not a success probability.",
+            "confidence_note": (
+                "Chỉ là điểm kinh nghiệm (heuristic score), không phải xác suất thành công."
+            ),
             "thesis": self.thesis,
             "invalidation": self.invalidation,
             "risk_reward_ratios": list(self.risk_reward_ratios),

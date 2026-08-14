@@ -33,12 +33,16 @@ def _history(start: str, end: str, *, offset: float = 0.0) -> pd.DataFrame:
 
 class _FakeQuote:
     payloads = {}
+    intraday_payloads = {}
+    history_calls = []
+    intraday_calls = []
 
     def __init__(self, symbol: str, source: str):
         self.symbol = symbol
         self.source = source
 
     def history(self, start: str, end: str):
+        self.history_calls.append((self.source, self.symbol))
         source_key = (self.source, self.symbol)
         payload = (
             self.payloads[source_key]
@@ -49,10 +53,29 @@ class _FakeQuote:
             raise payload
         return payload.copy()
 
+    def intraday(self, page_size: int):
+        self.intraday_calls.append((self.source, self.symbol, page_size))
+        source_key = (self.source, self.symbol)
+        payload = (
+            self.intraday_payloads[source_key]
+            if source_key in self.intraday_payloads
+            else self.intraday_payloads[self.symbol]
+        )
+        if isinstance(payload, Exception):
+            raise payload
+        return payload.copy().tail(page_size)
+
 
 class MarketDataHardeningTests(unittest.TestCase):
     def setUp(self):
         _FakeQuote.payloads = {}
+        _FakeQuote.intraday_payloads = {}
+        _FakeQuote.history_calls = []
+        _FakeQuote.intraday_calls = []
+        loader._reset_source_circuit_breakers()
+
+    def tearDown(self):
+        loader._reset_source_circuit_breakers()
 
     def test_filters_range_sorts_and_deduplicates(self):
         start, end = "2024-01-02", "2024-01-12"
@@ -117,6 +140,82 @@ class MarketDataHardeningTests(unittest.TestCase):
         self.assertIn(
             "DATA_SOURCE_FALLBACK_USED",
             [issue.code for issue in result.report.warnings],
+        )
+
+    def test_history_provider_wide_failure_opens_and_expires_cooldown(self):
+        start, end = "2024-02-01", "2024-02-15"
+        clock = [100.0]
+        _FakeQuote.payloads = {
+            ("KBS", "AAA"): RuntimeError("kbs blocked"),
+            ("KBS", "BBB"): RuntimeError("kbs blocked"),
+            ("VCI", "AAA"): _history(start, end),
+            ("VCI", "BBB"): _history(start, end, offset=50),
+        }
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "monotonic", side_effect=lambda: clock[0]),
+        ):
+            first = loader.fetch_data_result(
+                ["AAA", "BBB"], start, end, source=["KBS", "VCI"]
+            )
+            first_kbs_calls = [c for c in _FakeQuote.history_calls if c[0] == "KBS"]
+
+            clock[0] = 101.0
+            second = loader.fetch_data_result(
+                ["AAA", "BBB"], start, end, source=["KBS", "VCI"]
+            )
+            second_kbs_calls = [c for c in _FakeQuote.history_calls if c[0] == "KBS"]
+
+            clock[0] = 401.0
+            _FakeQuote.payloads[("KBS", "AAA")] = _history(start, end)
+            _FakeQuote.payloads[("KBS", "BBB")] = _history(start, end, offset=50)
+            third = loader.fetch_data_result(
+                ["AAA", "BBB"], start, end, source=["KBS", "VCI"]
+            )
+
+        self.assertTrue(first.ok, first.report.to_dict())
+        self.assertEqual(len(first_kbs_calls), 2)
+        self.assertTrue(second.ok, second.report.to_dict())
+        self.assertEqual(second_kbs_calls, first_kbs_calls)
+        cooldowns = [i for i in second.report.warnings if i.code == "SOURCE_COOLDOWN"]
+        self.assertEqual(len(cooldowns), 1)
+        self.assertEqual(cooldowns[0].details["source"], "KBS")
+        self.assertEqual(cooldowns[0].details["operation"], "history")
+        self.assertEqual(cooldowns[0].details["remaining_seconds"], 299.0)
+        self.assertTrue(third.ok, third.report.to_dict())
+        self.assertEqual(third.report.source, "KBS")
+        self.assertEqual(
+            len([c for c in _FakeQuote.history_calls if c[0] == "KBS"]), 4
+        )
+
+    def test_history_partial_provider_error_never_opens_cooldown(self):
+        start, end = "2024-02-01", "2024-02-15"
+        clock = [100.0]
+        _FakeQuote.payloads = {
+            ("KBS", "AAA"): RuntimeError("one symbol failed"),
+            ("KBS", "BBB"): _history(start, end),
+            ("VCI", "AAA"): _history(start, end),
+            ("VCI", "BBB"): _history(start, end, offset=50),
+        }
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "monotonic", side_effect=lambda: clock[0]),
+        ):
+            first = loader.fetch_data_result(
+                ["AAA", "BBB"], start, end, source=["KBS", "VCI"]
+            )
+            clock[0] = 101.0
+            second = loader.fetch_data_result(
+                ["AAA", "BBB"], start, end, source=["KBS", "VCI"]
+            )
+
+        self.assertTrue(first.ok, first.report.to_dict())
+        self.assertTrue(second.ok, second.report.to_dict())
+        self.assertEqual(
+            len([c for c in _FakeQuote.history_calls if c[0] == "KBS"]), 4
+        )
+        self.assertNotIn(
+            "SOURCE_COOLDOWN", [issue.code for issue in second.report.issues]
         )
 
     def test_msn_fallback_normalises_equity_but_not_index(self):
@@ -192,6 +291,184 @@ class MarketDataHardeningTests(unittest.TestCase):
         result = loader.fetch_data_result(123, "2024-01-01", "2024-01-10")
         self.assertFalse(result.ok)
         self.assertEqual(result.report.errors[0].code, "INVALID_REQUEST")
+
+    def test_intraday_time_only_uses_vietnam_trading_date_and_reports_lag(self):
+        fetched_at = pd.Timestamp("2026-08-14 10:00:30", tz="Asia/Ho_Chi_Minh")
+        _FakeQuote.intraday_payloads[("KBS", "CTG")] = pd.DataFrame(
+            {
+                "symbol": ["CTG", "CTG"],
+                "time": ["09:59:30", "10:00:00"],
+                "price": [32.4, 32.45],
+                "volume": [100, 200],
+            }
+        )
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+        ):
+            result = loader.fetch_intraday("ctg", page_size=500, source="KBS")
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.symbol, "CTG")
+        self.assertEqual(result.query_signature, "CTG:500")
+        self.assertTrue(result.matches_query("CTG", 500))
+        self.assertFalse(result.matches_query("FPT", 500))
+        self.assertEqual(result.trading_date.isoformat(), "2026-08-14")
+        self.assertEqual(str(result.last_tick_time.tz), "Asia/Ho_Chi_Minh")
+        self.assertEqual(result.lag_seconds, 30.0)
+
+    def test_intraday_exception_cooldown_skips_source_without_caching_data(self):
+        fetched_at = pd.Timestamp("2026-08-14 10:00:30", tz="Asia/Ho_Chi_Minh")
+        clock = [100.0]
+        fresh_ticks = pd.DataFrame(
+            {"time": ["2026-08-14 10:00:00"], "price": [32.45]}
+        )
+        _FakeQuote.intraday_payloads = {
+            ("KBS", "CTG"): RuntimeError("kbs intraday unavailable"),
+            ("VCI", "CTG"): fresh_ticks,
+        }
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+            mock.patch.object(loader, "monotonic", side_effect=lambda: clock[0]),
+        ):
+            first = loader.fetch_intraday(
+                "CTG", source=["KBS", "VCI"], page_size=500
+            )
+            clock[0] = 101.0
+            second = loader.fetch_intraday(
+                "CTG", source=["KBS", "VCI"], page_size=500
+            )
+            clock[0] = 161.0
+            _FakeQuote.intraday_payloads[("KBS", "CTG")] = fresh_ticks
+            third = loader.fetch_intraday(
+                "CTG", source=["KBS", "VCI"], page_size=500
+            )
+
+        self.assertTrue(first.ok, first.error)
+        self.assertEqual(first.source, "VCI")
+        self.assertIn("PROVIDER_ERROR", [issue.code for issue in first.issues])
+        self.assertTrue(second.ok, second.error)
+        self.assertEqual(second.source, "VCI")
+        cooldowns = [issue for issue in second.issues if issue.code == "SOURCE_COOLDOWN"]
+        self.assertEqual(len(cooldowns), 1)
+        self.assertEqual(cooldowns[0].details["remaining_seconds"], 59.0)
+        self.assertEqual(
+            len([c for c in _FakeQuote.intraday_calls if c[0] == "KBS"]), 2
+        )
+        # VCI is called again on the second request: successful prices are never cached.
+        self.assertEqual(
+            len([c for c in _FakeQuote.intraday_calls if c[0] == "VCI"]), 2
+        )
+        self.assertTrue(third.ok, third.error)
+        self.assertEqual(third.source, "KBS")
+
+    def test_intraday_prefers_full_timestamp_over_time_only_column(self):
+        fetched_at = pd.Timestamp("2026-08-14 10:00:30", tz="Asia/Ho_Chi_Minh")
+        _FakeQuote.intraday_payloads[("KBS", "CTG")] = pd.DataFrame(
+            {
+                # `trading_time` appears earlier in the alias list, but only the
+                # `time` column carries authoritative date provenance.
+                "trading_time": ["10:00:00"],
+                "time": ["2026-08-14 09:59:45"],
+                "price": [32.45],
+            }
+        )
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+        ):
+            result = loader.fetch_intraday("CTG", source="KBS")
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.last_tick_time.strftime("%Y-%m-%d %H:%M:%S"),
+                         "2026-08-14 09:59:45")
+        self.assertEqual(result.lag_seconds, 45.0)
+
+    def test_intraday_provider_symbol_mismatch_fails_closed(self):
+        fetched_at = pd.Timestamp("2026-08-14 10:01:00", tz="Asia/Ho_Chi_Minh")
+        _FakeQuote.intraday_payloads[("KBS", "CTG")] = pd.DataFrame(
+            {
+                "symbol": ["FPT"],
+                "time": ["2026-08-14 10:00:30"],
+                "price": [109.0],
+            }
+        )
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+        ):
+            result = loader.fetch_intraday("CTG", source="KBS")
+
+        self.assertFalse(result.ok)
+        self.assertTrue(result.data.empty)
+        self.assertEqual(result.symbol, "CTG")
+        self.assertEqual(result.freshness, "symbol_mismatch")
+        self.assertIn("FPT", result.error)
+        self.assertIn("CTG", result.error)
+
+    def test_intraday_previous_day_and_excess_lag_are_rejected(self):
+        fetched_at = pd.Timestamp("2026-08-14 10:00:00", tz="Asia/Ho_Chi_Minh")
+        previous_day = pd.DataFrame(
+            {"time": ["2026-08-13 14:29:00"], "price": [32.4]}
+        )
+        delayed_today = pd.DataFrame(
+            {"time": ["2026-08-14 09:30:00"], "price": [32.4]}
+        )
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+        ):
+            _FakeQuote.intraday_payloads[("KBS", "CTG")] = previous_day
+            old_result = loader.fetch_intraday("CTG", source="KBS")
+            _FakeQuote.intraday_payloads[("KBS", "CTG")] = delayed_today
+            lagged_result = loader.fetch_intraday("CTG", source="KBS")
+
+        self.assertFalse(old_result.ok)
+        self.assertEqual(old_result.freshness, "stale")
+        self.assertIn("phiên cũ", old_result.error)
+        self.assertFalse(lagged_result.ok)
+        self.assertEqual(lagged_result.freshness, "stale")
+        self.assertEqual(lagged_result.lag_seconds, 30 * 60)
+        self.assertIn("30.0 phút", lagged_result.error)
+
+    def test_intraday_future_and_session_mismatch_are_rejected(self):
+        fetched_at = pd.Timestamp("2026-08-14 10:00:00", tz="Asia/Ho_Chi_Minh")
+        future = pd.DataFrame(
+            {"time": ["2026-08-14 10:01:00"], "price": [32.4]}
+        )
+        outside_session = pd.DataFrame(
+            {"time": ["2026-08-14 08:30:00"], "price": [32.4]}
+        )
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+        ):
+            _FakeQuote.intraday_payloads[("KBS", "CTG")] = future
+            future_result = loader.fetch_intraday("CTG", source="KBS")
+            _FakeQuote.intraday_payloads[("KBS", "CTG")] = outside_session
+            session_result = loader.fetch_intraday("CTG", source="KBS")
+
+        self.assertFalse(future_result.ok)
+        self.assertEqual(future_result.freshness, "future")
+        self.assertLess(future_result.lag_seconds, 0)
+        self.assertFalse(session_result.ok)
+        self.assertEqual(session_result.freshness, "session_mismatch")
+
+    def test_intraday_time_only_is_ambiguous_outside_vietnam_session(self):
+        fetched_at = pd.Timestamp("2026-08-14 18:00:00", tz="Asia/Ho_Chi_Minh")
+        _FakeQuote.intraday_payloads[("KBS", "CTG")] = pd.DataFrame(
+            {"time": ["14:29:00"], "price": [32.4]}
+        )
+        with (
+            mock.patch.object(loader, "Quote", _FakeQuote),
+            mock.patch.object(loader, "vietnam_now", return_value=fetched_at),
+        ):
+            result = loader.fetch_intraday("CTG", source="KBS")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.freshness, "ambiguous_date")
+        self.assertIn("không thể suy đoán an toàn", result.error)
 
 
 class UploadHardeningTests(unittest.TestCase):
