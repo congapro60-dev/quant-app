@@ -24,6 +24,7 @@ from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
 import learning_modes as lmode
+from learning_ui import render_journal_area, render_learning_area
 try:
     from streamlit_autorefresh import st_autorefresh
 except Exception:
@@ -379,13 +380,52 @@ if live_mode and st_autorefresh is not None:
             refresh_query[3] = vietnam_now().date().isoformat()
         run_analysis(*refresh_query, show_msgs=False)
 
-# ==================== CÁC TAB ====================
-(invest_tab, intraday_tab, paper_tab, backtest_tab,
- tab1, tab2, tab3, tab4, tab5) = st.tabs([
-    "Bàn đầu tư", "Giá trong phiên", "Danh mục mô phỏng (paper portfolio)", "Kiểm thử ngoài mẫu (backtest OOS)",
-    "Rủi ro chỉ số đơn (SIM)", "Danh mục trung bình–phương sai (Markowitz)", "Trợ lý quyết định",
-    "EViews tiếng Việt", "Ôn thi",
-])
+# ==================== NĂM KHU VỰC ====================
+# Chín chức năng cũ được gom vào năm khu vực. Chế độ đại học thấy đủ cả chín;
+# chế độ THPT chỉ thấy nhóm cơ bản cho tới khi mở khóa bằng tiến độ học.
+_visible_features = lmode.visible_features(st.session_state)
+
+(area_learning, area_data, area_lab,
+ area_invest, area_journal) = st.tabs(
+    [lmode.AREA_LABELS[a] for a in lmode.AREA_ORDER]
+)
+
+
+def _open_area(area, container):
+    """Tạo thẻ con cho các chức năng đang hiển thị của một khu vực.
+
+    Trả về dict feature -> thẻ. Chức năng bị ẩn không có mặt trong dict, nên
+    khối `with` tương ứng bị bỏ qua nhờ guard `is not None`.
+    """
+
+    names = lmode.features_in_area(area, _visible_features)
+    if not names:
+        return {}
+    with container:
+        subs = st.tabs([lmode.FEATURES[n]["label"] for n in names])
+    return dict(zip(names, subs))
+
+
+_data_tabs = _open_area(lmode.AREA_DATA, area_data)
+_lab_tabs = _open_area(lmode.AREA_MODEL_LAB, area_lab)
+_invest_tabs = _open_area(lmode.AREA_INVEST, area_invest)
+
+# Giữ nguyên tên biến cũ để các khối hiển thị bên dưới không phải viết lại.
+intraday_tab = _data_tabs.get(lmode.FEATURE_INTRADAY)
+tab4 = _data_tabs.get(lmode.FEATURE_EVIEWS)
+tab1 = _lab_tabs.get(lmode.FEATURE_SIM)
+tab2 = _lab_tabs.get(lmode.FEATURE_MARKOWITZ)
+tab5 = _lab_tabs.get(lmode.FEATURE_EXAM)
+backtest_tab = _lab_tabs.get(lmode.FEATURE_BACKTEST)
+invest_tab = _invest_tabs.get(lmode.FEATURE_INVEST_DESK)
+paper_tab = _invest_tabs.get(lmode.FEATURE_PAPER)
+tab3 = _invest_tabs.get(lmode.FEATURE_ADVISOR)
+
+with area_learning:
+    render_learning_area()
+
+with area_journal:
+    render_journal_area()
 
 has_data = (not st.session_state.prices_df.empty) and bool(st.session_state.market_ticker)
 
@@ -626,818 +666,827 @@ def run_ai_analysis(df, request, ai_config, extra_context=""):
 
 
 # ---------- KHỐI NGHIÊN CỨU ĐẦU TƯ ----------
-with invest_tab:
-    render_investment_desk(
-        st.session_state.prices_df,
-        st.session_state.returns_df,
-        st.session_state.valid_assets,
-        st.session_state.market_ticker,
-        st.session_state.sim_results_list,
-    )
+if invest_tab is not None:
+    with invest_tab:
+        render_investment_desk(
+            st.session_state.prices_df,
+            st.session_state.returns_df,
+            st.session_state.valid_assets,
+            st.session_state.market_ticker,
+            st.session_state.sim_results_list,
+        )
 
-with paper_tab:
-    render_paper_portfolio(st.session_state.prices_df)
+if paper_tab is not None:
+    with paper_tab:
+        render_paper_portfolio(st.session_state.prices_df)
 
-with backtest_tab:
-    render_backtest(
-        st.session_state.prices_df,
-        st.session_state.valid_assets,
-        st.session_state.market_ticker,
-    )
+if backtest_tab is not None:
+    with backtest_tab:
+        render_backtest(
+            st.session_state.prices_df,
+            st.session_state.valid_assets,
+            st.session_state.market_ticker,
+        )
 
 
 # ---------- TAB: GIÁ TRONG PHIÊN (INTRADAY) ----------
-with intraday_tab:
-    st.header("Giá khớp lệnh trong phiên")
-    st.warning(
-        "⚠️ **Đây là dữ liệu khớp lệnh có độ trễ, không phải bảng giá tức thời.** "
-        "Độ trễ thay đổi theo nhà cung cấp (provider) và đường truyền; ứng dụng chỉ hiển thị dữ liệu "
-        "đúng mã, đúng phiên hiện tại và chưa quá ngưỡng trễ an toàn. "
-        "Khớp lệnh liên tục: **9:15–11:30** và **13:00–14:30**. "
-        "Trước khi đặt lệnh, hãy đối chiếu bảng giá của công ty chứng khoán."
-    )
-
-    default_tickers = st.session_state.get('valid_assets') or []
-    default_text = default_tickers[0] if default_tickers else "CTG"
-
-    c1, c2 = st.columns([2, 1])
-    intraday_ticker = c1.text_input(
-        "Mã cổ phiếu cần xem:", value=default_text, key="intraday_ticker"
-    ).strip().upper()
-    n_ticks = c2.selectbox(
-        "Số lệnh gần nhất:", [100, 300, 500, 1000], index=2,
-        key="intraday_page_size",
-    )
-    current_intraday_signature = intraday_query_signature(intraday_ticker, n_ticks)
-    cached_intraday = st.session_state.get('intraday_result')
-    cached_signature = getattr(cached_intraday, 'query_signature', '')
-    if cached_intraday is not None and cached_signature != current_intraday_signature:
-        # A rerun caused by editing CTG -> FPT must never relabel CTG's cached ticks.
-        st.session_state['intraday_result'] = None
-        cached_intraday = None
-    st.session_state['intraday_active_query_signature'] = current_intraday_signature
-
-    a1, a2 = st.columns([1, 1])
-    intraday_auto = a1.toggle(
-        "🔁 Tự làm mới giá", value=False, key="intraday_auto",
-        help="Tự tải lại giá khớp lệnh theo chu kỳ. Chỉ bật khi đang theo dõi, "
-             "vì mỗi lần làm mới đều tốn băng thông và lượt gọi nhà cung cấp.",
-    )
-    intraday_every = a2.selectbox(
-        "Chu kỳ (giây):", [15, 30, 60, 120], index=1,
-        disabled=not intraday_auto, key="intraday_every",
-    )
-
-    auto_tick = False
-    if intraday_auto:
-        if st_autorefresh is None:
-            st.warning("Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
-        else:
-            counter = st_autorefresh(
-                interval=int(intraday_every) * 1000, key="intraday_refresh"
-            )
-            # Only refetch on a genuine timer tick, not on every Streamlit rerun
-            # (typing in a box or switching tabs also reruns the script).
-            auto_tick = counter != st.session_state.get('intraday_refresh_counter')
-            st.session_state['intraday_refresh_counter'] = counter
-
-    manual_click = st.button("🔄 Lấy dữ liệu trong phiên", type="primary", key="btn_intraday")
-
-    if manual_click or (auto_tick and intraday_ticker):
-        with st.spinner(f"Đang lấy dữ liệu khớp lệnh của {intraday_ticker}..."):
-            st.session_state['intraday_result'] = fetch_intraday(
-                intraday_ticker, page_size=n_ticks
-            )
-
-    if intraday_auto and st_autorefresh is not None:
-        refreshed = st.session_state.get('intraday_result')
-        refreshed_at = getattr(refreshed, 'fetched_at', None)
-        if refreshed_at is not None:
-            refreshed_text = refreshed_at.strftime('%H:%M:%S')
-        else:
-            refreshed_text = "chưa có"
-        st.caption(
-            f"🔁 Đang tự làm mới mỗi **{intraday_every} giây** "
-            f"(lần tải dữ liệu gần nhất: {refreshed_text}, giờ Việt Nam). "
-            "Tắt công tắc khi không dùng để đỡ tốn băng thông."
+if intraday_tab is not None:
+    with intraday_tab:
+        st.header("Giá khớp lệnh trong phiên")
+        st.warning(
+            "⚠️ **Đây là dữ liệu khớp lệnh có độ trễ, không phải bảng giá tức thời.** "
+            "Độ trễ thay đổi theo nhà cung cấp (provider) và đường truyền; ứng dụng chỉ hiển thị dữ liệu "
+            "đúng mã, đúng phiên hiện tại và chưa quá ngưỡng trễ an toàn. "
+            "Khớp lệnh liên tục: **9:15–11:30** và **13:00–14:30**. "
+            "Trước khi đặt lệnh, hãy đối chiếu bảng giá của công ty chứng khoán."
         )
 
-    intr = st.session_state.get('intraday_result')
-    if intr is None:
-        st.info("Nhập mã rồi bấm **Lấy dữ liệu trong phiên** (hoặc bật *Tự làm mới giá*).")
-    elif not intr.ok:
-        st.error(f"Không lấy được dữ liệu: {intr.error}")
-        st.caption(
-            "**Khi nào dữ liệu trống là bình thường (không phải lỗi phần mềm):**  \n"
-            "• Ngoài giờ giao dịch → nhà cung cấp báo 'chuẩn bị phiên mới'.  \n"
-            "• Trong phiên khớp lệnh định kỳ mở cửa (ATO, 9:00–9:15) và đóng cửa "
-            "(ATC, 14:30–14:45) → chưa sinh lệnh khớp liên tục nên bảng lệnh còn trống.  \n"
-            "• Nghỉ trưa 11:30–13:00, hoặc thứ Bảy/Chủ nhật/ngày lễ.  \n"
-            "→ Khớp lệnh liên tục chạy **9:15–11:30** và **13:00–14:30**, thử lại lúc đó."
+        default_tickers = st.session_state.get('valid_assets') or []
+        default_text = default_tickers[0] if default_tickers else "CTG"
+
+        c1, c2 = st.columns([2, 1])
+        intraday_ticker = c1.text_input(
+            "Mã cổ phiếu cần xem:", value=default_text, key="intraday_ticker"
+        ).strip().upper()
+        n_ticks = c2.selectbox(
+            "Số lệnh gần nhất:", [100, 300, 500, 1000], index=2,
+            key="intraday_page_size",
         )
-    else:
-        ticks = intr.data
-        result_symbol = intr.symbol
-        last_price = intr.last_price
-        last_time = intr.last_tick_time
-        first_price = float(ticks['price'].iloc[0])
-        change = (last_price - first_price) if last_price is not None else None
-        pct = (change / first_price * 100) if (change is not None and first_price) else None
+        current_intraday_signature = intraday_query_signature(intraday_ticker, n_ticks)
+        cached_intraday = st.session_state.get('intraday_result')
+        cached_signature = getattr(cached_intraday, 'query_signature', '')
+        if cached_intraday is not None and cached_signature != current_intraday_signature:
+            # A rerun caused by editing CTG -> FPT must never relabel CTG's cached ticks.
+            st.session_state['intraday_result'] = None
+            cached_intraday = None
+        st.session_state['intraday_active_query_signature'] = current_intraday_signature
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Giá khớp gần nhất", f"{last_price:,.2f}" if last_price else "—",
-                  f"{pct:+.2f}% trong mẫu" if pct is not None else None)
-        m2.metric("Thời điểm khớp",
-                  last_time.strftime("%H:%M:%S %d/%m/%Y") if last_time is not None else "—")
-        m3.metric("Số lệnh lấy về", f"{len(ticks):,}")
-        m4.metric("Nguồn dữ liệu", intr.source)
+        a1, a2 = st.columns([1, 1])
+        intraday_auto = a1.toggle(
+            "🔁 Tự làm mới giá", value=False, key="intraday_auto",
+            help="Tự tải lại giá khớp lệnh theo chu kỳ. Chỉ bật khi đang theo dõi, "
+                 "vì mỗi lần làm mới đều tốn băng thông và lượt gọi nhà cung cấp.",
+        )
+        intraday_every = a2.selectbox(
+            "Chu kỳ (giây):", [15, 30, 60, 120], index=1,
+            disabled=not intraday_auto, key="intraday_every",
+        )
 
-        if intr.fetched_at is not None and last_time is not None and intr.lag_seconds is not None:
-            lag = intr.lag_seconds
-            lag_text = f"{lag:.0f} giây" if lag < 90 else f"{lag/60:.1f} phút"
+        auto_tick = False
+        if intraday_auto:
+            if st_autorefresh is None:
+                st.warning("Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
+            else:
+                counter = st_autorefresh(
+                    interval=int(intraday_every) * 1000, key="intraday_refresh"
+                )
+                # Only refetch on a genuine timer tick, not on every Streamlit rerun
+                # (typing in a box or switching tabs also reruns the script).
+                auto_tick = counter != st.session_state.get('intraday_refresh_counter')
+                st.session_state['intraday_refresh_counter'] = counter
+
+        manual_click = st.button("🔄 Lấy dữ liệu trong phiên", type="primary", key="btn_intraday")
+
+        if manual_click or (auto_tick and intraday_ticker):
+            with st.spinner(f"Đang lấy dữ liệu khớp lệnh của {intraday_ticker}..."):
+                st.session_state['intraday_result'] = fetch_intraday(
+                    intraday_ticker, page_size=n_ticks
+                )
+
+        if intraday_auto and st_autorefresh is not None:
+            refreshed = st.session_state.get('intraday_result')
+            refreshed_at = getattr(refreshed, 'fetched_at', None)
+            if refreshed_at is not None:
+                refreshed_text = refreshed_at.strftime('%H:%M:%S')
+            else:
+                refreshed_text = "chưa có"
             st.caption(
-                f"⏱️ **Khoảng cách tới lệnh mới nhất: {lag_text}** — {result_symbol} "
-                f"khớp lúc {last_time.strftime('%H:%M:%S')}, ứng dụng nhận xong lúc "
-                f"{intr.fetched_at.strftime('%H:%M:%S')} (giờ Việt Nam). "
-                "Khoảng này gồm độ trễ nguồn dữ liệu, mạng và thời gian xử lý; "
-                "không phải phép đo riêng của nhà cung cấp."
+                f"🔁 Đang tự làm mới mỗi **{intraday_every} giây** "
+                f"(lần tải dữ liệu gần nhất: {refreshed_text}, giờ Việt Nam). "
+                "Tắt công tắc khi không dùng để đỡ tốn băng thông."
             )
 
-        fig_intr = px.line(
-            ticks, x="time", y="price",
-            title=f"Diễn biến giá khớp lệnh trong phiên — {result_symbol}",
-            labels={"time": "Thời gian", "price": "Giá khớp"},
-        )
-        fig_intr.update_traces(line_width=2)
-        st.plotly_chart(fig_intr, use_container_width=True)
-
-        if "volume" in ticks.columns:
-            fig_vol = px.bar(
-                ticks, x="time", y="volume",
-                title="Khối lượng theo từng lệnh khớp",
-                labels={"time": "Thời gian", "volume": "Khối lượng"},
+        intr = st.session_state.get('intraday_result')
+        if intr is None:
+            st.info("Nhập mã rồi bấm **Lấy dữ liệu trong phiên** (hoặc bật *Tự làm mới giá*).")
+        elif not intr.ok:
+            st.error(f"Không lấy được dữ liệu: {intr.error}")
+            st.caption(
+                "**Khi nào dữ liệu trống là bình thường (không phải lỗi phần mềm):**  \n"
+                "• Ngoài giờ giao dịch → nhà cung cấp báo 'chuẩn bị phiên mới'.  \n"
+                "• Trong phiên khớp lệnh định kỳ mở cửa (ATO, 9:00–9:15) và đóng cửa "
+                "(ATC, 14:30–14:45) → chưa sinh lệnh khớp liên tục nên bảng lệnh còn trống.  \n"
+                "• Nghỉ trưa 11:30–13:00, hoặc thứ Bảy/Chủ nhật/ngày lễ.  \n"
+                "→ Khớp lệnh liên tục chạy **9:15–11:30** và **13:00–14:30**, thử lại lúc đó."
             )
-            st.plotly_chart(fig_vol, use_container_width=True)
+        else:
+            ticks = intr.data
+            result_symbol = intr.symbol
+            last_price = intr.last_price
+            last_time = intr.last_tick_time
+            first_price = float(ticks['price'].iloc[0])
+            change = (last_price - first_price) if last_price is not None else None
+            pct = (change / first_price * 100) if (change is not None and first_price) else None
 
-        with st.expander("Xem bảng lệnh khớp chi tiết"):
-            ticks_display = ticks.copy()
-            if "side" in ticks_display.columns:
-                def _side_label(value):
-                    raw = str(value).strip()
-                    upper = raw.upper()
-                    if upper in {"BUY", "BU", "B"}:
-                        return f"Mua ({raw})"
-                    if upper in {"SELL", "SD", "S"}:
-                        return f"Bán ({raw})"
-                    return f"Loại khác ({raw})"
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Giá khớp gần nhất", f"{last_price:,.2f}" if last_price else "—",
+                      f"{pct:+.2f}% trong mẫu" if pct is not None else None)
+            m2.metric("Thời điểm khớp",
+                      last_time.strftime("%H:%M:%S %d/%m/%Y") if last_time is not None else "—")
+            m3.metric("Số lệnh lấy về", f"{len(ticks):,}")
+            m4.metric("Nguồn dữ liệu", intr.source)
 
-                ticks_display["side"] = ticks_display["side"].map(_side_label)
-            ticks_display = ticks_display.rename(
-                columns={
-                    "time": "Thời gian (time)",
-                    "price": "Giá khớp (price)",
-                    "volume": "Khối lượng (volume)",
-                    "side": "Bên giao dịch (side)",
-                }
+            if intr.fetched_at is not None and last_time is not None and intr.lag_seconds is not None:
+                lag = intr.lag_seconds
+                lag_text = f"{lag:.0f} giây" if lag < 90 else f"{lag/60:.1f} phút"
+                st.caption(
+                    f"⏱️ **Khoảng cách tới lệnh mới nhất: {lag_text}** — {result_symbol} "
+                    f"khớp lúc {last_time.strftime('%H:%M:%S')}, ứng dụng nhận xong lúc "
+                    f"{intr.fetched_at.strftime('%H:%M:%S')} (giờ Việt Nam). "
+                    "Khoảng này gồm độ trễ nguồn dữ liệu, mạng và thời gian xử lý; "
+                    "không phải phép đo riêng của nhà cung cấp."
+                )
+
+            fig_intr = px.line(
+                ticks, x="time", y="price",
+                title=f"Diễn biến giá khớp lệnh trong phiên — {result_symbol}",
+                labels={"time": "Thời gian", "price": "Giá khớp"},
             )
-            st.dataframe(ticks_display.tail(200), use_container_width=True)
-            _download_df(ticks_display, "⬇️ Tải toàn bộ lệnh khớp — tệp bảng (CSV)",
-                         f"intraday_{result_symbol}.csv")
+            fig_intr.update_traces(line_width=2)
+            st.plotly_chart(fig_intr, use_container_width=True)
 
-        st.caption(
-            "Số liệu này chỉ phục vụ quan sát và nghiên cứu. Công cụ không đặt lệnh "
-            "và không đưa ra khuyến nghị mua/bán."
-        )
+            if "volume" in ticks.columns:
+                fig_vol = px.bar(
+                    ticks, x="time", y="volume",
+                    title="Khối lượng theo từng lệnh khớp",
+                    labels={"time": "Thời gian", "volume": "Khối lượng"},
+                )
+                st.plotly_chart(fig_vol, use_container_width=True)
+
+            with st.expander("Xem bảng lệnh khớp chi tiết"):
+                ticks_display = ticks.copy()
+                if "side" in ticks_display.columns:
+                    def _side_label(value):
+                        raw = str(value).strip()
+                        upper = raw.upper()
+                        if upper in {"BUY", "BU", "B"}:
+                            return f"Mua ({raw})"
+                        if upper in {"SELL", "SD", "S"}:
+                            return f"Bán ({raw})"
+                        return f"Loại khác ({raw})"
+
+                    ticks_display["side"] = ticks_display["side"].map(_side_label)
+                ticks_display = ticks_display.rename(
+                    columns={
+                        "time": "Thời gian (time)",
+                        "price": "Giá khớp (price)",
+                        "volume": "Khối lượng (volume)",
+                        "side": "Bên giao dịch (side)",
+                    }
+                )
+                st.dataframe(ticks_display.tail(200), use_container_width=True)
+                _download_df(ticks_display, "⬇️ Tải toàn bộ lệnh khớp — tệp bảng (CSV)",
+                             f"intraday_{result_symbol}.csv")
+
+            st.caption(
+                "Số liệu này chỉ phục vụ quan sát và nghiên cứu. Công cụ không đặt lệnh "
+                "và không đưa ra khuyến nghị mua/bán."
+            )
 
 
 # ---------- TAB 1: SIM ----------
-with tab1:
-    if not has_data:
-        st.info("👈 Nhập mã cổ phiếu ở thanh bên trái rồi bấm **🚀 Phân tích** để bắt đầu.")
-    else:
-        returns_df = st.session_state.returns_df
-        market_ticker = st.session_state.market_ticker
-        sim_results_list = st.session_state.sim_results_list
-        valid_assets = st.session_state.valid_assets
-        sim_df = pd.DataFrame(sim_results_list)
+if tab1 is not None:
+    with tab1:
+        if not has_data:
+            st.info("👈 Nhập mã cổ phiếu ở thanh bên trái rồi bấm **🚀 Phân tích** để bắt đầu.")
+        else:
+            returns_df = st.session_state.returns_df
+            market_ticker = st.session_state.market_ticker
+            sim_results_list = st.session_state.sim_results_list
+            valid_assets = st.session_state.valid_assets
+            sim_df = pd.DataFrame(sim_results_list)
 
-        render_live_prices()
-        st.subheader("Tổng quan Rủi ro")
-        betas = sim_df['Beta (Độ nhạy)']
-        top_beta_row = sim_df.loc[betas.idxmax()]
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Số mã phân tích", len(sim_df))
-        m2.metric("Beta (độ nhạy) trung bình", f"{betas.mean():.2f}")
-        m3.metric("Mã năng động nhất", top_beta_row['Mã CP'], f"β = {top_beta_row['Beta (Độ nhạy)']:.2f}")
-        m4.metric("R² trung bình", f"{sim_df['R^2'].mean():.2%}")
+            render_live_prices()
+            st.subheader("Tổng quan Rủi ro")
+            betas = sim_df['Beta (Độ nhạy)']
+            top_beta_row = sim_df.loc[betas.idxmax()]
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Số mã phân tích", len(sim_df))
+            m2.metric("Beta (độ nhạy) trung bình", f"{betas.mean():.2f}")
+            m3.metric("Mã năng động nhất", top_beta_row['Mã CP'], f"β = {top_beta_row['Beta (Độ nhạy)']:.2f}")
+            m4.metric("R² trung bình", f"{sim_df['R^2'].mean():.2%}")
 
-        st.subheader("Bảng mô hình chỉ số đơn (SIM)")
+            st.subheader("Bảng mô hình chỉ số đơn (SIM)")
 
-        def _hl_beta(v):
-            if v > 1:
-                return 'color:#ff6b6b; font-weight:600'
-            return 'color:#00c48c; font-weight:600'
-        sim_display = sim_df.rename(
-            columns={
-                "Alpha": "Alpha (lợi suất riêng)",
-                "White p-value": "Giá trị p kiểm định White",
-                "B-G p-value": "Giá trị p kiểm định B-G",
-                "RESET p-value": "Giá trị p kiểm định RESET",
-                "JB p-value": "Giá trị p kiểm định JB",
-            }
-        ).replace(
-            {
-                "N/A": "Không áp dụng (N/A)",
-                "ok": "Đạt (ok)",
-                "warning": "Cảnh báo (warning)",
-                "unknown": "Không rõ (unknown)",
-            }
-        )
-        styled = sim_display.style.map(_hl_beta, subset=['Beta (Độ nhạy)']).format({
-            'Beta (Độ nhạy)': '{:.3f}', 'Alpha (lợi suất riêng)': '{:.5f}', 'Rủi ro Hệ thống': '{:.5f}',
-            'Rủi ro Phi hệ thống': '{:.5f}', 'Tổng Rủi ro': '{:.5f}', 'R^2': '{:.3f}',
-            'Giá trị p kiểm định White': '{:.4f}', 'Giá trị p kiểm định B-G': '{:.4f}',
-            'Giá trị p kiểm định RESET': '{:.4f}', 'Giá trị p kiểm định JB': '{:.4f}',
-        }, na_rep='Không áp dụng (N/A)')
-        st.dataframe(styled, width="stretch")
-        _download_df(sim_display, "⬇️ Tải bảng mô hình chỉ số đơn (SIM) — tệp bảng (CSV)", "sim_results.csv")
+            def _hl_beta(v):
+                if v > 1:
+                    return 'color:#ff6b6b; font-weight:600'
+                return 'color:#00c48c; font-weight:600'
+            sim_display = sim_df.rename(
+                columns={
+                    "Alpha": "Alpha (lợi suất riêng)",
+                    "White p-value": "Giá trị p kiểm định White",
+                    "B-G p-value": "Giá trị p kiểm định B-G",
+                    "RESET p-value": "Giá trị p kiểm định RESET",
+                    "JB p-value": "Giá trị p kiểm định JB",
+                }
+            ).replace(
+                {
+                    "N/A": "Không áp dụng (N/A)",
+                    "ok": "Đạt (ok)",
+                    "warning": "Cảnh báo (warning)",
+                    "unknown": "Không rõ (unknown)",
+                }
+            )
+            styled = sim_display.style.map(_hl_beta, subset=['Beta (Độ nhạy)']).format({
+                'Beta (Độ nhạy)': '{:.3f}', 'Alpha (lợi suất riêng)': '{:.5f}', 'Rủi ro Hệ thống': '{:.5f}',
+                'Rủi ro Phi hệ thống': '{:.5f}', 'Tổng Rủi ro': '{:.5f}', 'R^2': '{:.3f}',
+                'Giá trị p kiểm định White': '{:.4f}', 'Giá trị p kiểm định B-G': '{:.4f}',
+                'Giá trị p kiểm định RESET': '{:.4f}', 'Giá trị p kiểm định JB': '{:.4f}',
+            }, na_rep='Không áp dụng (N/A)')
+            st.dataframe(styled, width="stretch")
+            _download_df(sim_display, "⬇️ Tải bảng mô hình chỉ số đơn (SIM) — tệp bảng (CSV)", "sim_results.csv")
 
-        with st.expander("📚 Giải thích ý nghĩa các chỉ số Kinh tế lượng"):
-            st.markdown("""
-*   **Beta (độ nhạy, $\\beta$):** Đo mức biến động của cổ phiếu so với thị trường. $\\beta>1$: *năng động* (rủi ro & kỳ vọng cao); $\\beta<1$: *thụ động* (an toàn hơn).
-*   **Alpha (lợi suất riêng, $\\alpha$):** Lợi suất vượt trội do yếu tố riêng của cổ phiếu.
-*   **Rủi ro Hệ thống:** Do biến động chung của thị trường (không thể đa dạng hoá để loại bỏ).
-*   **Rủi ro Phi hệ thống:** Do đặc thù công ty (loại bỏ được bằng đa dạng hoá).
-*   **R² :** Tỷ lệ biến động giá cổ phiếu được giải thích bởi VNINDEX.
-*   **Kiểm định White (White test):** `Yes` (Có) = có phương sai sai số thay đổi (cần sai số chuẩn vững).
-*   **Kiểm định Breusch-Godfrey:** `Yes` (Có) = có tự tương quan chuỗi.\n*   **Dạng hàm (Ramsey RESET):** 'Có thể có' = mô hình có thể bị sai dạng hàm / bỏ sót biến (Chương 5).\n*   **Phân phối chuẩn (Jarque-Bera):** 'Không chuẩn' = phần dư không phân phối chuẩn, ảnh hưởng suy diễn thống kê mẫu nhỏ.
-            """)
+            with st.expander("📚 Giải thích ý nghĩa các chỉ số Kinh tế lượng"):
+                st.markdown("""
+    *   **Beta (độ nhạy, $\\beta$):** Đo mức biến động của cổ phiếu so với thị trường. $\\beta>1$: *năng động* (rủi ro & kỳ vọng cao); $\\beta<1$: *thụ động* (an toàn hơn).
+    *   **Alpha (lợi suất riêng, $\\alpha$):** Lợi suất vượt trội do yếu tố riêng của cổ phiếu.
+    *   **Rủi ro Hệ thống:** Do biến động chung của thị trường (không thể đa dạng hoá để loại bỏ).
+    *   **Rủi ro Phi hệ thống:** Do đặc thù công ty (loại bỏ được bằng đa dạng hoá).
+    *   **R² :** Tỷ lệ biến động giá cổ phiếu được giải thích bởi VNINDEX.
+    *   **Kiểm định White (White test):** `Yes` (Có) = có phương sai sai số thay đổi (cần sai số chuẩn vững).
+    *   **Kiểm định Breusch-Godfrey:** `Yes` (Có) = có tự tương quan chuỗi.\n*   **Dạng hàm (Ramsey RESET):** 'Có thể có' = mô hình có thể bị sai dạng hàm / bỏ sót biến (Chương 5).\n*   **Phân phối chuẩn (Jarque-Bera):** 'Không chuẩn' = phần dư không phân phối chuẩn, ảnh hưởng suy diễn thống kê mẫu nhỏ.
+                """)
 
-        st.subheader("Biểu đồ hồi quy mô hình chỉ số đơn (SIM)")
-        selected_ticker = st.selectbox("Chọn cổ phiếu để xem biểu đồ hồi quy:", valid_assets)
-        if selected_ticker in returns_df.columns:
-            fig = px.scatter(returns_df, x=market_ticker, y=selected_ticker, trendline="ols",
-                             title=f"Hồi quy {selected_ticker} theo {market_ticker}",
-                             labels={market_ticker: f"Lợi suất {market_ticker}", selected_ticker: f"Lợi suất {selected_ticker}"})
-            fig.update_traces(marker=dict(color="#00A67E", opacity=0.5))
-            st.plotly_chart(fig, width="stretch")
+            st.subheader("Biểu đồ hồi quy mô hình chỉ số đơn (SIM)")
+            selected_ticker = st.selectbox("Chọn cổ phiếu để xem biểu đồ hồi quy:", valid_assets)
+            if selected_ticker in returns_df.columns:
+                fig = px.scatter(returns_df, x=market_ticker, y=selected_ticker, trendline="ols",
+                                 title=f"Hồi quy {selected_ticker} theo {market_ticker}",
+                                 labels={market_ticker: f"Lợi suất {market_ticker}", selected_ticker: f"Lợi suất {selected_ticker}"})
+                fig.update_traces(marker=dict(color="#00A67E", opacity=0.5))
+                st.plotly_chart(fig, width="stretch")
 
 
 # ---------- TAB 2: MARKOWITZ ----------
-with tab2:
-    if not has_data:
-        st.info("👈 Chạy **Phân tích** trước để xem tối ưu danh mục.")
-    else:
-        opt_res = st.session_state.opt_res
-        returns_df = st.session_state.returns_df
-        valid_assets = st.session_state.valid_assets
+if tab2 is not None:
+    with tab2:
+        if not has_data:
+            st.info("👈 Chạy **Phân tích** trước để xem tối ưu danh mục.")
+        else:
+            opt_res = st.session_state.opt_res
+            returns_df = st.session_state.returns_df
+            valid_assets = st.session_state.valid_assets
 
-        if opt_res.get('warning'):
-            st.warning(f"⚠️ {opt_res['warning']}")
+            if opt_res.get('warning'):
+                st.warning(f"⚠️ {opt_res['warning']}")
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("🛡️ Danh mục An toàn nhất")
-            st.caption("Biến động tối thiểu (Min Volatility) — rủi ro thấp nhất")
-            min_vol_df = pd.DataFrame({'Tài sản': opt_res['assets'], 'Tỷ trọng': opt_res['min_vol_weights']})
-            fig_mv = px.pie(min_vol_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
-                            color_discrete_sequence=px.colors.sequential.Teal)
-            st.plotly_chart(fig_mv, width="stretch")
-        with c2:
-            st.subheader("🚀 Danh mục Hiệu quả nhất")
-            st.caption("Chỉ số Sharpe tối đa (Max Sharpe) trong mô hình — có thể chọn tiền mặt")
-            max_sharpe_assets = list(opt_res['assets']) + ['Tiền mặt']
-            max_sharpe_values = list(opt_res['max_sharpe_weights']) + [
-                float(opt_res.get('max_sharpe_cash_weight', 0.0))
-            ]
-            max_sharpe_df = pd.DataFrame({'Tài sản': max_sharpe_assets, 'Tỷ trọng': max_sharpe_values})
-            max_sharpe_df = max_sharpe_df[max_sharpe_df['Tỷ trọng'] > 1e-10]
-            fig_ms = px.pie(max_sharpe_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
-                            color_discrete_sequence=px.colors.sequential.Agsunset)
-            st.plotly_chart(fig_ms, width="stretch")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader("🛡️ Danh mục An toàn nhất")
+                st.caption("Biến động tối thiểu (Min Volatility) — rủi ro thấp nhất")
+                min_vol_df = pd.DataFrame({'Tài sản': opt_res['assets'], 'Tỷ trọng': opt_res['min_vol_weights']})
+                fig_mv = px.pie(min_vol_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
+                                color_discrete_sequence=px.colors.sequential.Teal)
+                st.plotly_chart(fig_mv, width="stretch")
+            with c2:
+                st.subheader("🚀 Danh mục Hiệu quả nhất")
+                st.caption("Chỉ số Sharpe tối đa (Max Sharpe) trong mô hình — có thể chọn tiền mặt")
+                max_sharpe_assets = list(opt_res['assets']) + ['Tiền mặt']
+                max_sharpe_values = list(opt_res['max_sharpe_weights']) + [
+                    float(opt_res.get('max_sharpe_cash_weight', 0.0))
+                ]
+                max_sharpe_df = pd.DataFrame({'Tài sản': max_sharpe_assets, 'Tỷ trọng': max_sharpe_values})
+                max_sharpe_df = max_sharpe_df[max_sharpe_df['Tỷ trọng'] > 1e-10]
+                fig_ms = px.pie(max_sharpe_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
+                                color_discrete_sequence=px.colors.sequential.Agsunset)
+                st.plotly_chart(fig_ms, width="stretch")
 
-        w_table = pd.DataFrame({
-            'Tài sản': list(opt_res['assets']) + ['Tiền mặt'],
-            'Biến động tối thiểu (Min Volatility, %)': np.append(np.array(opt_res['min_vol_weights']) * 100, 0.0).round(2),
-            'Sharpe tối đa (Max Sharpe, %)': np.append(
-                np.array(opt_res['max_sharpe_weights']) * 100,
-                float(opt_res.get('max_sharpe_cash_weight', 0.0)) * 100,
-            ).round(2),
-        })
-        st.dataframe(w_table, width="stretch")
-        _download_df(w_table, "⬇️ Tải tỷ trọng danh mục — tệp bảng (CSV)", "portfolio_weights.csv")
+            w_table = pd.DataFrame({
+                'Tài sản': list(opt_res['assets']) + ['Tiền mặt'],
+                'Biến động tối thiểu (Min Volatility, %)': np.append(np.array(opt_res['min_vol_weights']) * 100, 0.0).round(2),
+                'Sharpe tối đa (Max Sharpe, %)': np.append(
+                    np.array(opt_res['max_sharpe_weights']) * 100,
+                    float(opt_res.get('max_sharpe_cash_weight', 0.0)) * 100,
+                ).round(2),
+            })
+            st.dataframe(w_table, width="stretch")
+            _download_df(w_table, "⬇️ Tải tỷ trọng danh mục — tệp bảng (CSV)", "portfolio_weights.csv")
 
-        q1, q2, q3 = st.columns(3)
-        q1.metric("Số phiên hợp lệ", int(opt_res.get('n_observations', len(returns_df))))
-        q2.metric("Lãi suất phi rủi ro", f"{float(opt_res.get('risk_free_rate', 0.04)):.2%}")
-        q3.metric("Điều chỉnh hiệp phương sai (covariance)", f"{float(opt_res.get('covariance_regularization', 0.0)):.2e}")
+            q1, q2, q3 = st.columns(3)
+            q1.metric("Số phiên hợp lệ", int(opt_res.get('n_observations', len(returns_df))))
+            q2.metric("Lãi suất phi rủi ro", f"{float(opt_res.get('risk_free_rate', 0.04)):.2%}")
+            q3.metric("Điều chỉnh hiệp phương sai (covariance)", f"{float(opt_res.get('covariance_regularization', 0.0)):.2e}")
 
-        st.subheader("Đường Biên hiệu quả (Efficient Frontier)")
-        # Toạ độ 2 danh mục tối ưu để đánh dấu sao
-        mean_ret = returns_df[valid_assets].mean() * 252
-        cov = returns_df[valid_assets].cov() * 252
+            st.subheader("Đường Biên hiệu quả (Efficient Frontier)")
+            # Toạ độ 2 danh mục tối ưu để đánh dấu sao
+            mean_ret = returns_df[valid_assets].mean() * 252
+            cov = returns_df[valid_assets].cov() * 252
 
-        def _perf(w, cash_weight=0.0):
-            w = np.array(w)
-            expected = float(mean_ret.values @ w) + float(cash_weight) * float(opt_res.get('risk_free_rate', 0.04))
-            return float(np.sqrt(max(w @ cov.values @ w, 0.0))), expected
-        mv_std, mv_ret = _perf(opt_res['min_vol_weights'])
-        ms_std, ms_ret = _perf(
-            opt_res['max_sharpe_weights'], opt_res.get('max_sharpe_cash_weight', 0.0)
-        )
+            def _perf(w, cash_weight=0.0):
+                w = np.array(w)
+                expected = float(mean_ret.values @ w) + float(cash_weight) * float(opt_res.get('risk_free_rate', 0.04))
+                return float(np.sqrt(max(w @ cov.values @ w, 0.0))), expected
+            mv_std, mv_ret = _perf(opt_res['min_vol_weights'])
+            ms_std, ms_ret = _perf(
+                opt_res['max_sharpe_weights'], opt_res.get('max_sharpe_cash_weight', 0.0)
+            )
 
-        ef_fig = go.Figure()
-        ef_fig.add_trace(go.Scatter(x=opt_res['ef_vols'], y=opt_res['ef_rets'], mode='markers',
-                                    marker=dict(color=opt_res['ef_sharpes'], colorscale='Viridis',
-                                                showscale=True, size=6, colorbar=dict(title="Chỉ số Sharpe")),
-                                    name='Danh mục rủi ro mô phỏng'))
-        ef_fig.add_trace(go.Scatter(x=[mv_std], y=[mv_ret], mode='markers',
-                                    marker=dict(color='#4dd0e1', size=18, symbol='star',
-                                                line=dict(color='white', width=1)),
-                                    name='🛡️ Biến động tối thiểu (Min Volatility)'))
-        ef_fig.add_trace(go.Scatter(x=[ms_std], y=[ms_ret], mode='markers',
-                                    marker=dict(color='#ffd166', size=18, symbol='star',
-                                                line=dict(color='white', width=1)),
-                                    name='🚀 Sharpe tối đa (Max Sharpe)'))
-        ef_fig.update_layout(title='Không gian danh mục rủi ro và phương án tiền mặt',
-                             xaxis_title='Rủi ro (Độ lệch chuẩn năm hoá)',
-                             yaxis_title='Lợi suất kỳ vọng (năm hoá)',
-                             legend=dict(orientation="h", yanchor="bottom", y=1.02))
-        st.plotly_chart(ef_fig, width="stretch")
+            ef_fig = go.Figure()
+            ef_fig.add_trace(go.Scatter(x=opt_res['ef_vols'], y=opt_res['ef_rets'], mode='markers',
+                                        marker=dict(color=opt_res['ef_sharpes'], colorscale='Viridis',
+                                                    showscale=True, size=6, colorbar=dict(title="Chỉ số Sharpe")),
+                                        name='Danh mục rủi ro mô phỏng'))
+            ef_fig.add_trace(go.Scatter(x=[mv_std], y=[mv_ret], mode='markers',
+                                        marker=dict(color='#4dd0e1', size=18, symbol='star',
+                                                    line=dict(color='white', width=1)),
+                                        name='🛡️ Biến động tối thiểu (Min Volatility)'))
+            ef_fig.add_trace(go.Scatter(x=[ms_std], y=[ms_ret], mode='markers',
+                                        marker=dict(color='#ffd166', size=18, symbol='star',
+                                                    line=dict(color='white', width=1)),
+                                        name='🚀 Sharpe tối đa (Max Sharpe)'))
+            ef_fig.update_layout(title='Không gian danh mục rủi ro và phương án tiền mặt',
+                                 xaxis_title='Rủi ro (Độ lệch chuẩn năm hoá)',
+                                 yaxis_title='Lợi suất kỳ vọng (năm hoá)',
+                                 legend=dict(orientation="h", yanchor="bottom", y=1.02))
+            st.plotly_chart(ef_fig, width="stretch")
 
 
 # ---------- TAB 3: AI ----------
-with tab3:
-    if not has_data:
-        st.info("👈 Chạy **Phân tích** trước để nhận khuyến nghị.")
-    else:
-        st.subheader("Trợ lý quyết định có điều kiện")
-        st.caption("Máy tính tạo số liệu; trí tuệ nhân tạo (AI) chỉ diễn giải. Mọi kế hoạch phải có điểm vô hiệu, giới hạn lỗ và ngày hết hiệu lực.")
-        sim_results_list = st.session_state.sim_results_list
-        opt_res = st.session_state.opt_res
-        prices_df = st.session_state.prices_df
-        market_ticker = st.session_state.market_ticker
-        rule_advice = generate_expert_advice(sim_results_list, opt_res, prices_df[market_ticker])
-        st.markdown(rule_advice)
-
-        if ai_config and ai_config.get('api_key'):
-            cache_material = (
-                f"{ai_provider}|{ai_config.get('model')}|{st.session_state.get('data_last_date')}|"
-                f"{','.join(st.session_state.valid_assets)}"
-            )
-            advice_key = hashlib.sha256(cache_material.encode('utf-8')).hexdigest()
-            if st.button("Tạo bản diễn giải bằng trí tuệ nhân tạo (AI)", width="stretch", type="primary", key="generate_investment_advice"):
-                with st.spinner(f"Đang chờ {ai_provider} diễn giải kết quả đã kiểm định..."):
-                    st.session_state.advice_cache[advice_key] = generate_expert_advice(
-                        sim_results_list, opt_res, prices_df[market_ticker], ai_config
-                    )
-            if advice_key in st.session_state.advice_cache:
-                st.markdown("#### Bản diễn giải bằng trí tuệ nhân tạo (AI)")
-                st.markdown(st.session_state.advice_cache[advice_key])
+if tab3 is not None:
+    with tab3:
+        if not has_data:
+            st.info("👈 Chạy **Phân tích** trước để nhận khuyến nghị.")
         else:
-            st.info("Nhập khóa API nếu muốn trí tuệ nhân tạo (AI) diễn giải sâu hơn. Phần tính toán định lượng vẫn chạy cục bộ.")
+            st.subheader("Trợ lý quyết định có điều kiện")
+            st.caption("Máy tính tạo số liệu; trí tuệ nhân tạo (AI) chỉ diễn giải. Mọi kế hoạch phải có điểm vô hiệu, giới hạn lỗ và ngày hết hiệu lực.")
+            sim_results_list = st.session_state.sim_results_list
+            opt_res = st.session_state.opt_res
+            prices_df = st.session_state.prices_df
+            market_ticker = st.session_state.market_ticker
+            rule_advice = generate_expert_advice(sim_results_list, opt_res, prices_df[market_ticker])
+            st.markdown(rule_advice)
 
-        st.warning(
-            "Không dùng phần này làm lệnh mua/bán trực tiếp. Hãy kiểm tra thẻ kiểm thử quá khứ (backtest), "
-            "mức sụt giảm (drawdown), phí giao dịch và danh mục mô phỏng (paper portfolio) trước."
-        )
+            if ai_config and ai_config.get('api_key'):
+                cache_material = (
+                    f"{ai_provider}|{ai_config.get('model')}|{st.session_state.get('data_last_date')}|"
+                    f"{','.join(st.session_state.valid_assets)}"
+                )
+                advice_key = hashlib.sha256(cache_material.encode('utf-8')).hexdigest()
+                if st.button("Tạo bản diễn giải bằng trí tuệ nhân tạo (AI)", width="stretch", type="primary", key="generate_investment_advice"):
+                    with st.spinner(f"Đang chờ {ai_provider} diễn giải kết quả đã kiểm định..."):
+                        st.session_state.advice_cache[advice_key] = generate_expert_advice(
+                            sim_results_list, opt_res, prices_df[market_ticker], ai_config
+                        )
+                if advice_key in st.session_state.advice_cache:
+                    st.markdown("#### Bản diễn giải bằng trí tuệ nhân tạo (AI)")
+                    st.markdown(st.session_state.advice_cache[advice_key])
+            else:
+                st.info("Nhập khóa API nếu muốn trí tuệ nhân tạo (AI) diễn giải sâu hơn. Phần tính toán định lượng vẫn chạy cục bộ.")
+
+            st.warning(
+                "Không dùng phần này làm lệnh mua/bán trực tiếp. Hãy kiểm tra thẻ kiểm thử quá khứ (backtest), "
+                "mức sụt giảm (drawdown), phí giao dịch và danh mục mô phỏng (paper portfolio) trước."
+            )
 
 
 # ---------- TAB 4: EVIEWS ----------
-with tab4:
-    st.subheader("📈 Eviews tiếng Việt (Giả lập)")
-    st.markdown("Tải tệp (file), chọn trang tính (sheet), rồi dùng trình đơn (menu) **Chọn nhanh** hoặc gõ lệnh EViews. "
-                "Hỗ trợ: `LS` (hồi quy bình phương tối thiểu), `GENR` (tạo biến: LOG/D/trễ X(-1)/@TREND), "
-                "`ADF` (kiểm định nghiệm đơn vị), `STATS` (thống kê mô tả), `COR` (tương quan), "
-                "`PLOT/SCAT/HIST` (đồ thị đường/phân tán/tần suất).")
-    from eviews_emulator import parse_and_execute_command, format_eviews_output
+if tab4 is not None:
+    with tab4:
+        st.subheader("📈 Eviews tiếng Việt (Giả lập)")
+        st.markdown("Tải tệp (file), chọn trang tính (sheet), rồi dùng trình đơn (menu) **Chọn nhanh** hoặc gõ lệnh EViews. "
+                    "Hỗ trợ: `LS` (hồi quy bình phương tối thiểu), `GENR` (tạo biến: LOG/D/trễ X(-1)/@TREND), "
+                    "`ADF` (kiểm định nghiệm đơn vị), `STATS` (thống kê mô tả), `COR` (tương quan), "
+                    "`PLOT/SCAT/HIST` (đồ thị đường/phân tán/tần suất).")
+        from eviews_emulator import parse_and_execute_command, format_eviews_output
 
-    col_ev1, col_ev2 = st.columns([1, 2])
-    with col_ev1:
-        st.markdown("#### 📂 Tệp làm việc (Workfile)")
-        uploaded_file = st.file_uploader("Tải tệp dữ liệu dạng bảng (CSV/Excel)", type=["csv", "xlsx", "xls"])
+        col_ev1, col_ev2 = st.columns([1, 2])
+        with col_ev1:
+            st.markdown("#### 📂 Tệp làm việc (Workfile)")
+            uploaded_file = st.file_uploader("Tải tệp dữ liệu dạng bảng (CSV/Excel)", type=["csv", "xlsx", "xls"])
 
-        if uploaded_file is not None:
-            raw_bytes = uploaded_file.getvalue()
-            fname = uploaded_file.name
+            if uploaded_file is not None:
+                raw_bytes = uploaded_file.getvalue()
+                fname = uploaded_file.name
 
-            def _mkbuf():
-                b = io.BytesIO(raw_bytes); b.name = fname; return b
+                def _mkbuf():
+                    b = io.BytesIO(raw_bytes); b.name = fname; return b
 
-            sheets = dc.list_sheets(_mkbuf())
-            chosen_sheet = None
-            if sheets:
-                st.caption(f"📑 Tệp có **{len(sheets)}** trang tính (sheet).")
-                chosen_sheet = st.selectbox("Chọn trang tính (sheet) để làm việc:", sheets)
-            mode_label = st.radio("Cách đọc dữ liệu:",
-                                  ["Tự động (thông minh)", "Thô (nguyên bản)"], horizontal=True)
-            mode = 'auto' if mode_label.startswith("Tự") else 'raw'
+                sheets = dc.list_sheets(_mkbuf())
+                chosen_sheet = None
+                if sheets:
+                    st.caption(f"📑 Tệp có **{len(sheets)}** trang tính (sheet).")
+                    chosen_sheet = st.selectbox("Chọn trang tính (sheet) để làm việc:", sheets)
+                mode_label = st.radio("Cách đọc dữ liệu:",
+                                      ["Tự động (thông minh)", "Thô (nguyên bản)"], horizontal=True)
+                mode = 'auto' if mode_label.startswith("Tự") else 'raw'
 
-            if st.button("📥 Nạp dữ liệu", width="stretch"):
-                try:
-                    df, report = dc.smart_import(_mkbuf(), sheet=chosen_sheet, mode=mode)
-                    st.session_state.eviews_data = df
-                    st.success("Nạp dữ liệu thành công!")
-                    st.info(report)
-                except Exception as e:
-                    st.error(f"Lỗi đọc tệp (file): {e}")
+                if st.button("📥 Nạp dữ liệu", width="stretch"):
+                    try:
+                        df, report = dc.smart_import(_mkbuf(), sheet=chosen_sheet, mode=mode)
+                        st.session_state.eviews_data = df
+                        st.success("Nạp dữ liệu thành công!")
+                        st.info(report)
+                    except Exception as e:
+                        st.error(f"Lỗi đọc tệp (file): {e}")
 
-        if not st.session_state.eviews_data.empty:
-            st.markdown("**Các biến trong bộ nhớ:**")
-            st.write(", ".join(map(str, st.session_state.eviews_data.columns.tolist())))
-            with st.expander("👁️ Xem trước dữ liệu"):
-                st.dataframe(st.session_state.eviews_data.head(20), width="stretch")
-        else:
-            st.info("Chưa có dữ liệu. Hãy tải tệp (file) và bấm **Nạp dữ liệu**.")
-
-    with col_ev2:
-        st.markdown("#### 🧮 Bảng lệnh")
-        if st.session_state.eviews_data.empty:
-            st.info("Hãy nạp dữ liệu ở cột bên trái trước khi chạy lệnh.")
-        else:
-            cols_list = list(map(str, st.session_state.eviews_data.columns))
-            input_mode = st.radio("Cách nhập:",
-                                  ["🖱️ Chọn nhanh (không cần gõ)", "⌨️ Gõ lệnh"], horizontal=True)
-
-            command_to_run = None
-            run_now = False
-
-            if input_mode.startswith("🖱️"):
-                op = st.selectbox("Bạn muốn làm gì?", [
-                    "Hồi quy bình phương tối thiểu (OLS) / Ước lượng mô hình chỉ số đơn (SIM, lệnh LS)",
-                    "Tạo biến mới (GENR)",
-                    "Kiểm định nghiệm đơn vị (ADF)",
-                    "Thống kê mô tả (STATS)",
-                    "Ma trận tương quan (COR)",
-                    "Vẽ đồ thị (đường/phân tán/tần suất)",
-                ])
-                if op.startswith("Hồi quy"):
-                    # Tự nhận diện cột chỉ số thị trường
-                    def _is_mkt(c):
-                        cl = str(c).lower()
-                        return any(k in cl for k in ["vnindex", "index", "vn30", "market", "thitruong"])
-                    mkt_candidates = [c for c in cols_list if _is_mkt(c)]
-                    default_mkt = mkt_candidates[0] if mkt_candidates else cols_list[-1]
-                    stock_opts = [c for c in cols_list if c != default_mkt] or cols_list
-                    if mkt_candidates:
-                        st.caption(f"💡 Đã tự nhận diện chỉ số thị trường: **{default_mkt}**. Bạn chỉ cần chọn cổ phiếu.")
-                    else:
-                        st.caption("⚠️ Không tự nhận ra chỉ số thị trường — hãy kiểm tra ô 'Chỉ số thị trường' bên dưới.")
-                    y = st.selectbox("Cổ phiếu cần phân tích (Y):", stock_opts)
-                    x_market = st.selectbox("Chỉ số thị trường (X) — điền sẵn, đổi nếu cần:",
-                                            cols_list, index=cols_list.index(default_mkt))
-                    extra = st.multiselect("(Tuỳ chọn) thêm biến độc lập khác:",
-                                           [c for c in cols_list if c not in (y, x_market)])
-                    xs = [x_market] + [e for e in extra if e != x_market]
-                    command_to_run = f"LS {y} C {' '.join(xs)}"
-                elif op.startswith("Tạo biến"):
-                    st.caption("Có thể dùng hàm: LOG() (logarit), D() (sai phân), biến trễ X(-1), @TREND (xu hướng), hoặc điều kiện tạo biến giả (ví dụ: BID>20).")
-                    newname = st.text_input("Tên biến mới:", "Z")
-                    gmode = st.radio("Kiểu tạo:", ["Hai biến + phép toán", "Tự gõ biểu thức"],
-                                     horizontal=True, key="genr_mode")
-                    if gmode.startswith("Hai"):
-                        cc1, cc2, cc3 = st.columns(3)
-                        v1 = cc1.selectbox("Biến 1:", cols_list, key="genr_v1")
-                        opr = cc2.selectbox("Phép toán:", ["+", "-", "*", "/"], key="genr_op")
-                        v2 = cc3.selectbox("Biến 2:", cols_list, key="genr_v2")
-                        expr = f"{v1} {opr} {v2}"
-                    else:
-                        expr = st.text_input("Biểu thức (ví dụ: LOG(BID) - LOG(BID(-1))):",
-                                             f"LOG({cols_list[0]})", key="genr_expr")
-                    if newname.strip() and expr.strip():
-                        command_to_run = f"GENR {newname.strip()} = {expr}"
-                elif op.startswith("Kiểm định nghiệm"):
-                    st.caption("Kiểm định chuỗi có DỪNG không (nghiệm đơn vị) — dùng cho số liệu chuỗi thời gian.")
-                    v = st.selectbox("Chọn biến:", cols_list, key="adf_v")
-                    command_to_run = f"ADF {v}"
-                elif op.startswith("Thống kê"):
-                    vs = st.multiselect("Chọn biến (bỏ trống = tất cả):", cols_list, key="stats_v")
-                    command_to_run = "STATS " + " ".join(vs) if vs else "STATS"
-                elif op.startswith("Ma trận tương quan"):
-                    vs = st.multiselect("Chọn biến (≥2, bỏ trống = tất cả):", cols_list, key="cor_v")
-                    command_to_run = "COR " + " ".join(vs) if vs else "COR"
-                else:  # Vẽ đồ thị
-                    gtype = st.selectbox("Loại đồ thị:",
-                                         ["Đường (line)", "Phân tán (scatter)", "Tần suất (histogram)"],
-                                         key="plot_type_sel")
-                    if gtype.startswith("Phân"):
-                        c1p, c2p = st.columns(2)
-                        vx = c1p.selectbox("Trục X:", cols_list, key="plot_x")
-                        vy = c2p.selectbox("Trục Y:", cols_list,
-                                           index=min(1, len(cols_list) - 1), key="plot_y")
-                        command_to_run = f"SCAT {vx} {vy}"
-                    elif gtype.startswith("Tần"):
-                        vh = st.selectbox("Biến:", cols_list, key="plot_h")
-                        command_to_run = f"HIST {vh}"
-                    else:
-                        vs = st.multiselect("Chọn 1 hoặc nhiều biến:", cols_list,
-                                            default=cols_list[:1], key="plot_l")
-                        if vs:
-                            command_to_run = "PLOT " + " ".join(vs)
-
-                if command_to_run:
-                    st.caption("📋 Câu lệnh EViews tương ứng (học thuộc để sau tự gõ tay):")
-                    st.code(command_to_run, language="text")
-                    run_now = st.button("▶️ Xem kết quả", width="stretch", type="primary")
+            if not st.session_state.eviews_data.empty:
+                st.markdown("**Các biến trong bộ nhớ:**")
+                st.write(", ".join(map(str, st.session_state.eviews_data.columns.tolist())))
+                with st.expander("👁️ Xem trước dữ liệu"):
+                    st.dataframe(st.session_state.eviews_data.head(20), width="stretch")
             else:
-                command_to_run = st.text_input(
-                    "Nhập lệnh (ví dụ: LS Y C X | GENR Z=LOG(X) | ADF X | STATS X | COR | PLOT X Y):", key="eviews_cmd")
-                run_now = st.button("▶️ Chạy lệnh", width="stretch")
+                st.info("Chưa có dữ liệu. Hãy tải tệp (file) và bấm **Nạp dữ liệu**.")
 
-            deep_ai = st.checkbox("🤖 Kèm phân tích chuyên sâu bằng trí tuệ nhân tạo (AI) — cần khóa API ở thanh bên (sidebar)")
+        with col_ev2:
+            st.markdown("#### 🧮 Bảng lệnh")
+            if st.session_state.eviews_data.empty:
+                st.info("Hãy nạp dữ liệu ở cột bên trái trước khi chạy lệnh.")
+            else:
+                cols_list = list(map(str, st.session_state.eviews_data.columns))
+                input_mode = st.radio("Cách nhập:",
+                                      ["🖱️ Chọn nhanh (không cần gõ)", "⌨️ Gõ lệnh"], horizontal=True)
 
-            if run_now:
-                if not command_to_run:
-                    st.warning("Vui lòng chọn hoặc nhập lệnh trước.")
+                command_to_run = None
+                run_now = False
+
+                if input_mode.startswith("🖱️"):
+                    op = st.selectbox("Bạn muốn làm gì?", [
+                        "Hồi quy bình phương tối thiểu (OLS) / Ước lượng mô hình chỉ số đơn (SIM, lệnh LS)",
+                        "Tạo biến mới (GENR)",
+                        "Kiểm định nghiệm đơn vị (ADF)",
+                        "Thống kê mô tả (STATS)",
+                        "Ma trận tương quan (COR)",
+                        "Vẽ đồ thị (đường/phân tán/tần suất)",
+                    ])
+                    if op.startswith("Hồi quy"):
+                        # Tự nhận diện cột chỉ số thị trường
+                        def _is_mkt(c):
+                            cl = str(c).lower()
+                            return any(k in cl for k in ["vnindex", "index", "vn30", "market", "thitruong"])
+                        mkt_candidates = [c for c in cols_list if _is_mkt(c)]
+                        default_mkt = mkt_candidates[0] if mkt_candidates else cols_list[-1]
+                        stock_opts = [c for c in cols_list if c != default_mkt] or cols_list
+                        if mkt_candidates:
+                            st.caption(f"💡 Đã tự nhận diện chỉ số thị trường: **{default_mkt}**. Bạn chỉ cần chọn cổ phiếu.")
+                        else:
+                            st.caption("⚠️ Không tự nhận ra chỉ số thị trường — hãy kiểm tra ô 'Chỉ số thị trường' bên dưới.")
+                        y = st.selectbox("Cổ phiếu cần phân tích (Y):", stock_opts)
+                        x_market = st.selectbox("Chỉ số thị trường (X) — điền sẵn, đổi nếu cần:",
+                                                cols_list, index=cols_list.index(default_mkt))
+                        extra = st.multiselect("(Tuỳ chọn) thêm biến độc lập khác:",
+                                               [c for c in cols_list if c not in (y, x_market)])
+                        xs = [x_market] + [e for e in extra if e != x_market]
+                        command_to_run = f"LS {y} C {' '.join(xs)}"
+                    elif op.startswith("Tạo biến"):
+                        st.caption("Có thể dùng hàm: LOG() (logarit), D() (sai phân), biến trễ X(-1), @TREND (xu hướng), hoặc điều kiện tạo biến giả (ví dụ: BID>20).")
+                        newname = st.text_input("Tên biến mới:", "Z")
+                        gmode = st.radio("Kiểu tạo:", ["Hai biến + phép toán", "Tự gõ biểu thức"],
+                                         horizontal=True, key="genr_mode")
+                        if gmode.startswith("Hai"):
+                            cc1, cc2, cc3 = st.columns(3)
+                            v1 = cc1.selectbox("Biến 1:", cols_list, key="genr_v1")
+                            opr = cc2.selectbox("Phép toán:", ["+", "-", "*", "/"], key="genr_op")
+                            v2 = cc3.selectbox("Biến 2:", cols_list, key="genr_v2")
+                            expr = f"{v1} {opr} {v2}"
+                        else:
+                            expr = st.text_input("Biểu thức (ví dụ: LOG(BID) - LOG(BID(-1))):",
+                                                 f"LOG({cols_list[0]})", key="genr_expr")
+                        if newname.strip() and expr.strip():
+                            command_to_run = f"GENR {newname.strip()} = {expr}"
+                    elif op.startswith("Kiểm định nghiệm"):
+                        st.caption("Kiểm định chuỗi có DỪNG không (nghiệm đơn vị) — dùng cho số liệu chuỗi thời gian.")
+                        v = st.selectbox("Chọn biến:", cols_list, key="adf_v")
+                        command_to_run = f"ADF {v}"
+                    elif op.startswith("Thống kê"):
+                        vs = st.multiselect("Chọn biến (bỏ trống = tất cả):", cols_list, key="stats_v")
+                        command_to_run = "STATS " + " ".join(vs) if vs else "STATS"
+                    elif op.startswith("Ma trận tương quan"):
+                        vs = st.multiselect("Chọn biến (≥2, bỏ trống = tất cả):", cols_list, key="cor_v")
+                        command_to_run = "COR " + " ".join(vs) if vs else "COR"
+                    else:  # Vẽ đồ thị
+                        gtype = st.selectbox("Loại đồ thị:",
+                                             ["Đường (line)", "Phân tán (scatter)", "Tần suất (histogram)"],
+                                             key="plot_type_sel")
+                        if gtype.startswith("Phân"):
+                            c1p, c2p = st.columns(2)
+                            vx = c1p.selectbox("Trục X:", cols_list, key="plot_x")
+                            vy = c2p.selectbox("Trục Y:", cols_list,
+                                               index=min(1, len(cols_list) - 1), key="plot_y")
+                            command_to_run = f"SCAT {vx} {vy}"
+                        elif gtype.startswith("Tần"):
+                            vh = st.selectbox("Biến:", cols_list, key="plot_h")
+                            command_to_run = f"HIST {vh}"
+                        else:
+                            vs = st.multiselect("Chọn 1 hoặc nhiều biến:", cols_list,
+                                                default=cols_list[:1], key="plot_l")
+                            if vs:
+                                command_to_run = "PLOT " + " ".join(vs)
+
+                    if command_to_run:
+                        st.caption("📋 Câu lệnh EViews tương ứng (học thuộc để sau tự gõ tay):")
+                        st.code(command_to_run, language="text")
+                        run_now = st.button("▶️ Xem kết quả", width="stretch", type="primary")
                 else:
-                    with st.spinner("Đang xử lý..."):
-                        res = parse_and_execute_command(command_to_run, st.session_state.eviews_data)
-                    if "data" in res:
-                        st.session_state.eviews_data = res["data"]
-                    if res.get("error"):
-                        st.error(res["error"])
-                    elif res.get("plot"):
-                        st.markdown("##### 📈 Đồ thị")
-                        render_eviews_plot(res["plot"])
-                    elif res.get("message"):
-                        st.success(res["message"])
-                        with st.expander("👁️ Xem dữ liệu sau khi tạo biến"):
-                            st.dataframe(st.session_state.eviews_data.head(20), width="stretch")
-                    else:
-                        st.markdown("##### 📤 Kết quả (Output)")
-                        html_output = format_eviews_output(res)
-                        st.components.v1.html(html_output, height=460, scrolling=True)
+                    command_to_run = st.text_input(
+                        "Nhập lệnh (ví dụ: LS Y C X | GENR Z=LOG(X) | ADF X | STATS X | COR | PLOT X Y):", key="eviews_cmd")
+                    run_now = st.button("▶️ Chạy lệnh", width="stretch")
 
-                    narrative = interpret_regression_vn(res)
-                    if narrative:
-                        st.markdown("##### 🧠 Diễn giải kết quả (tự động)")
-                        st.markdown(narrative)
-                        if deep_ai:
-                            if ai_config and ai_config.get('api_key'):
-                                m = res['results']
-                                summary = (f"Biến phụ thuộc: {res.get('dep_var')}. "
-                                           f"R^2={float(m.rsquared):.4f}, R^2_adj={float(m.rsquared_adj):.4f}, "
-                                           f"F p-value={m.f_pvalue:.4g}. Hệ số & p-value: " +
-                                           "; ".join(f"{n}={float(m.params[n]):.4f}(p={float(m.pvalues[n]):.4g})"
-                                                     for n in m.params.index))
-                                prompt = ("Bạn là giảng viên Kinh tế lượng Tài chính. Dựa trên kết quả hồi quy OLS sau, "
-                                          "hãy phân tích chuyên sâu bằng tiếng Việt: (1) đánh giá độ phù hợp và ý nghĩa "
-                                          "thống kê, (2) diễn giải kinh tế của từng hệ số, (3) cảnh báo về khuyết tật mô "
-                                          "hình nếu có, (4) gợi ý cải thiện. Trình bày gọn bằng Markdown, có emoji hợp lý. "
-                                          "Nhấn mạnh đây là phân tích học thuật, không phải khuyến nghị đầu tư.\n\n"
-                                          f"KẾT QUẢ: {summary}")
-                                with st.spinner("Trí tuệ nhân tạo (AI) đang phân tích chuyên sâu..."):
-                                    out = call_llm(prompt, ai_config)
-                                if out:
-                                    st.markdown("##### 🤖 Phân tích chuyên sâu bằng trí tuệ nhân tạo (AI)")
-                                    st.markdown(out)
-                            else:
-                                st.warning("Hãy nhập khóa API ở thanh bên (sidebar), mục Tích hợp trí tuệ nhân tạo (AI), để dùng phân tích chuyên sâu.")
+                deep_ai = st.checkbox("🤖 Kèm phân tích chuyên sâu bằng trí tuệ nhân tạo (AI) — cần khóa API ở thanh bên (sidebar)")
+
+                if run_now:
+                    if not command_to_run:
+                        st.warning("Vui lòng chọn hoặc nhập lệnh trước.")
+                    else:
+                        with st.spinner("Đang xử lý..."):
+                            res = parse_and_execute_command(command_to_run, st.session_state.eviews_data)
+                        if "data" in res:
+                            st.session_state.eviews_data = res["data"]
+                        if res.get("error"):
+                            st.error(res["error"])
+                        elif res.get("plot"):
+                            st.markdown("##### 📈 Đồ thị")
+                            render_eviews_plot(res["plot"])
+                        elif res.get("message"):
+                            st.success(res["message"])
+                            with st.expander("👁️ Xem dữ liệu sau khi tạo biến"):
+                                st.dataframe(st.session_state.eviews_data.head(20), width="stretch")
+                        else:
+                            st.markdown("##### 📤 Kết quả (Output)")
+                            html_output = format_eviews_output(res)
+                            st.components.v1.html(html_output, height=460, scrolling=True)
+
+                        narrative = interpret_regression_vn(res)
+                        if narrative:
+                            st.markdown("##### 🧠 Diễn giải kết quả (tự động)")
+                            st.markdown(narrative)
+                            if deep_ai:
+                                if ai_config and ai_config.get('api_key'):
+                                    m = res['results']
+                                    summary = (f"Biến phụ thuộc: {res.get('dep_var')}. "
+                                               f"R^2={float(m.rsquared):.4f}, R^2_adj={float(m.rsquared_adj):.4f}, "
+                                               f"F p-value={m.f_pvalue:.4g}. Hệ số & p-value: " +
+                                               "; ".join(f"{n}={float(m.params[n]):.4f}(p={float(m.pvalues[n]):.4g})"
+                                                         for n in m.params.index))
+                                    prompt = ("Bạn là giảng viên Kinh tế lượng Tài chính. Dựa trên kết quả hồi quy OLS sau, "
+                                              "hãy phân tích chuyên sâu bằng tiếng Việt: (1) đánh giá độ phù hợp và ý nghĩa "
+                                              "thống kê, (2) diễn giải kinh tế của từng hệ số, (3) cảnh báo về khuyết tật mô "
+                                              "hình nếu có, (4) gợi ý cải thiện. Trình bày gọn bằng Markdown, có emoji hợp lý. "
+                                              "Nhấn mạnh đây là phân tích học thuật, không phải khuyến nghị đầu tư.\n\n"
+                                              f"KẾT QUẢ: {summary}")
+                                    with st.spinner("Trí tuệ nhân tạo (AI) đang phân tích chuyên sâu..."):
+                                        out = call_llm(prompt, ai_config)
+                                    if out:
+                                        st.markdown("##### 🤖 Phân tích chuyên sâu bằng trí tuệ nhân tạo (AI)")
+                                        st.markdown(out)
+                                else:
+                                    st.warning("Hãy nhập khóa API ở thanh bên (sidebar), mục Tích hợp trí tuệ nhân tạo (AI), để dùng phân tích chuyên sâu.")
 
 
 # ---------- TAB 5: ÔN THI ----------
-with tab5:
-    st.subheader("🎓 Công cụ Ôn thi Kinh tế lượng")
-    st.markdown("Tính nhanh các đại lượng để làm bài kiểm tra thực hành. Dùng chung dữ liệu đã nạp ở thẻ (tab) **EViews**.")
-    from exam_calculator import (
-        calc_return_formula, calc_returns_data,
-        calc_sim_risks_formula, calc_sim_risks_data,
-        calc_cov_matrix_formula, calc_cov_matrix_data,
-        calc_markowitz_params_formula, calc_markowitz_params_data
-    )
+if tab5 is not None:
+    with tab5:
+        st.subheader("🎓 Công cụ Ôn thi Kinh tế lượng")
+        st.markdown("Tính nhanh các đại lượng để làm bài kiểm tra thực hành. Dùng chung dữ liệu đã nạp ở thẻ (tab) **EViews**.")
+        from exam_calculator import (
+            calc_return_formula, calc_returns_data,
+            calc_sim_risks_formula, calc_sim_risks_data,
+            calc_cov_matrix_formula, calc_cov_matrix_data,
+            calc_markowitz_params_formula, calc_markowitz_params_data
+        )
 
-    if st.session_state.eviews_data.empty:
-        st.info("Hãy nạp tệp (file) số liệu ở thẻ (tab) **📈 EViews tiếng Việt** để dùng công cụ tính nhanh.")
-    else:
-        exam_data = st.session_state.eviews_data
-        with st.expander("👁️ Dữ liệu hiện tại"):
-            st.dataframe(exam_data.head(20), width="stretch")
-
-        st.caption("💡 Chọn **cột giá** (không phải cột r_...) làm tài sản (Asset) và thị trường (Market) — công cụ tự tính lợi suất.")
-        c1, c2 = st.columns(2)
-        selected_asset = c1.selectbox("Mã cổ phiếu — tài sản (Asset):", exam_data.columns)
-        selected_market = c2.selectbox("Chỉ số thị trường (Market):", exam_data.columns,
-                                       index=min(1, len(exam_data.columns) - 1))
-
-        st.markdown("##### Các lệnh tính nhanh")
-        b1, b2 = st.columns(2)
-        b3, b4 = st.columns(2)
-
-        if b1.button("1️⃣ Tỷ suất Sinh lời", width="stretch"):
-            st.latex(calc_return_formula())
-            try:
-                ret = calc_returns_data(exam_data[selected_asset])
-                st.write(f"Lợi suất của **{selected_asset}** (5 ngày đầu):")
-                st.dataframe(ret.head())
-            except Exception as e:
-                st.error(f"Lỗi: {e}. Đảm bảo cột là dạng số hợp lệ.")
-
-        if b2.button("2️⃣ Rủi ro hệ thống / phi hệ thống — mô hình chỉ số đơn (SIM)", width="stretch"):
-            st.latex(calc_sim_risks_formula())
-            try:
-                r_asset = calc_returns_data(exam_data[selected_asset])
-                r_market = calc_returns_data(exam_data[selected_market])
-                risks = calc_sim_risks_data(r_asset, r_market)
-                st.write(f"Kết quả **{selected_asset}** so với **{selected_market}**:")
-                risk_labels = {
-                    "Beta": "Beta (độ nhạy)",
-                    "Sys_Risk": "Rủi ro hệ thống (systematic risk)",
-                    "Unsys_Risk": "Rủi ro phi hệ thống (unsystematic risk)",
-                    "Total_Risk": "Tổng rủi ro (total risk)",
-                    "Market_Var": "Phương sai thị trường (market variance)",
-                }
-                st.json({risk_labels.get(k, k): float(v) for k, v in risks.items()})
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
-
-        if b3.button("3️⃣ Ma trận Hiệp phương sai (V)", width="stretch"):
-            st.latex(calc_cov_matrix_formula())
-            try:
-                numeric_cols = exam_data.select_dtypes(include=[np.number]).columns
-                returns_all = exam_data[numeric_cols].apply(calc_returns_data).dropna()
-                st.dataframe(calc_cov_matrix_data(returns_all), width="stretch")
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
-
-        if b4.button("4️⃣ Đại lượng Markowitz (A,B,C,D)", width="stretch"):
-            st.latex(calc_markowitz_params_formula())
-            try:
-                numeric_cols = exam_data.select_dtypes(include=[np.number]).columns
-                returns_all = exam_data[numeric_cols].apply(calc_returns_data).dropna()
-                params = calc_markowitz_params_data(returns_all)
-                st.json({k: float(v) if not isinstance(v, str) else v for k, v in params.items()})
-            except Exception as e:
-                st.error(f"Lỗi: {e}")
-
-        # ===== Danh mục theo trọng số W =====
-        st.markdown("---")
-        st.markdown("##### 🧺 Danh mục theo trọng số cho trước (W)")
-        st.caption("Chọn các mã (cột GIÁ), số quan sát, thứ tự ngày và nhập trọng số → ra lợi suất TB & rủi ro danh mục.")
-        num_cols = list(exam_data.select_dtypes(include=[np.number]).columns)
-        if len(num_cols) < 1:
-            st.info("Không có cột số hợp lệ trong dữ liệu.")
+        if st.session_state.eviews_data.empty:
+            st.info("Hãy nạp tệp (file) số liệu ở thẻ (tab) **📈 EViews tiếng Việt** để dùng công cụ tính nhanh.")
         else:
-            pf_assets = st.multiselect("Các mã trong danh mục (cột giá):", num_cols, key="pf_assets")
-            pc1, pc2 = st.columns(2)
-            pf_n = pc1.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="pf_n")
-            pf_order = pc2.radio("Thứ tự ngày trong file:", ["Giữ nguyên", "Đảo ngược (cũ → mới)"],
-                                 key="pf_order", horizontal=True)
-            pc3, pc4 = st.columns(2)
-            pf_isret = pc3.checkbox("Dữ liệu đã là lợi suất", key="pf_isret",
-                                    help="Đánh dấu (tick) nếu cột đã là r_... để không tính lợi suất lại.")
-            pf_ddofr = pc4.radio("Kiểu phương sai:", ["Mẫu ÷(n−1)", "Tổng thể ÷n"],
-                                 key="pf_ddof", horizontal=True,
-                                 help="Bảng Excel của giảng viên thường dùng Tổng thể ÷n; EViews dùng Mẫu ÷(n−1).")
-            if pf_assets:
-                st.caption("Nhập trọng số W cho từng mã:")
-                wcols = st.columns(len(pf_assets))
-                pf_weights = []
-                for i, a in enumerate(pf_assets):
-                    wv = wcols[i].number_input(a, value=round(1.0 / len(pf_assets), 4),
-                                               step=0.05, format="%.4f", key=f"pf_w_{a}")
-                    pf_weights.append(wv)
-                pf_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="pf_norm")
-                if st.button("📊 Tính danh mục", width="stretch", type="primary", key="pf_btn"):
-                    try:
-                        res = compute_portfolio(exam_data, pf_assets, pf_weights,
-                                                nobs=pf_n, reverse=pf_order.startswith("Đảo"),
-                                                normalize=pf_norm, is_returns=pf_isret,
-                                                ddof=(1 if pf_ddofr.startswith("Mẫu") else 0))
-                        st.caption(f"Dùng {res['n_prices']} giá → {res['n_returns']} lợi suất. "
-                                   f"Trọng số áp dụng: " + ", ".join(f"{a}={w:.4f}" for a, w in zip(res['assets'], res['weights'])))
-                        mA, mB, mC = st.columns(3)
-                        mA.metric("Lợi suất TB danh mục", f"{res['mean']*100:.4f}%")
-                        mB.metric("Rủi ro (độ lệch chuẩn)", f"{res['std']*100:.4f}%")
-                        mC.metric("Phương sai danh mục", f"{res['variance']:.8f}")
-                        st.write("Lợi suất trung bình từng mã:")
-                        st.dataframe((res['asset_means'] * 100).round(4).rename("Lợi suất TB (%)"),
-                                     width="stretch")
-                        st.write("Ma trận hiệp phương sai V:")
-                        st.dataframe(res['cov'], width="stretch")
-                        direction = "âm (danh mục giảm giá trong kỳ)" if res['mean'] < 0 else "dương (danh mục tăng giá)"
-                        st.markdown(
-                            f"**Diễn giải:** Lợi suất trung bình danh mục ≈ **{res['mean']*100:.4f}%/phiên** ({direction}); "
-                            f"rủi ro (độ lệch chuẩn) ≈ **{res['std']*100:.4f}%**. "
-                            f"Tính bằng r_P = Σ wᵢ·rᵢ rồi lấy trung bình & độ lệch chuẩn — bằng đúng W'VW. "
-                            f"\n\n> ⚠️ Lợi suất TB đổi dấu nếu thay đổi thứ tự ngày; rủi ro không đổi.")
-                    except Exception as e:
-                        st.error(f"Lỗi: {e}")
+            exam_data = st.session_state.eviews_data
+            with st.expander("👁️ Dữ liệu hiện tại"):
+                st.dataframe(exam_data.head(20), width="stretch")
 
-        # ===== Rủi ro danh mục theo mô hình SIM =====
-        st.markdown("---")
-        st.markdown("##### 🎯 Rủi ro danh mục theo mô hình chỉ số đơn (SIM): hệ thống / phi hệ thống")
-        st.caption("Chọn các mã + chỉ số thị trường + trọng số → ứng dụng chạy mô hình chỉ số đơn (SIM) từng mã, tách rủi ro hệ thống và phi hệ thống của danh mục.")
-        num_cols2 = list(exam_data.select_dtypes(include=[np.number]).columns)
-        s_assets = st.multiselect("Các mã trong danh mục:", num_cols2, key="sim_assets")
-        sc1, sc2 = st.columns(2)
-        s_market = sc1.selectbox("Chỉ số thị trường:", num_cols2,
-                                 index=len(num_cols2) - 1 if num_cols2 else 0, key="sim_market")
-        s_n = sc2.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="sim_n")
-        sc3, sc4 = st.columns(2)
-        s_isret = sc3.checkbox("Dữ liệu đã là lợi suất", key="sim_isret")
-        s_order = sc4.radio("Thứ tự ngày:", ["Giữ nguyên", "Đảo ngược"], key="sim_order", horizontal=True)
-        if s_assets and s_market:
-            st.caption("Nhập trọng số W cho từng mã:")
-            swcols = st.columns(len(s_assets))
-            s_weights = []
-            for i, a in enumerate(s_assets):
-                wv = swcols[i].number_input(a, value=round(1.0 / len(s_assets), 4),
-                                            step=0.05, format="%.4f", key=f"sim_w_{a}")
-                s_weights.append(wv)
-            s_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="sim_norm")
-            if st.button("🎯 Tính rủi ro danh mục theo mô hình chỉ số đơn (SIM)", width="stretch", type="primary", key="sim_btn"):
+            st.caption("💡 Chọn **cột giá** (không phải cột r_...) làm tài sản (Asset) và thị trường (Market) — công cụ tự tính lợi suất.")
+            c1, c2 = st.columns(2)
+            selected_asset = c1.selectbox("Mã cổ phiếu — tài sản (Asset):", exam_data.columns)
+            selected_market = c2.selectbox("Chỉ số thị trường (Market):", exam_data.columns,
+                                           index=min(1, len(exam_data.columns) - 1))
+
+            st.markdown("##### Các lệnh tính nhanh")
+            b1, b2 = st.columns(2)
+            b3, b4 = st.columns(2)
+
+            if b1.button("1️⃣ Tỷ suất Sinh lời", width="stretch"):
+                st.latex(calc_return_formula())
                 try:
-                    r = compute_sim_portfolio_risk(exam_data, s_assets, s_market, s_weights,
-                                                   nobs=s_n, reverse=s_order.startswith("Đảo"),
-                                                   normalize=s_norm, is_returns=s_isret)
-                    st.caption(f"{r['n_returns']} lợi suất | σ²_thị trường = {r['sigma_market2']:.8f} | "
-                               f"Beta danh mục β_P = {r['beta_p']:.6f}")
-                    st.write("Chi tiết từng cổ phiếu theo mô hình chỉ số đơn (SIM):")
-                    sim_detail = pd.DataFrame(r['per_stock']).rename(
-                        columns={"Beta": "Beta (độ nhạy)"}
-                    )
-                    st.dataframe(sim_detail, width="stretch")
-                    k1, k2, k3 = st.columns(3)
-                    k1.metric("Rủi ro hệ thống", f"{r['systematic']:.8f}")
-                    k2.metric("Rủi ro phi hệ thống", f"{r['unsystematic']:.8f}")
-                    k3.metric("TỔNG rủi ro danh mục", f"{r['total']:.8f}")
-                    st.markdown(
-                        f"**Diễn giải:** Rủi ro danh mục P theo mô hình chỉ số đơn (SIM) = **{r['total']:.8f}** "
-                        f"(= hệ thống {r['systematic']:.8f} + phi hệ thống {r['unsystematic']:.8f}); "
-                        f"độ lệch chuẩn ≈ **{r['total_std']*100:.4f}%**. "
-                        f"Hệ thống = β²_P·σ²_I; phi hệ thống = Σ wᵢ²·ηᵢ² "
-                        f"(ηᵢ² = phương sai phần dư hồi quy mô hình chỉ số đơn, SIM).")
+                    ret = calc_returns_data(exam_data[selected_asset])
+                    st.write(f"Lợi suất của **{selected_asset}** (5 ngày đầu):")
+                    st.dataframe(ret.head())
+                except Exception as e:
+                    st.error(f"Lỗi: {e}. Đảm bảo cột là dạng số hợp lệ.")
+
+            if b2.button("2️⃣ Rủi ro hệ thống / phi hệ thống — mô hình chỉ số đơn (SIM)", width="stretch"):
+                st.latex(calc_sim_risks_formula())
+                try:
+                    r_asset = calc_returns_data(exam_data[selected_asset])
+                    r_market = calc_returns_data(exam_data[selected_market])
+                    risks = calc_sim_risks_data(r_asset, r_market)
+                    st.write(f"Kết quả **{selected_asset}** so với **{selected_market}**:")
+                    risk_labels = {
+                        "Beta": "Beta (độ nhạy)",
+                        "Sys_Risk": "Rủi ro hệ thống (systematic risk)",
+                        "Unsys_Risk": "Rủi ro phi hệ thống (unsystematic risk)",
+                        "Total_Risk": "Tổng rủi ro (total risk)",
+                        "Market_Var": "Phương sai thị trường (market variance)",
+                    }
+                    st.json({risk_labels.get(k, k): float(v) for k, v in risks.items()})
                 except Exception as e:
                     st.error(f"Lỗi: {e}")
 
-    # ===== Trợ lý học tập an toàn (không thực thi mã do AI sinh) =====
-    st.markdown("---")
-    st.markdown("#### Trợ lý học tập — tính cục bộ, trí tuệ nhân tạo (AI) chỉ diễn giải")
-    st.caption("Các phép tính chạy bằng bộ công cụ cố định đã kiểm thử. Ứng dụng không chạy mã Python do trí tuệ nhân tạo (AI) sinh ra.")
+            if b3.button("3️⃣ Ma trận Hiệp phương sai (V)", width="stretch"):
+                st.latex(calc_cov_matrix_formula())
+                try:
+                    numeric_cols = exam_data.select_dtypes(include=[np.number]).columns
+                    returns_all = exam_data[numeric_cols].apply(calc_returns_data).dropna()
+                    st.dataframe(calc_cov_matrix_data(returns_all), width="stretch")
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
 
-    ai_upload = st.file_uploader("Tải tệp (file) dữ liệu — bỏ trống thì dùng dữ liệu ở thẻ (tab) EViews:",
-                                 type=["csv", "xlsx", "xls"], key="ai_upload")
-    ai_df = None
-    if ai_upload is not None:
-        _raw_b = ai_upload.getvalue(); _fn = ai_upload.name
+            if b4.button("4️⃣ Đại lượng Markowitz (A,B,C,D)", width="stretch"):
+                st.latex(calc_markowitz_params_formula())
+                try:
+                    numeric_cols = exam_data.select_dtypes(include=[np.number]).columns
+                    returns_all = exam_data[numeric_cols].apply(calc_returns_data).dropna()
+                    params = calc_markowitz_params_data(returns_all)
+                    st.json({k: float(v) if not isinstance(v, str) else v for k, v in params.items()})
+                except Exception as e:
+                    st.error(f"Lỗi: {e}")
 
-        def _aibuf():
-            b = io.BytesIO(_raw_b); b.name = _fn; return b
-        _sheets = dc.list_sheets(_aibuf())
-        _chosen = st.selectbox("Chọn trang tính (sheet):", _sheets, key="ai_sheet") if _sheets else None
-        try:
-            ai_df, _ = dc.smart_import(_aibuf(), sheet=_chosen, mode='auto')
-            st.success(f"Đã đọc dữ liệu cục bộ ({ai_df.shape[0]} dòng, {ai_df.shape[1]} cột).")
-        except Exception as e:
-            st.error(f"Lỗi đọc tệp (file): {e}")
-    elif not st.session_state.eviews_data.empty:
-        ai_df = st.session_state.eviews_data
-        st.caption("→ Đang dùng dữ liệu đã nạp ở thẻ (tab) EViews.")
-    else:
-        st.info("Tải tệp (file) ở đây, hoặc nạp ở thẻ (tab) EViews để trí tuệ nhân tạo (AI) có dữ liệu làm việc.")
+            # ===== Danh mục theo trọng số W =====
+            st.markdown("---")
+            st.markdown("##### 🧺 Danh mục theo trọng số cho trước (W)")
+            st.caption("Chọn các mã (cột GIÁ), số quan sát, thứ tự ngày và nhập trọng số → ra lợi suất TB & rủi ro danh mục.")
+            num_cols = list(exam_data.select_dtypes(include=[np.number]).columns)
+            if len(num_cols) < 1:
+                st.info("Không có cột số hợp lệ trong dữ liệu.")
+            else:
+                pf_assets = st.multiselect("Các mã trong danh mục (cột giá):", num_cols, key="pf_assets")
+                pc1, pc2 = st.columns(2)
+                pf_n = pc1.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="pf_n")
+                pf_order = pc2.radio("Thứ tự ngày trong file:", ["Giữ nguyên", "Đảo ngược (cũ → mới)"],
+                                     key="pf_order", horizontal=True)
+                pc3, pc4 = st.columns(2)
+                pf_isret = pc3.checkbox("Dữ liệu đã là lợi suất", key="pf_isret",
+                                        help="Đánh dấu (tick) nếu cột đã là r_... để không tính lợi suất lại.")
+                pf_ddofr = pc4.radio("Kiểu phương sai:", ["Mẫu ÷(n−1)", "Tổng thể ÷n"],
+                                     key="pf_ddof", horizontal=True,
+                                     help="Bảng Excel của giảng viên thường dùng Tổng thể ÷n; EViews dùng Mẫu ÷(n−1).")
+                if pf_assets:
+                    st.caption("Nhập trọng số W cho từng mã:")
+                    wcols = st.columns(len(pf_assets))
+                    pf_weights = []
+                    for i, a in enumerate(pf_assets):
+                        wv = wcols[i].number_input(a, value=round(1.0 / len(pf_assets), 4),
+                                                   step=0.05, format="%.4f", key=f"pf_w_{a}")
+                        pf_weights.append(wv)
+                    pf_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="pf_norm")
+                    if st.button("📊 Tính danh mục", width="stretch", type="primary", key="pf_btn"):
+                        try:
+                            res = compute_portfolio(exam_data, pf_assets, pf_weights,
+                                                    nobs=pf_n, reverse=pf_order.startswith("Đảo"),
+                                                    normalize=pf_norm, is_returns=pf_isret,
+                                                    ddof=(1 if pf_ddofr.startswith("Mẫu") else 0))
+                            st.caption(f"Dùng {res['n_prices']} giá → {res['n_returns']} lợi suất. "
+                                       f"Trọng số áp dụng: " + ", ".join(f"{a}={w:.4f}" for a, w in zip(res['assets'], res['weights'])))
+                            mA, mB, mC = st.columns(3)
+                            mA.metric("Lợi suất TB danh mục", f"{res['mean']*100:.4f}%")
+                            mB.metric("Rủi ro (độ lệch chuẩn)", f"{res['std']*100:.4f}%")
+                            mC.metric("Phương sai danh mục", f"{res['variance']:.8f}")
+                            st.write("Lợi suất trung bình từng mã:")
+                            st.dataframe((res['asset_means'] * 100).round(4).rename("Lợi suất TB (%)"),
+                                         width="stretch")
+                            st.write("Ma trận hiệp phương sai V:")
+                            st.dataframe(res['cov'], width="stretch")
+                            direction = "âm (danh mục giảm giá trong kỳ)" if res['mean'] < 0 else "dương (danh mục tăng giá)"
+                            st.markdown(
+                                f"**Diễn giải:** Lợi suất trung bình danh mục ≈ **{res['mean']*100:.4f}%/phiên** ({direction}); "
+                                f"rủi ro (độ lệch chuẩn) ≈ **{res['std']*100:.4f}%**. "
+                                f"Tính bằng r_P = Σ wᵢ·rᵢ rồi lấy trung bình & độ lệch chuẩn — bằng đúng W'VW. "
+                                f"\n\n> ⚠️ Lợi suất TB đổi dấu nếu thay đổi thứ tự ngày; rủi ro không đổi.")
+                        except Exception as e:
+                            st.error(f"Lỗi: {e}")
 
-    ai_req = st.text_area("Yêu cầu / đề bài của bạn:",
-                          placeholder="VD: Với 200 quan sát đầu, tính danh mục GAS HDB HPG "
-                                      "W=(0.25;0.45;0.30) và ma trận hiệp phương sai.",
-                          key="ai_req")
-    allow_ai_explanation = False
-    if ai_config and ai_config.get('api_key'):
-        allow_ai_explanation = st.checkbox(
-            "Cho phép gửi yêu cầu và kết quả tính đã rút gọn tới nhà cung cấp (provider) AI để diễn giải",
-            value=False,
-            help="Không gửi các dòng dữ liệu thô; chỉ gửi yêu cầu, giả định và kết quả định lượng rút gọn.",
-            key="allow_ai_explanation",
-        )
-    if st.button("Tính và giải thích", width="stretch", type="primary", key="ai_calc_btn"):
-        if ai_df is None:
-            st.warning("Chưa có dữ liệu — tải tệp (file) hoặc nạp ở thẻ (tab) EViews.")
-        elif not ai_req.strip():
-            st.warning("Hãy nhập yêu cầu.")
+            # ===== Rủi ro danh mục theo mô hình SIM =====
+            st.markdown("---")
+            st.markdown("##### 🎯 Rủi ro danh mục theo mô hình chỉ số đơn (SIM): hệ thống / phi hệ thống")
+            st.caption("Chọn các mã + chỉ số thị trường + trọng số → ứng dụng chạy mô hình chỉ số đơn (SIM) từng mã, tách rủi ro hệ thống và phi hệ thống của danh mục.")
+            num_cols2 = list(exam_data.select_dtypes(include=[np.number]).columns)
+            s_assets = st.multiselect("Các mã trong danh mục:", num_cols2, key="sim_assets")
+            sc1, sc2 = st.columns(2)
+            s_market = sc1.selectbox("Chỉ số thị trường:", num_cols2,
+                                     index=len(num_cols2) - 1 if num_cols2 else 0, key="sim_market")
+            s_n = sc2.number_input("Số quan sát đầu (0 = tất cả):", min_value=0, value=0, step=1, key="sim_n")
+            sc3, sc4 = st.columns(2)
+            s_isret = sc3.checkbox("Dữ liệu đã là lợi suất", key="sim_isret")
+            s_order = sc4.radio("Thứ tự ngày:", ["Giữ nguyên", "Đảo ngược"], key="sim_order", horizontal=True)
+            if s_assets and s_market:
+                st.caption("Nhập trọng số W cho từng mã:")
+                swcols = st.columns(len(s_assets))
+                s_weights = []
+                for i, a in enumerate(s_assets):
+                    wv = swcols[i].number_input(a, value=round(1.0 / len(s_assets), 4),
+                                                step=0.05, format="%.4f", key=f"sim_w_{a}")
+                    s_weights.append(wv)
+                s_norm = st.checkbox("Tự chuẩn hoá W về tổng = 1", value=True, key="sim_norm")
+                if st.button("🎯 Tính rủi ro danh mục theo mô hình chỉ số đơn (SIM)", width="stretch", type="primary", key="sim_btn"):
+                    try:
+                        r = compute_sim_portfolio_risk(exam_data, s_assets, s_market, s_weights,
+                                                       nobs=s_n, reverse=s_order.startswith("Đảo"),
+                                                       normalize=s_norm, is_returns=s_isret)
+                        st.caption(f"{r['n_returns']} lợi suất | σ²_thị trường = {r['sigma_market2']:.8f} | "
+                                   f"Beta danh mục β_P = {r['beta_p']:.6f}")
+                        st.write("Chi tiết từng cổ phiếu theo mô hình chỉ số đơn (SIM):")
+                        sim_detail = pd.DataFrame(r['per_stock']).rename(
+                            columns={"Beta": "Beta (độ nhạy)"}
+                        )
+                        st.dataframe(sim_detail, width="stretch")
+                        k1, k2, k3 = st.columns(3)
+                        k1.metric("Rủi ro hệ thống", f"{r['systematic']:.8f}")
+                        k2.metric("Rủi ro phi hệ thống", f"{r['unsystematic']:.8f}")
+                        k3.metric("TỔNG rủi ro danh mục", f"{r['total']:.8f}")
+                        st.markdown(
+                            f"**Diễn giải:** Rủi ro danh mục P theo mô hình chỉ số đơn (SIM) = **{r['total']:.8f}** "
+                            f"(= hệ thống {r['systematic']:.8f} + phi hệ thống {r['unsystematic']:.8f}); "
+                            f"độ lệch chuẩn ≈ **{r['total_std']*100:.4f}%**. "
+                            f"Hệ thống = β²_P·σ²_I; phi hệ thống = Σ wᵢ²·ηᵢ² "
+                            f"(ηᵢ² = phương sai phần dư hồi quy mô hình chỉ số đơn, SIM).")
+                    except Exception as e:
+                        st.error(f"Lỗi: {e}")
+
+        # ===== Trợ lý học tập an toàn (không thực thi mã do AI sinh) =====
+        st.markdown("---")
+        st.markdown("#### Trợ lý học tập — tính cục bộ, trí tuệ nhân tạo (AI) chỉ diễn giải")
+        st.caption("Các phép tính chạy bằng bộ công cụ cố định đã kiểm thử. Ứng dụng không chạy mã Python do trí tuệ nhân tạo (AI) sinh ra.")
+
+        ai_upload = st.file_uploader("Tải tệp (file) dữ liệu — bỏ trống thì dùng dữ liệu ở thẻ (tab) EViews:",
+                                     type=["csv", "xlsx", "xls"], key="ai_upload")
+        ai_df = None
+        if ai_upload is not None:
+            _raw_b = ai_upload.getvalue(); _fn = ai_upload.name
+
+            def _aibuf():
+                b = io.BytesIO(_raw_b); b.name = _fn; return b
+            _sheets = dc.list_sheets(_aibuf())
+            _chosen = st.selectbox("Chọn trang tính (sheet):", _sheets, key="ai_sheet") if _sheets else None
+            try:
+                ai_df, _ = dc.smart_import(_aibuf(), sheet=_chosen, mode='auto')
+                st.success(f"Đã đọc dữ liệu cục bộ ({ai_df.shape[0]} dòng, {ai_df.shape[1]} cột).")
+            except Exception as e:
+                st.error(f"Lỗi đọc tệp (file): {e}")
+        elif not st.session_state.eviews_data.empty:
+            ai_df = st.session_state.eviews_data
+            st.caption("→ Đang dùng dữ liệu đã nạp ở thẻ (tab) EViews.")
         else:
-            explanation_config = ai_config if allow_ai_explanation else None
-            with st.spinner("Đang chạy phép tính đã kiểm định..."):
-                out = run_ai_analysis(ai_df, ai_req, explanation_config)
-            if out.get("narrative"):
-                st.markdown(out["narrative"])
-            if out.get("assumptions"):
-                with st.expander("Giả định đã áp dụng"):
-                    for assumption in out["assumptions"]:
-                        st.write(f"- {assumption}")
-            if out.get("error"):
-                st.error(out["error"])
-            res = out.get("result")
-            if res is not None:
-                st.write("**Kết quả tính:**")
-                if isinstance(res, (pd.DataFrame, pd.Series)):
-                    st.dataframe(res, width="stretch")
-                elif isinstance(res, dict):
-                    for _k, _v in res.items():
-                        if isinstance(_v, (pd.DataFrame, pd.Series)):
-                            st.write(f"**{_k}:**"); st.dataframe(_v, width="stretch")
-                        elif isinstance(_v, (int, float, np.floating, np.integer)):
-                            st.write(f"**{_k}:** {float(_v):.6g}")
-                        else:
-                            st.write(f"**{_k}:** {_v}")
-                else:
-                    st.write(res)
-            st.caption("Phép tính là cục bộ; phần diễn giải bằng trí tuệ nhân tạo (AI), nếu bật, vẫn cần được kiểm chứng trước khi nộp bài.")
+            st.info("Tải tệp (file) ở đây, hoặc nạp ở thẻ (tab) EViews để trí tuệ nhân tạo (AI) có dữ liệu làm việc.")
+
+        ai_req = st.text_area("Yêu cầu / đề bài của bạn:",
+                              placeholder="VD: Với 200 quan sát đầu, tính danh mục GAS HDB HPG "
+                                          "W=(0.25;0.45;0.30) và ma trận hiệp phương sai.",
+                              key="ai_req")
+        allow_ai_explanation = False
+        if ai_config and ai_config.get('api_key'):
+            allow_ai_explanation = st.checkbox(
+                "Cho phép gửi yêu cầu và kết quả tính đã rút gọn tới nhà cung cấp (provider) AI để diễn giải",
+                value=False,
+                help="Không gửi các dòng dữ liệu thô; chỉ gửi yêu cầu, giả định và kết quả định lượng rút gọn.",
+                key="allow_ai_explanation",
+            )
+        if st.button("Tính và giải thích", width="stretch", type="primary", key="ai_calc_btn"):
+            if ai_df is None:
+                st.warning("Chưa có dữ liệu — tải tệp (file) hoặc nạp ở thẻ (tab) EViews.")
+            elif not ai_req.strip():
+                st.warning("Hãy nhập yêu cầu.")
+            else:
+                explanation_config = ai_config if allow_ai_explanation else None
+                with st.spinner("Đang chạy phép tính đã kiểm định..."):
+                    out = run_ai_analysis(ai_df, ai_req, explanation_config)
+                if out.get("narrative"):
+                    st.markdown(out["narrative"])
+                if out.get("assumptions"):
+                    with st.expander("Giả định đã áp dụng"):
+                        for assumption in out["assumptions"]:
+                            st.write(f"- {assumption}")
+                if out.get("error"):
+                    st.error(out["error"])
+                res = out.get("result")
+                if res is not None:
+                    st.write("**Kết quả tính:**")
+                    if isinstance(res, (pd.DataFrame, pd.Series)):
+                        st.dataframe(res, width="stretch")
+                    elif isinstance(res, dict):
+                        for _k, _v in res.items():
+                            if isinstance(_v, (pd.DataFrame, pd.Series)):
+                                st.write(f"**{_k}:**"); st.dataframe(_v, width="stretch")
+                            elif isinstance(_v, (int, float, np.floating, np.integer)):
+                                st.write(f"**{_k}:** {float(_v):.6g}")
+                            else:
+                                st.write(f"**{_k}:** {_v}")
+                    else:
+                        st.write(res)
+                st.caption("Phép tính là cục bộ; phần diễn giải bằng trí tuệ nhân tạo (AI), nếu bật, vẫn cần được kiểm chứng trước khi nộp bài.")
