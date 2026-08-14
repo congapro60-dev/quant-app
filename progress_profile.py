@@ -75,13 +75,15 @@ class RubricResult:
 
 
 def empty_profile() -> dict[str, Any]:
+    # rubric_scores để rỗng, không điền sẵn 0.0: "chưa chấm" và "chấm 0 điểm"
+    # là hai trạng thái khác nhau, điền sẵn 0 sẽ xoá mất ranh giới đó.
     return {
         "schema_version": SCHEMA_VERSION,
         "pre_test": {"score": None, "taken_at": None},
         "post_test": {"score": None, "taken_at": None},
         "lesson_scores": {},
         "journal": [],
-        "rubric_scores": {key: 0.0 for key in RUBRIC_WEIGHTS},
+        "rubric_scores": {},
     }
 
 
@@ -168,11 +170,28 @@ def compute_rubric(profile: dict[str, Any]) -> RubricResult:
     # Nhật ký: 5 mục trở lên coi là đủ, quy về thang 100.
     journal_auto = min(100.0, journal_count / 5 * 100.0)
 
+    def _manual(key: str) -> float | None:
+        """Điểm người chấm nhập, hoặc None nếu chưa chấm.
+
+        Dùng `is None` chứ không dùng `or`: điểm 0 là một đánh giá hợp lệ,
+        `or` sẽ coi 0 là "chưa chấm" và lặng lẽ thay bằng giá trị khác.
+        """
+
+        value = manual.get(key)
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    journal_manual = _manual("nhat_ky")
+
     raw = {
         "kien_thuc": knowledge,
-        "lap_luan": float(manual.get("lap_luan", 0.0) or 0.0),
-        "rui_ro_nguon": float(manual.get("rui_ro_nguon", 0.0) or 0.0),
-        "nhat_ky": float(manual.get("nhat_ky", 0.0) or 0.0) or journal_auto,
+        "lap_luan": _manual("lap_luan") or 0.0,
+        "rui_ro_nguon": _manual("rui_ro_nguon") or 0.0,
+        "nhat_ky": journal_auto if journal_manual is None else journal_manual,
     }
 
     parts = {k: max(0.0, min(100.0, v)) * RUBRIC_WEIGHTS[k] for k, v in raw.items()}
@@ -233,6 +252,11 @@ def import_json(text: str | bytes) -> dict[str, Any]:
         data = json.loads(raw.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ProfileImportError("Tệp không phải JSON hợp lệ.") from exc
+    except RecursionError as exc:
+        # json.loads đệ quy theo độ sâu của tệp, nên tệp lồng hàng chục nghìn
+        # cấp làm tràn ngăn xếp *trước khi* _depth() kịp chạy. Không bọc thì
+        # RecursionError thoát ra ngoài và làm sập cả trang.
+        raise ProfileImportError("Cấu trúc JSON lồng quá sâu.") from exc
 
     if not isinstance(data, dict):
         raise ProfileImportError("Hồ sơ phải là một đối tượng JSON.")
@@ -307,8 +331,11 @@ def import_json(text: str | bytes) -> dict[str, Any]:
         raise ProfileImportError("'rubric_scores' phải là đối tượng.")
     if set(rubric) - set(RUBRIC_WEIGHTS):
         raise ProfileImportError("'rubric_scores' chứa tiêu chí không hợp lệ.")
+    # Chỉ giữ tiêu chí thực sự có trong tệp, để tiêu chí chưa chấm vẫn là chưa chấm.
     profile["rubric_scores"] = {
-        key: _clamp_score(rubric.get(key, 0.0)) for key in RUBRIC_WEIGHTS
+        key: _clamp_score(value)
+        for key, value in rubric.items()
+        if value is not None
     }
 
     return profile

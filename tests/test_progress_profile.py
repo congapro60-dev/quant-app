@@ -135,6 +135,37 @@ def test_reject_oversized_payload():
         pp.import_json(big)
 
 
+def test_reject_payload_deep_enough_to_blow_the_parser_stack():
+    """Tệp lồng hàng chục nghìn cấp làm json.loads tràn ngăn xếp.
+
+    Trước khi sửa, RecursionError thoát ra ngoài import_json và làm sập trang
+    thay vì bị từ chối gọn gàng.
+    """
+
+    bomb = '{"journal":' + "[" * 40000 + "]" * 40000 + "}"
+    with pytest.raises(pp.ProfileImportError):
+        pp.import_json(bomb)
+
+
+def test_manual_zero_on_journal_criterion_is_respected():
+    """Người chấm cho 0 phải ra 0, không bị thay bằng điểm tự tính."""
+
+    profile = pp.empty_profile()
+    for i in range(10):                      # đủ mục để điểm tự tính là 100
+        pp.add_journal_entry(profile, title=f"t{i}", decision="d")
+
+    auto = pp.compute_rubric(profile)
+    assert auto.parts["nhat_ky"] == pytest.approx(15.0)
+
+    profile["rubric_scores"] = {"nhat_ky": 0}
+    graded = pp.compute_rubric(profile)
+    assert graded.parts["nhat_ky"] == 0.0
+
+
+def test_unscored_criteria_stay_unscored_on_a_fresh_profile():
+    assert pp.empty_profile()["rubric_scores"] == {}
+
+
 def test_reject_deeply_nested_payload():
     nested: dict = {"journal": []}
     node: dict = nested

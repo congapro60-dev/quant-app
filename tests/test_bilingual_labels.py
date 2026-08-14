@@ -124,6 +124,30 @@ def test_no_bare_english_only_feature_label():
             assert has_vietnamese(label), (key, label, bare)
 
 
+def test_directory_table_values_are_not_bare_english():
+    """Giá trị trong bảng cũng là chữ hiển thị, không chỉ tiêu đề cột.
+
+    Bài kiểm tra trước chỉ soi hằng nhãn nên đã để lọt chuỗi 'unverified'
+    hiện nguyên văn trong cột trạng thái.
+    """
+
+    for row in pdir.directory_rows():
+        status = row["Trạng thái xác minh"]
+        assert has_vietnamese(status), f"Trạng thái hiển thị thiếu tiếng Việt: {status!r}"
+        assert status not in pdir.VALID_STATUSES, (
+            f"Đang hiện giá trị nội bộ chưa dịch: {status!r}"
+        )
+
+
+@pytest.mark.parametrize("status", list(pdir.VALID_STATUSES))
+def test_every_verification_status_has_a_vietnamese_label(status):
+    assert has_vietnamese(pdir.status_display(status)), status
+
+
+def test_status_display_falls_back_to_unverified_for_unknown():
+    assert pdir.status_display("gia_tri_la") == pdir.STATUS_LABELS[pdir.STATUS_UNVERIFIED]
+
+
 def test_area_labels_are_pure_vietnamese():
     for area, label in lmode.AREA_LABELS.items():
         assert has_vietnamese(label), area

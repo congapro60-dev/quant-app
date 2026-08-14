@@ -6,7 +6,6 @@ chính không phình thêm.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import streamlit as st
@@ -71,15 +70,21 @@ def render_learning_area() -> None:
         for idx, q in enumerate(lesson.questions, start=1):
             st.markdown(f"**Câu {idx}.** {q.prompt}")
             if q.kind == cur.QUESTION_SINGLE:
-                choice = st.radio(
+                # index=None để không đáp án nào được chọn sẵn. Nếu để mặc định
+                # là 0, câu nào có đáp án đúng ở vị trí đầu sẽ được chấm đúng
+                # dù học sinh chưa hề trả lời.
+                responses[q.qid] = st.radio(
                     "Chọn một đáp án:", range(len(q.options)),
+                    index=None,
                     format_func=lambda i, opts=q.options: opts[i],
                     key=f"{q.qid}_r", label_visibility="collapsed",
                 )
-                responses[q.qid] = choice
             else:
+                # value=None vì lý do tương tự: ô để trống phải khác với số 0
+                # do học sinh chủ động nhập.
                 responses[q.qid] = st.number_input(
-                    "Nhập kết quả:", value=0.0, step=0.01,
+                    "Nhập kết quả:", value=None, step=0.01,
+                    placeholder="Nhập số…",
                     key=f"{q.qid}_n", label_visibility="collapsed",
                 )
         submitted = st.form_submit_button("Nộp bài", type="primary")
@@ -97,12 +102,16 @@ def render_learning_area() -> None:
             ok = q.check(responses.get(q.qid))
             st.markdown(f"{'✅' if ok else '❌'} **Câu {idx}.** {q.explanation}")
 
-        if cur.should_unlock_advanced(profile.get("lesson_scores")):
+        if (cur.should_unlock_advanced(profile.get("lesson_scores"))
+                and not st.session_state.get(lmode.UNLOCK_KEY)):
             st.session_state[lmode.UNLOCK_KEY] = True
             st.success(
                 "🔓 Bạn đã mở khóa nhóm công cụ nâng cao: mô hình chỉ số đơn (SIM), "
                 "Markowitz, EViews và kiểm thử ngoài mẫu (out-of-sample backtest)."
             )
+            # Danh sách thẻ được dựng ở đầu app.py nên phải chạy lại cả trang,
+            # nếu không các thẻ vừa mở khóa chỉ hiện ở lần tương tác kế tiếp.
+            st.rerun()
 
     st.markdown("#### ⚠️ Lỗi hiểu sai thường gặp")
     for wrong, correction in lesson.misconceptions:

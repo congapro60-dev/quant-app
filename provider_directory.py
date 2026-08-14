@@ -29,6 +29,18 @@ STATUS_EXPIRED = "expired"
 
 VALID_STATUSES = (STATUS_VERIFIED, STATUS_UNVERIFIED, STATUS_EXPIRED)
 
+# Nhãn hiển thị: giá trị nội bộ là tiếng Anh, nhưng thứ đưa ra giao diện phải
+# có tiếng Việt kèm theo.
+STATUS_LABELS = {
+    STATUS_VERIFIED: "Đã xác minh (verified)",
+    STATUS_UNVERIFIED: "Chưa xác minh (unverified)",
+    STATUS_EXPIRED: "Đã hết hạn (expired)",
+}
+
+
+def status_display(status: str) -> str:
+    return STATUS_LABELS.get(status, STATUS_LABELS[STATUS_UNVERIFIED])
+
 # Nguồn tra cứu tư cách thành viên lưu ký/bù trừ.
 VSDC_MEMBER_LIST = "https://vsd.vn/vi/ms"
 
@@ -219,7 +231,7 @@ def as_row(provider: Provider) -> dict[str, Any]:
         "Chính sách tuổi": provider.age_policy_display(),
         "Nguồn chính sách tuổi": provider.age_policy_source_display(),
         "Ngày xác minh": provider.verified_at or UNVERIFIED_NOTICE,
-        "Trạng thái xác minh": provider.verification_status,
+        "Trạng thái xác minh": status_display(provider.verification_status),
     }
 
 

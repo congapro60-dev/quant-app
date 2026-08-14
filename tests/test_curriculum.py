@@ -172,6 +172,30 @@ def test_unlock_survives_malformed_scores():
     assert cur.should_unlock_advanced(messy) is False
 
 
+def test_unanswered_question_is_never_credited():
+    """Bỏ trống phải bị tính sai, kể cả khi đáp án đúng nằm ở vị trí đầu.
+
+    Giao diện từng để radio chọn sẵn lựa chọn đầu tiên, nên câu có
+    answer_index=0 được chấm đúng dù học sinh chưa trả lời.
+    """
+
+    for lesson in cur.LESSONS:
+        for q in lesson.questions:
+            assert q.check(None) is False, q.qid
+        # Không trả lời câu nào thì phải được 0 điểm.
+        assert lesson.grade({q.qid: None for q in lesson.questions}) == 0.0
+
+
+def test_first_option_answers_still_require_an_explicit_choice():
+    first_option = [
+        q for l in cur.LESSONS for q in l.questions
+        if q.kind == cur.QUESTION_SINGLE and q.answer_index == 0
+    ]
+    for q in first_option:
+        assert q.check(None) is False, q.qid
+        assert q.check(0) is True, q.qid
+
+
 def test_get_lesson_handles_missing_id():
     assert cur.get_lesson("khong_ton_tai") is None
     assert cur.get_lesson("") is None
