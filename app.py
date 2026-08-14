@@ -103,6 +103,9 @@ with st.expander("📘 Thuật ngữ nhanh — đọc tiếng Việt, làm quen 
 | **Trượt giá (slippage)** · **danh mục tham chiếu (benchmark)** | Chênh lệch giá dự kiến/khớp; chuẩn để so kết quả. |
 | **Điểm cơ bản (bps)** | 100 bps = 1%; thường dùng cho phí, thuế và trượt giá. |
 | **Tệp bảng (CSV)** · **tệp cấu trúc (JSON)** | CSV để xem dữ liệu; JSON để sao lưu và khôi phục trạng thái. |
+| **Chọn tệp/Tải lên (Choose File/Upload)** · **Chọn ngày (Select a date)** | Nhãn hệ thống mặc định của Streamlit tương ứng với chọn tệp, tải lên và chọn ngày. |
+| **Hiện/ẩn cột (Show/hide columns)** · **Tìm kiếm (Search)** · **Toàn màn hình (Fullscreen)** | Các nút hệ thống của bảng dữ liệu; **Download as CSV** là tải xuống dưới dạng CSV. |
+| **Tạo bản sao (Fork)** · **Menu chính (Main menu)** | Điều khiển của nền tảng Streamlit Cloud, không phải lệnh giao dịch. |
 """)
 
 # ==================== KHỞI TẠO SESSION STATE ====================
