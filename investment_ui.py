@@ -521,7 +521,7 @@ def render_investment_desk(
     st.subheader("Bàn nghiên cứu đầu tư")
     st.caption("Sàng lọc và lập kịch bản có điều kiện. Không phải danh sách cổ phiếu chắc chắn sinh lời.")
     if prices.empty or not assets:
-        st.info("Chạy Phân tích ở thanh bên để nạp dữ liệu trước.")
+        st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         return
 
     screen = _screen_assets(prices, assets, sim_rows)
@@ -987,7 +987,7 @@ def render_backtest(prices: pd.DataFrame, assets: list[str], market: str) -> Non
         "ở T → thực thi ở T+1 → lợi suất đầu tiên kết thúc ở T+2. Kết quả đã trừ chi phí."
     )
     if prices.empty or not assets or market not in prices.columns:
-        st.info("Chạy Phân tích trước để có dữ liệu kiểm thử quá khứ (backtest).")
+        st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         return
 
     with st.form("backtest_form"):

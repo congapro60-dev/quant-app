@@ -217,22 +217,18 @@ def render_journal_area() -> None:
     st.header("Nhật ký và tiến độ")
     profile = _profile()
 
-    (tab_progress, tab_journal, tab_gate,
-     tab_policy, tab_dir) = st.tabs(
-        ["Tiến độ và rubric", "Nhật ký quyết định",
-         "Sẵn sàng dùng vốn thật", "Nhật ký chính sách", "Nơi mở tài khoản"]
+    # "Sẵn sàng dùng vốn thật" và "Nơi mở tài khoản" đã chuyển sang khu Đầu tư,
+    # nơi chúng thuộc về. Trước đây chúng nằm ở đây chỉ vì tiện lúc viết mã.
+    tab_progress, tab_journal, tab_settings = st.tabs(
+        ["Tiến độ và rubric", "Nhật ký quyết định", "Lịch sử thiết lập"]
     )
 
     with tab_progress:
         _render_progress(profile)
     with tab_journal:
         _render_journal(profile)
-    with tab_gate:
-        render_readiness_gate()
-    with tab_policy:
+    with tab_settings:
         render_policy_audit()
-    with tab_dir:
-        render_provider_directory()
 
 
 def _render_progress(profile: dict[str, Any]) -> None:
@@ -497,10 +493,11 @@ def _render_risk_limits(age_band: str) -> None:
 
 
 def render_policy_audit() -> None:
-    st.subheader("Nhật ký thay đổi chính sách")
+    st.subheader("Lịch sử thiết lập")
     st.caption(
         "Ghi lại mọi lần đổi nhóm tuổi, đổi xác nhận hay đổi hạn mức rủi ro. "
-        "Nhật ký không chứa giấy tờ định danh và tải xuống được."
+        "Khác với **Nhật ký quyết định** — nơi bạn tự viết lý do trước khi đặt "
+        "lệnh. Mục này do ứng dụng tự ghi, không chứa giấy tờ định danh."
     )
     rows = audit.audit_rows(st.session_state)
     if not rows:

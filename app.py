@@ -24,7 +24,12 @@ from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
 import learning_modes as lmode
-from learning_ui import render_journal_area, render_learning_area
+from learning_ui import (
+    render_journal_area,
+    render_learning_area,
+    render_provider_directory,
+    render_readiness_gate,
+)
 try:
     from streamlit_autorefresh import st_autorefresh
 except Exception:
@@ -129,74 +134,9 @@ for k, v in {
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
-    st.header("👤 Bạn là ai")
-    st.caption(
-        "Chọn lớp là đủ — lộ trình học sẽ tự khớp theo. Ứng dụng không hỏi họ "
-        "tên, ngày sinh hay giấy tờ."
-    )
-
-    _lp = lmode.get_learner_profile(st.session_state)
-    _grades = list(lmode.GRADE_LEVELS)
-    _levels = list(lmode.KNOWLEDGE_LEVELS)
-
-    _grade = st.selectbox(
-        "Lớp:", _grades, index=_grades.index(_lp["grade_level"]),
-        format_func=lambda g: lmode.GRADE_LABELS[g], key="lp_grade",
-    )
-    _level = st.selectbox(
-        "Mức kiến thức:", _levels, index=_levels.index(_lp["knowledge_level"]),
-        format_func=lambda k: lmode.KNOWLEDGE_LABELS[k], key="lp_level",
-    )
-    _goals = st.multiselect(
-        "Mục tiêu:", list(lmode.GOALS), default=_lp["goals"],
-        format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals",
-    )
-    lmode.store_learner_profile(st.session_state, {
-        "grade_level": _grade, "knowledge_level": _level, "goals": _goals,
-    })
-
-    # Lớp và lộ trình là một trục: chọn lớp thì lộ trình đi theo.
-    _before_mode = lmode.get_mode(st.session_state)
-    lmode.apply_grade_to_mode(st.session_state)
-    if lmode.get_mode(st.session_state) != _before_mode:
-        st.rerun()
-
-    st.success(f"Lộ trình: **{lmode.MODE_LABELS[lmode.get_mode(st.session_state)]}**")
-    st.caption(lmode.MODE_DESCRIPTIONS[lmode.get_mode(st.session_state)])
-
-    if lmode.get_mode(st.session_state) == lmode.MODE_HIGHSCHOOL:
-        if lmode.is_advanced_unlocked(st.session_state):
-            st.success("🔓 Đã mở khóa công cụ nâng cao.")
-        else:
-            st.info(
-                "🔒 Công cụ nâng cao (SIM, Markowitz, EViews, kiểm thử ngoài mẫu) "
-                "sẽ mở sau khi bạn hoàn thành các bài học nền tảng."
-            )
-
-    with st.expander("⚙️ Dành cho giáo viên — đổi lộ trình thủ công"):
-        st.caption(
-            "Chỉ dùng khi cần cho học sinh xem lộ trình khác lớp của mình. "
-            "Bật lên thì lựa chọn lớp ở trên không còn quyết định lộ trình nữa."
-        )
-        _override = st.checkbox(
-            "Tự đặt lộ trình, không theo lớp",
-            value=bool(st.session_state.get(lmode.MODE_OVERRIDE_KEY)),
-            key="mode_override_box",
-        )
-        st.session_state[lmode.MODE_OVERRIDE_KEY] = _override
-        if _override:
-            _mode_values = list(lmode.VALID_MODES)
-            _picked = st.radio(
-                "Lộ trình:", _mode_values,
-                index=_mode_values.index(lmode.get_mode(st.session_state)),
-                format_func=lambda m: lmode.MODE_LABELS[m], key="mode_picker",
-            )
-            if _picked != lmode.get_mode(st.session_state):
-                # switch_mode giữ nguyên dữ liệu phân tích và sổ mô phỏng.
-                lmode.switch_mode(st.session_state, _picked)
-                st.rerun()
-
-    st.markdown("---")
+    # Thứ tự có chủ đích: việc làm mỗi phiên đứng trước việc đặt một lần.
+    # Bản trước để hồ sơ người học lên đầu, đẩy nút Phân tích xuống dưới năm ô
+    # cấu hình — người nghiên cứu phải cuộn qua thứ họ không dùng tới.
     st.header("⚙️ Tham số đầu vào")
 
     st.caption("Chọn nhanh danh mục mẫu:")
@@ -223,12 +163,75 @@ with st.sidebar:
         submitted = st.form_submit_button("🚀 Phân tích", width="stretch", type="primary")
 
     st.markdown("---")
-    st.header("Làm mới dữ liệu cuối ngày (EOD)")
-    live_mode = st.toggle("Tự động làm mới dữ liệu lịch sử", value=False,
-                          help="Đây là dữ liệu giá mở-cao-thấp-đóng và khối lượng (OHLCV) lịch sử/cuối ngày (EOD), không phải báo giá thời gian thực (realtime) hay sổ lệnh.")
-    refresh_min = st.selectbox("Chu kỳ làm mới (phút):", [1, 5, 15], index=1, disabled=not live_mode)
-    if live_mode and st_autorefresh is None:
-        st.caption("⚠️ Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
+    st.caption(f"Lộ trình: **{lmode.MODE_LABELS[lmode.get_mode(st.session_state)]}**")
+
+    with st.expander("👤 Bạn là ai"):
+        st.caption(
+            "Chọn lớp là đủ — lộ trình học tự khớp theo. Ứng dụng không hỏi họ "
+            "tên, ngày sinh hay giấy tờ."
+        )
+        _lp = lmode.get_learner_profile(st.session_state)
+        _grades = list(lmode.GRADE_LEVELS)
+        _levels = list(lmode.KNOWLEDGE_LEVELS)
+
+        _grade = st.selectbox(
+            "Lớp:", _grades, index=_grades.index(_lp["grade_level"]),
+            format_func=lambda g: lmode.GRADE_LABELS[g], key="lp_grade",
+        )
+        _level = st.selectbox(
+            "Mức kiến thức:", _levels, index=_levels.index(_lp["knowledge_level"]),
+            format_func=lambda k: lmode.KNOWLEDGE_LABELS[k], key="lp_level",
+        )
+        _goals = st.multiselect(
+            "Mục tiêu:", list(lmode.GOALS), default=_lp["goals"],
+            format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals",
+        )
+        lmode.store_learner_profile(st.session_state, {
+            "grade_level": _grade, "knowledge_level": _level, "goals": _goals,
+        })
+
+        st.caption(lmode.MODE_DESCRIPTIONS[lmode.get_mode(st.session_state)])
+
+        if lmode.get_mode(st.session_state) == lmode.MODE_HIGHSCHOOL:
+            if lmode.is_advanced_unlocked(st.session_state):
+                st.success("🔓 Đã mở khóa công cụ nâng cao.")
+            else:
+                st.info(
+                    "🔒 Công cụ nâng cao (SIM, Markowitz, EViews, kiểm thử ngoài "
+                    "mẫu) sẽ mở sau khi bạn hoàn thành các bài học nền tảng."
+                )
+
+        st.markdown("**Dành cho giáo viên**")
+        _override = st.checkbox(
+            "Tự đặt lộ trình, không theo lớp",
+            value=bool(st.session_state.get(lmode.MODE_OVERRIDE_KEY)),
+            key="mode_override_box",
+        )
+        st.session_state[lmode.MODE_OVERRIDE_KEY] = _override
+        if _override:
+            _mode_values = list(lmode.VALID_MODES)
+            _picked = st.radio(
+                "Lộ trình:", _mode_values,
+                index=_mode_values.index(lmode.get_mode(st.session_state)),
+                format_func=lambda m: lmode.MODE_LABELS[m], key="mode_picker",
+            )
+            if _picked != lmode.get_mode(st.session_state):
+                # switch_mode giữ nguyên dữ liệu phân tích và sổ mô phỏng.
+                lmode.switch_mode(st.session_state, _picked)
+                st.rerun()
+
+    # Lớp và lộ trình là một trục: chọn lớp thì lộ trình đi theo.
+    _before_mode = lmode.get_mode(st.session_state)
+    lmode.apply_grade_to_mode(st.session_state)
+    if lmode.get_mode(st.session_state) != _before_mode:
+        st.rerun()
+
+    with st.expander("🔄 Làm mới dữ liệu cuối ngày (EOD)"):
+        live_mode = st.toggle("Tự động làm mới dữ liệu lịch sử", value=False,
+                              help="Đây là dữ liệu giá mở-cao-thấp-đóng và khối lượng (OHLCV) lịch sử/cuối ngày (EOD), không phải báo giá thời gian thực (realtime) hay sổ lệnh.")
+        refresh_min = st.selectbox("Chu kỳ làm mới (phút):", [1, 5, 15], index=1, disabled=not live_mode)
+        if live_mode and st_autorefresh is None:
+            st.caption("⚠️ Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
 
     st.markdown("---")
     st.header("Tích hợp trí tuệ nhân tạo (AI) — tùy chọn")
@@ -459,7 +462,34 @@ def _open_area(area, container):
 
 _data_tabs = _open_area(lmode.AREA_DATA, area_data)
 _lab_tabs = _open_area(lmode.AREA_MODEL_LAB, area_lab)
-_invest_tabs = _open_area(lmode.AREA_INVEST, area_invest)
+
+
+def _open_invest_area(container):
+    """Khu Đầu tư gồm các chức năng sẵn có cộng hai bảng thuộc về đây.
+
+    Cổng vốn thật và danh bạ nơi mở tài khoản là việc của người đi đầu tư, nên
+    đặt cùng chỗ với bàn đầu tư và danh mục mô phỏng.
+    """
+
+    names = lmode.features_in_area(lmode.AREA_INVEST, _visible_features)
+    if container is None:
+        return {}, None, None
+    labels = ([lmode.FEATURES[n]["label"] for n in names]
+              + ["Sẵn sàng dùng vốn thật", "Nơi mở tài khoản"])
+    with container:
+        subs = st.tabs(labels)
+    return dict(zip(names, subs)), subs[len(names)], subs[len(names) + 1]
+
+
+_invest_tabs, _gate_tab, _dir_tab = _open_invest_area(area_invest)
+
+if _gate_tab is not None:
+    with _gate_tab:
+        render_readiness_gate()
+
+if _dir_tab is not None:
+    with _dir_tab:
+        render_provider_directory()
 
 # Giữ nguyên tên biến cũ để các khối hiển thị bên dưới không phải viết lại.
 intraday_tab = _data_tabs.get(lmode.FEATURE_INTRADAY)
@@ -481,6 +511,24 @@ if area_journal is not None:
         render_journal_area()
 
 has_data = (not st.session_state.prices_df.empty) and bool(st.session_state.market_ticker)
+
+# Một lời mời bắt đầu, đặt nơi dễ thấy nhất. Trước đây mỗi thẻ con tự báo
+# "chưa có dữ liệu", nên người mới mở ứng dụng gặp cả chục thông báo giống nhau
+# mà vẫn không biết phải bấm gì trước.
+if not has_data:
+    if lmode.get_mode(st.session_state) == lmode.MODE_UNIVERSITY:
+        st.info(
+            "**Bắt đầu từ đây.** Nhập mã cổ phiếu ở thanh bên rồi bấm "
+            "**🚀 Phân tích** để nạp dữ liệu. Sau đó vào **Phòng thí nghiệm mô "
+            "hình** để chạy mô hình chỉ số đơn (SIM), Markowitz và các kiểm định. "
+            "Chưa cần khóa giao diện lập trình (API) cho bước này."
+        )
+    else:
+        st.info(
+            "**Bắt đầu từ đây.** Vào **Lộ trình học** làm mô-đun đầu tiên — "
+            "không cần dữ liệu và không cần khóa giao diện lập trình (API). "
+            "Muốn xem giá thật thì nhập mã ở thanh bên rồi bấm **🚀 Phân tích**."
+        )
 
 if st.session_state.get('data_status') == 'error' and st.session_state.get('data_error'):
     st.error(f"Dữ liệu hiện không hợp lệ: {st.session_state.data_error}")
@@ -911,7 +959,8 @@ if intraday_tab is not None:
 if tab1 is not None:
     with tab1:
         if not has_data:
-            st.info("👈 Nhập mã cổ phiếu ở thanh bên trái rồi bấm **🚀 Phân tích** để bắt đầu.")
+            # Banner "Bắt đầu" ở đầu trang đã hướng dẫn; ở đây chỉ cần một dòng nhẹ.
+            st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         else:
             returns_df = st.session_state.returns_df
             market_ticker = st.session_state.market_ticker
@@ -985,7 +1034,7 @@ if tab1 is not None:
 if tab2 is not None:
     with tab2:
         if not has_data:
-            st.info("👈 Chạy **Phân tích** trước để xem tối ưu danh mục.")
+            st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         else:
             opt_res = st.session_state.opt_res
             returns_df = st.session_state.returns_df
@@ -1069,7 +1118,7 @@ if tab2 is not None:
 if tab3 is not None:
     with tab3:
         if not has_data:
-            st.info("👈 Chạy **Phân tích** trước để nhận khuyến nghị.")
+            st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         else:
             st.subheader("Trợ lý quyết định có điều kiện")
             st.caption("Máy tính tạo số liệu; trí tuệ nhân tạo (AI) chỉ diễn giải. Mọi kế hoạch phải có điểm vô hiệu, giới hạn lỗ và ngày hết hiệu lực.")

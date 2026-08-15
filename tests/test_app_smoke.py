@@ -84,6 +84,31 @@ def test_locked_highschool_does_not_render_an_empty_model_lab():
     assert lmode.AREA_LABELS[lmode.AREA_LEARNING] in labels
 
 
+def test_changing_grade_switches_track_without_crashing():
+    """Đường người dùng thật: mở app rồi đổi lớp sang sinh viên.
+
+    Bản trước sập ở đây vì switch_mode ghi đè khoá widget `tickers_val` sau khi
+    ô nhập đã được tạo, ném StreamlitAPIException và làm trắng trang.
+    """
+
+    at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+    # Mặc định là THPT; đặt lớp sinh viên để buộc đổi lộ trình trong lúc chạy.
+    at.session_state[lmode.LEARNER_PROFILE_KEY] = {
+        "grade_level": "sinh_vien", "knowledge_level": "co_ban", "goals": [],
+    }
+    at.run()
+
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state[lmode.MODE_KEY] == lmode.MODE_UNIVERSITY
+    assert at.tabs, "Đổi lộ trình xong vẫn phải dựng được các khu vực."
+
+
+def test_widget_keys_are_not_restored_by_switch_mode():
+    """Khoá widget nằm trong danh sách giữ lại sẽ làm sập trang khi đổi chế độ."""
+
+    assert "tickers_val" not in lmode.PRESERVED_SESSION_KEYS
+
+
 def test_learning_area_content_differs_between_tracks():
     """Đổi lộ trình phải thấy khác, không chỉ ẩn vài thẻ con."""
 

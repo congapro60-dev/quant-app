@@ -196,7 +196,9 @@ PRESERVED_SESSION_KEYS: tuple[str, ...] = (
     "data_error",
     "data_last_date",
     "data_source",
-    "tickers_val",
+    # KHÔNG đưa khoá của widget (ví dụ "tickers_val") vào đây. Streamlit tự giữ
+    # trạng thái widget giữa các lần chạy, và ghi đè một khoá widget sau khi
+    # widget đã được tạo sẽ ném StreamlitAPIException làm sập trang.
     "progress_profile",
     "readiness_state",
     "learner_profile",
