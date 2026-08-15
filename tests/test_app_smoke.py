@@ -18,8 +18,25 @@ APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
 TIMEOUT = 120
 
 
+# Lớp quyết định lộ trình, nên muốn dựng một chế độ thì phải đặt lớp tương ứng.
+# Đặt mỗi MODE_KEY sẽ bị đồng bộ lại theo lớp mặc định.
+_GRADE_FOR_MODE = {
+    lmode.MODE_HIGHSCHOOL: "lop_11",
+    lmode.MODE_UNIVERSITY: "sinh_vien",
+}
+
+
 def _run(**session) -> AppTest:
     at = AppTest.from_file(APP_PATH, default_timeout=TIMEOUT)
+
+    mode = session.get(lmode.MODE_KEY)
+    if mode in _GRADE_FOR_MODE and lmode.LEARNER_PROFILE_KEY not in session:
+        session[lmode.LEARNER_PROFILE_KEY] = {
+            "grade_level": _GRADE_FOR_MODE[mode],
+            "knowledge_level": "co_ban",
+            "goals": [],
+        }
+
     for key, value in session.items():
         at.session_state[key] = value
     return at.run()
@@ -49,13 +66,37 @@ def test_app_reports_no_unexpected_error_on_first_load():
     assert unexpected == [], unexpected
 
 
-def test_five_areas_are_rendered_in_both_modes():
-    for mode in lmode.VALID_MODES:
-        at = _run(**{lmode.MODE_KEY: mode})
-        assert not at.exception
-        labels = {t.label for t in at.tabs}
-        for area in lmode.AREA_ORDER:
-            assert lmode.AREA_LABELS[area] in labels, (mode, area)
+def test_university_renders_all_five_areas():
+    at = _run(**{lmode.MODE_KEY: lmode.MODE_UNIVERSITY})
+    assert not at.exception
+    labels = {t.label for t in at.tabs}
+    for area in lmode.AREA_ORDER:
+        assert lmode.AREA_LABELS[area] in labels, area
+
+
+def test_locked_highschool_does_not_render_an_empty_model_lab():
+    """Thẻ trắng làm người dùng tưởng ứng dụng hỏng."""
+
+    at = _run(**{lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL, lmode.UNLOCK_KEY: False})
+    assert not at.exception
+    labels = {t.label for t in at.tabs}
+    assert lmode.AREA_LABELS[lmode.AREA_MODEL_LAB] not in labels
+    assert lmode.AREA_LABELS[lmode.AREA_LEARNING] in labels
+
+
+def test_learning_area_content_differs_between_tracks():
+    """Đổi lộ trình phải thấy khác, không chỉ ẩn vài thẻ con."""
+
+    hs = _run(**{lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL})
+    uni = _run(**{lmode.MODE_KEY: lmode.MODE_UNIVERSITY})
+    assert not hs.exception and not uni.exception
+
+    def _headers(at):
+        return " ".join(h.value for h in at.header)
+
+    assert "Lộ trình định lượng" in _headers(uni)
+    assert "Lộ trình định lượng" not in _headers(hs)
+    assert _headers(hs) != _headers(uni)
 
 
 def test_university_mode_exposes_all_nine_features():

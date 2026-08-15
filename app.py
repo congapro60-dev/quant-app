@@ -129,21 +129,41 @@ for k, v in {
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
-    st.header("🎓 Chế độ học")
-    _mode_values = list(lmode.VALID_MODES)
-    _current_mode = lmode.get_mode(st.session_state)
-    _picked_mode = st.radio(
-        "Chọn lộ trình:",
-        _mode_values,
-        index=_mode_values.index(_current_mode),
-        format_func=lambda m: lmode.MODE_LABELS[m],
-        key="mode_picker",
+    st.header("👤 Bạn là ai")
+    st.caption(
+        "Chọn lớp là đủ — lộ trình học sẽ tự khớp theo. Ứng dụng không hỏi họ "
+        "tên, ngày sinh hay giấy tờ."
     )
-    if _picked_mode != _current_mode:
-        # switch_mode giữ nguyên dữ liệu phân tích và sổ danh mục mô phỏng.
-        lmode.switch_mode(st.session_state, _picked_mode)
+
+    _lp = lmode.get_learner_profile(st.session_state)
+    _grades = list(lmode.GRADE_LEVELS)
+    _levels = list(lmode.KNOWLEDGE_LEVELS)
+
+    _grade = st.selectbox(
+        "Lớp:", _grades, index=_grades.index(_lp["grade_level"]),
+        format_func=lambda g: lmode.GRADE_LABELS[g], key="lp_grade",
+    )
+    _level = st.selectbox(
+        "Mức kiến thức:", _levels, index=_levels.index(_lp["knowledge_level"]),
+        format_func=lambda k: lmode.KNOWLEDGE_LABELS[k], key="lp_level",
+    )
+    _goals = st.multiselect(
+        "Mục tiêu:", list(lmode.GOALS), default=_lp["goals"],
+        format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals",
+    )
+    lmode.store_learner_profile(st.session_state, {
+        "grade_level": _grade, "knowledge_level": _level, "goals": _goals,
+    })
+
+    # Lớp và lộ trình là một trục: chọn lớp thì lộ trình đi theo.
+    _before_mode = lmode.get_mode(st.session_state)
+    lmode.apply_grade_to_mode(st.session_state)
+    if lmode.get_mode(st.session_state) != _before_mode:
         st.rerun()
+
+    st.success(f"Lộ trình: **{lmode.MODE_LABELS[lmode.get_mode(st.session_state)]}**")
     st.caption(lmode.MODE_DESCRIPTIONS[lmode.get_mode(st.session_state)])
+
     if lmode.get_mode(st.session_state) == lmode.MODE_HIGHSCHOOL:
         if lmode.is_advanced_unlocked(st.session_state):
             st.success("🔓 Đã mở khóa công cụ nâng cao.")
@@ -153,35 +173,28 @@ with st.sidebar:
                 "sẽ mở sau khi bạn hoàn thành các bài học nền tảng."
             )
 
-    with st.expander("👤 Hồ sơ người học"):
+    with st.expander("⚙️ Dành cho giáo viên — đổi lộ trình thủ công"):
         st.caption(
-            "Chỉ dùng để gợi ý nội dung phù hợp. Ứng dụng không hỏi họ tên, "
-            "ngày sinh hay giấy tờ."
+            "Chỉ dùng khi cần cho học sinh xem lộ trình khác lớp của mình. "
+            "Bật lên thì lựa chọn lớp ở trên không còn quyết định lộ trình nữa."
         )
-        _lp = lmode.get_learner_profile(st.session_state)
-        _grades = list(lmode.GRADE_LEVELS)
-        _levels = list(lmode.KNOWLEDGE_LEVELS)
-        _grade = st.selectbox(
-            "Lớp:", _grades, index=_grades.index(_lp["grade_level"]),
-            format_func=lambda g: lmode.GRADE_LABELS[g], key="lp_grade",
+        _override = st.checkbox(
+            "Tự đặt lộ trình, không theo lớp",
+            value=bool(st.session_state.get(lmode.MODE_OVERRIDE_KEY)),
+            key="mode_override_box",
         )
-        _level = st.selectbox(
-            "Mức kiến thức:", _levels, index=_levels.index(_lp["knowledge_level"]),
-            format_func=lambda k: lmode.KNOWLEDGE_LABELS[k], key="lp_level",
-        )
-        _goals = st.multiselect(
-            "Mục tiêu:", list(lmode.GOALS), default=_lp["goals"],
-            format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals",
-        )
-        lmode.store_learner_profile(st.session_state, {
-            "grade_level": _grade, "knowledge_level": _level, "goals": _goals,
-        })
-        _suggested = lmode.suggested_mode(st.session_state.get(lmode.LEARNER_PROFILE_KEY))
-        if _suggested != lmode.get_mode(st.session_state):
-            st.caption(
-                f"Gợi ý theo lớp: **{lmode.MODE_LABELS[_suggested]}**. "
-                "Bạn vẫn tự chọn chế độ ở trên."
+        st.session_state[lmode.MODE_OVERRIDE_KEY] = _override
+        if _override:
+            _mode_values = list(lmode.VALID_MODES)
+            _picked = st.radio(
+                "Lộ trình:", _mode_values,
+                index=_mode_values.index(lmode.get_mode(st.session_state)),
+                format_func=lambda m: lmode.MODE_LABELS[m], key="mode_picker",
             )
+            if _picked != lmode.get_mode(st.session_state):
+                # switch_mode giữ nguyên dữ liệu phân tích và sổ mô phỏng.
+                lmode.switch_mode(st.session_state, _picked)
+                st.rerun()
 
     st.markdown("---")
     st.header("⚙️ Tham số đầu vào")
@@ -415,10 +428,18 @@ if live_mode and st_autorefresh is not None:
 # chế độ THPT chỉ thấy nhóm cơ bản cho tới khi mở khóa bằng tiến độ học.
 _visible_features = lmode.visible_features(st.session_state)
 
-(area_learning, area_data, area_lab,
- area_invest, area_journal) = st.tabs(
-    [lmode.AREA_LABELS[a] for a in lmode.AREA_ORDER]
-)
+# Chỉ dựng khu vực có nội dung. Trước đây khu vực rỗng vẫn hiện thành một thẻ,
+# bấm vào thấy trang trắng — người dùng tưởng ứng dụng hỏng.
+_shown_areas = lmode.visible_areas(st.session_state, _visible_features)
+_area_tabs = dict(zip(
+    _shown_areas, st.tabs([lmode.AREA_LABELS[a] for a in _shown_areas])
+))
+
+area_learning = _area_tabs.get(lmode.AREA_LEARNING)
+area_data = _area_tabs.get(lmode.AREA_DATA)
+area_lab = _area_tabs.get(lmode.AREA_MODEL_LAB)
+area_invest = _area_tabs.get(lmode.AREA_INVEST)
+area_journal = _area_tabs.get(lmode.AREA_JOURNAL)
 
 
 def _open_area(area, container):
@@ -429,7 +450,7 @@ def _open_area(area, container):
     """
 
     names = lmode.features_in_area(area, _visible_features)
-    if not names:
+    if not names or container is None:
         return {}
     with container:
         subs = st.tabs([lmode.FEATURES[n]["label"] for n in names])
@@ -451,11 +472,13 @@ invest_tab = _invest_tabs.get(lmode.FEATURE_INVEST_DESK)
 paper_tab = _invest_tabs.get(lmode.FEATURE_PAPER)
 tab3 = _invest_tabs.get(lmode.FEATURE_ADVISOR)
 
-with area_learning:
-    render_learning_area()
+if area_learning is not None:
+    with area_learning:
+        render_learning_area()
 
-with area_journal:
-    render_journal_area()
+if area_journal is not None:
+    with area_journal:
+        render_journal_area()
 
 has_data = (not st.session_state.prices_df.empty) and bool(st.session_state.market_ticker)
 

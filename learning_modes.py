@@ -126,11 +126,54 @@ def get_learner_profile(session: MutableMapping[str, Any] | None) -> dict[str, A
     return normalise_learner_profile(session.get(LEARNER_PROFILE_KEY))
 
 
-def suggested_mode(learner_profile: Any) -> str:
-    """Chế độ gợi ý theo lớp. Chỉ là gợi ý, không tự đổi chế độ của người học."""
+MODE_OVERRIDE_KEY = "mode_override"
+
+
+def mode_from_grade(learner_profile: Any) -> str:
+    """Lộ trình suy ra từ lớp.
+
+    Lớp và lộ trình là **một trục**, không phải hai. Trước đây ứng dụng có hai ô
+    chọn riêng và chúng mâu thuẫn được với nhau, khiến người dùng phải đoán ô
+    nào mới có tác dụng.
+    """
 
     clean = normalise_learner_profile(learner_profile)
     return _GRADE_TO_MODE.get(clean["grade_level"], DEFAULT_MODE)
+
+
+def apply_grade_to_mode(session: MutableMapping[str, Any]) -> str:
+    """Đồng bộ chế độ theo lớp, trừ khi giáo viên đã đặt thủ công.
+
+    Giữ nguyên dữ liệu phiên: dùng lại :func:`switch_mode` chứ không ghi thẳng.
+    """
+
+    if session.get(MODE_OVERRIDE_KEY):
+        return get_mode(session)
+
+    target = mode_from_grade(session.get(LEARNER_PROFILE_KEY))
+    if target != get_mode(session):
+        switch_mode(session, target)
+    return target
+
+
+def area_has_content(area: str, feature_names: list[str]) -> bool:
+    """Khu vực có gì để hiện không.
+
+    Lộ trình học và Nhật ký luôn có nội dung riêng, không phụ thuộc danh sách
+    chức năng. Ba khu vực còn lại chỉ tồn tại khi có ít nhất một chức năng —
+    nếu không sẽ sinh ra một thẻ trống, bấm vào thấy trang trắng.
+    """
+
+    if area in (AREA_LEARNING, AREA_JOURNAL):
+        return True
+    return bool(features_in_area(area, feature_names))
+
+
+def visible_areas(session: MutableMapping[str, Any] | None = None,
+                  feature_names: list[str] | None = None) -> list[str]:
+    if feature_names is None:
+        feature_names = visible_features(session or {})
+    return [a for a in AREA_ORDER if area_has_content(a, feature_names)]
 
 # Trạng thái phân tích/danh mục phải sống sót qua mọi lần đổi chế độ.
 # Đây là hợp đồng được kiểm thử khóa lại, không được rút gọn tùy tiện.

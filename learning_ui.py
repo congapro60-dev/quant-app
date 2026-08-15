@@ -29,8 +29,92 @@ def _profile() -> dict[str, Any]:
 # Khu vực: Lộ trình học
 # ---------------------------------------------------------------------------
 
+# Lộ trình dành cho người học đại học và người nghiên cứu: không phải bài giảng
+# nhập môn mà là bản đồ dẫn tới đúng công cụ, kèm điều kiện dùng đúng.
+UNIVERSITY_TRACK = (
+    {
+        "title": "1. Nạp và kiểm định dữ liệu",
+        "goal": "Có bộ giá sạch, đúng mã, đúng khoảng ngày trước khi chạy bất kỳ mô hình nào.",
+        "do": "Nhập mã ở thanh bên rồi bấm Phân tích. Đối chiếu phiên dữ liệu và nguồn.",
+        "where": "Khám phá dữ liệu → Giá trong phiên",
+        "trap": "Dữ liệu lỗi vẫn cho ra hệ số đẹp. Kiểm tra trước, đừng tin bảng kết quả.",
+    },
+    {
+        "title": "2. Mô hình chỉ số đơn (SIM)",
+        "goal": "Ước lượng beta, tách rủi ro hệ thống khỏi rủi ro riêng lẻ.",
+        "do": "Chạy hồi quy từng mã theo chỉ số, đọc beta, R² và phần dư.",
+        "where": "Phòng thí nghiệm mô hình → Rủi ro chỉ số đơn (SIM)",
+        "trap": "R² cao không có nghĩa mô hình đúng; phải xem chẩn đoán phần dư.",
+    },
+    {
+        "title": "3. Chẩn đoán khuyết tật mô hình",
+        "goal": "Biết khi nào suy diễn thống kê từ mô hình là không dùng được.",
+        "do": "Đọc kiểm định White, Breusch–Godfrey, Ramsey RESET và Jarque–Bera.",
+        "where": "Phòng thí nghiệm mô hình → Rủi ro chỉ số đơn (SIM)",
+        "trap": "Phương sai sai số thay đổi làm sai số chuẩn sai, kéo theo t và F sai.",
+    },
+    {
+        "title": "4. Danh mục trung bình–phương sai (Markowitz)",
+        "goal": "Tìm danh mục biến động nhỏ nhất và danh mục Sharpe cao nhất.",
+        "do": "Chọn từ hai mã trở lên, xem tỷ trọng và đường biên hiệu quả.",
+        "where": "Phòng thí nghiệm mô hình → Danh mục Markowitz",
+        "trap": "Tỷ trọng tối ưu rất nhạy với lợi suất kỳ vọng; sai đầu vào là sai tất cả.",
+    },
+    {
+        "title": "5. Kiểm thử ngoài mẫu (out-of-sample backtest)",
+        "goal": "Xem chiến lược còn đứng vững khi rời khỏi dữ liệu đã dùng để xây.",
+        "do": "Chạy kiểm thử cuốn chiếu, tính đủ phí, thuế và trượt giá.",
+        "where": "Phòng thí nghiệm mô hình → Kiểm thử ngoài mẫu",
+        "trap": "Quyết định tại T phải thực thi từ T+1; trộn lẫn là rò rỉ tương lai.",
+    },
+    {
+        "title": "6. EViews tiếng Việt và ôn thi",
+        "goal": "Làm lại bài tập trên lớp và đối chiếu đáp án.",
+        "do": "Tải tệp của bạn, gõ lệnh LS/GENR/ADF quen thuộc.",
+        "where": "Khám phá dữ liệu → EViews tiếng Việt",
+        "trap": "Đơn vị và tần suất dữ liệu phải khớp đề bài, nếu không hệ số lệch.",
+    },
+)
+
+
 def render_learning_area() -> None:
-    st.header("Lộ trình học")
+    """Nội dung khác hẳn nhau theo lộ trình.
+
+    Trước đây cả hai chế độ đều thấy sáu mô-đun trung học phổ thông, nên đổi
+    chế độ gần như không thấy khác biệt gì.
+    """
+
+    if lmode.get_mode(st.session_state) == lmode.MODE_UNIVERSITY:
+        _render_university_track()
+        return
+    _render_highschool_track()
+
+
+def _render_university_track() -> None:
+    st.header("Lộ trình định lượng")
+    st.caption(
+        "Bản đồ sáu bước dẫn tới đúng công cụ trong ứng dụng, kèm cái bẫy hay "
+        "gặp ở mỗi bước. Đây không phải bài giảng nhập môn."
+    )
+    for step in UNIVERSITY_TRACK:
+        with st.expander(step["title"]):
+            st.markdown(f"**Mục tiêu.** {step['goal']}")
+            st.markdown(f"**Cần làm.** {step['do']}")
+            st.markdown(f"**Ở đâu.** {step['where']}")
+            st.warning(f"**Dễ sai.** {step['trap']}")
+
+    st.markdown("---")
+    with st.expander("📗 Cần ôn lại nền tảng? Mở sáu mô-đun trung học phổ thông"):
+        st.caption(
+            "Dành cho người muốn xem lại khái niệm gốc: lãi kép, lợi suất, "
+            "biến động, tương quan và nhân quả."
+        )
+        _render_highschool_track(compact=True)
+
+
+def _render_highschool_track(compact: bool = False) -> None:
+    if not compact:
+        st.header("Lộ trình học")
     st.caption(
         "Sáu mô-đun nền tảng. Bài làm được chấm ngay trên máy, không cần khóa "
         "giao diện lập trình (API) hay kết nối tới trí tuệ nhân tạo (AI)."

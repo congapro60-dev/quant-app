@@ -175,10 +175,76 @@ def test_learner_profile_accepts_single_goal_as_string():
     assert profile["goals"] == ["on_thi"]
 
 
-def test_suggested_mode_follows_grade_but_does_not_force():
-    assert lm.suggested_mode({"grade_level": "lop_10"}) == lm.MODE_HIGHSCHOOL
-    assert lm.suggested_mode({"grade_level": "sinh_vien"}) == lm.MODE_UNIVERSITY
-    assert lm.suggested_mode({"grade_level": "khac"}) == lm.DEFAULT_MODE
+def test_grade_determines_track():
+    assert lm.mode_from_grade({"grade_level": "lop_10"}) == lm.MODE_HIGHSCHOOL
+    assert lm.mode_from_grade({"grade_level": "lop_12"}) == lm.MODE_HIGHSCHOOL
+    assert lm.mode_from_grade({"grade_level": "sinh_vien"}) == lm.MODE_UNIVERSITY
+    assert lm.mode_from_grade({"grade_level": "khac"}) == lm.DEFAULT_MODE
+
+
+def test_apply_grade_to_mode_syncs_track_with_grade():
+    """Lớp và lộ trình là một trục, không phải hai ô chọn có thể mâu thuẫn."""
+
+    session = _session_with_work()
+    lm.store_learner_profile(session, {"grade_level": "sinh_vien"})
+    lm.apply_grade_to_mode(session)
+    assert lm.get_mode(session) == lm.MODE_UNIVERSITY
+
+    lm.store_learner_profile(session, {"grade_level": "lop_11"})
+    lm.apply_grade_to_mode(session)
+    assert lm.get_mode(session) == lm.MODE_HIGHSCHOOL
+
+
+def test_apply_grade_to_mode_preserves_session_data():
+    session = _session_with_work()
+    lm.store_learner_profile(session, {"grade_level": "sinh_vien"})
+    lm.apply_grade_to_mode(session)
+    assert not session["prices_df"].empty
+    assert session["paper_ledger"] == {"cash_vnd": 10_000_000}
+
+
+def test_teacher_override_stops_grade_from_setting_the_track():
+    session = {lm.MODE_KEY: lm.MODE_UNIVERSITY, lm.MODE_OVERRIDE_KEY: True}
+    lm.store_learner_profile(session, {"grade_level": "lop_10"})
+    lm.apply_grade_to_mode(session)
+    assert lm.get_mode(session) == lm.MODE_UNIVERSITY
+
+
+# ---------------------------------------------------------------------------
+# Không dựng khu vực rỗng
+# ---------------------------------------------------------------------------
+
+def test_empty_model_lab_is_hidden_for_locked_highschool():
+    """Khu vực không có chức năng nào phải bị ẩn, không hiện thẻ trắng."""
+
+    session = {lm.MODE_KEY: lm.MODE_HIGHSCHOOL}
+    areas = lm.visible_areas(session)
+    assert lm.AREA_MODEL_LAB not in areas
+    assert lm.AREA_LEARNING in areas
+    assert lm.AREA_INVEST in areas
+
+
+def test_model_lab_appears_after_unlock():
+    session = {lm.MODE_KEY: lm.MODE_HIGHSCHOOL, lm.UNLOCK_KEY: True}
+    assert lm.AREA_MODEL_LAB in lm.visible_areas(session)
+
+
+def test_university_sees_all_five_areas():
+    session = {lm.MODE_KEY: lm.MODE_UNIVERSITY}
+    assert lm.visible_areas(session) == list(lm.AREA_ORDER)
+
+
+def test_learning_and_journal_areas_always_present():
+    """Hai khu vực này có nội dung riêng, không phụ thuộc danh sách chức năng."""
+
+    for names in ([], list(lm.FEATURES)):
+        assert lm.area_has_content(lm.AREA_LEARNING, names) is True
+        assert lm.area_has_content(lm.AREA_JOURNAL, names) is True
+
+
+def test_feature_backed_area_needs_at_least_one_feature():
+    assert lm.area_has_content(lm.AREA_MODEL_LAB, []) is False
+    assert lm.area_has_content(lm.AREA_MODEL_LAB, [lm.FEATURE_SIM]) is True
 
 
 def test_learner_profile_survives_mode_switch():
