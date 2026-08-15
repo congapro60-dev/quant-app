@@ -48,6 +48,22 @@ VSDC_MEMBER_LIST = "https://vsd.vn/vi/ms"
 P_STOCK = "Cổ phiếu cơ sở"
 P_FUND = "Chứng chỉ quỹ"
 P_DERIVATIVE = "Chứng khoán phái sinh (derivatives)"
+P_WARRANT = "Chứng quyền có bảo đảm (covered warrant)"
+P_BOND = "Trái phiếu niêm yết"
+
+# Nền pháp lý chung, đã đối chiếu ngày 15/08/2026.
+# Người từ đủ 15 đến chưa đủ 18 tuổi, không bị mất hoặc hạn chế năng lực hành vi
+# dân sự, mở được tài khoản giao dịch khi người đại diện theo pháp luật đồng ý.
+# Đây là khung pháp luật chung, KHÔNG phải chính sách của từng công ty — nhiều
+# công ty đặt điều kiện chặt hơn luật.
+LEGAL_BASELINE_NOTE = (
+    "Khung pháp luật chung cho phép người từ đủ 15 đến chưa đủ 18 tuổi mở tài "
+    "khoản khi người đại diện theo pháp luật đồng ý. Từng công ty chứng khoán "
+    "vẫn có quyền đặt điều kiện chặt hơn, nên phải hỏi trực tiếp nơi bạn định mở."
+)
+LEGAL_BASELINE_SOURCE = (
+    "https://baochinhphu.vn/nguoi-tu-15-tuoi-co-the-duoc-mo-tai-khoan-chung-khoan-102278121.htm"
+)
 
 # Dấu hiệu liên kết tiếp thị — không được xuất hiện trong danh bạ.
 _AFFILIATE_MARKERS = (
@@ -76,6 +92,7 @@ class Provider:
     published_fees: str | None = None
     published_fees_source: str | None = None
     hotline: str | None = None
+    hotline_source: str | None = None
     notes: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -86,15 +103,18 @@ class Provider:
             and bool(self.age_policy_source)
         )
 
+    # Mỗi dữ kiện tự mang nguồn của nó. Chính sách tuổi, biểu phí và tổng đài là
+    # ba thứ độc lập: xác minh được cái này không có nghĩa đã xác minh cái kia,
+    # và chưa xác minh được chính sách tuổi thì cũng không nên giấu tổng đài.
     def published_fees_display(self) -> str:
-        """Biểu phí thay đổi thường xuyên nên chỉ hiện khi đã xác minh."""
+        """Biểu phí thay đổi thường xuyên nên chỉ hiện khi có nguồn kèm theo."""
 
-        if self.verification_status != STATUS_VERIFIED or not self.published_fees:
+        if not self.published_fees or not self.published_fees_source:
             return UNVERIFIED_NOTICE
         return str(self.published_fees)
 
     def hotline_display(self) -> str:
-        if self.verification_status != STATUS_VERIFIED or not self.hotline:
+        if not self.hotline or not self.hotline_source:
             return UNVERIFIED_NOTICE
         return str(self.hotline)
 
@@ -156,13 +176,39 @@ PROVIDERS: tuple[Provider, ...] = (
         notes=("Hỏi trực tiếp nhà cung cấp về điều kiện cho người dưới 18 tuổi.",),
     ),
     Provider(
+        key="momo_cvs",
+        legal_name="Công ty Cổ phần Chứng khoán CV (CVS) — kênh Chứng Khoán trên MoMo",
+        official_url="https://www.momo.vn/chung-khoan",
+        products=(P_STOCK, P_FUND, P_WARRANT, P_BOND),
+        membership_source=VSDC_MEMBER_LIST,
+        age_policy=None,
+        age_policy_source="https://www.momo.vn/chung-khoan",
+        verified_at=None,
+        verification_status=STATUS_UNVERIFIED,
+        notes=(
+            "Đối chiếu trang chính chủ ngày 15/08/2026: sản phẩm gồm cổ phiếu, "
+            "chứng quyền có bảo đảm, chứng chỉ quỹ và trái phiếu niêm yết; "
+            "không có phái sinh. Giấy phép CVS số 29/GPĐC-UBCK ngày 10/05/2024.",
+            "⚠️ Có chứng quyền có bảo đảm — sản phẩm đòn bẩy, biến động rất mạnh "
+            "và có thể mất toàn bộ vốn. Ứng dụng khóa nhóm này với người dưới 18 tuổi.",
+            "Trang chính chủ KHÔNG nêu điều kiện độ tuổi. Vài nguồn bên thứ ba nói "
+            "phải từ đủ 18 tuổi theo căn cước, nhưng đó không phải nguồn chính chủ "
+            "nên ứng dụng không ghi nhận là đã xác minh.",
+        ),
+    ),
+    Provider(
         key="ssi",
         legal_name="Công ty Cổ phần Chứng khoán SSI",
         official_url="https://iboard.ssi.com.vn/",
         products=(P_STOCK, P_FUND, P_DERIVATIVE),
         membership_source=VSDC_MEMBER_LIST,
         verification_status=STATUS_UNVERIFIED,
-        notes=("Hỏi trực tiếp nhà cung cấp về điều kiện cho người dưới 18 tuổi.",),
+        hotline="1900 545 471",
+        hotline_source="https://www.ssi.com.vn/",
+        notes=(
+            "Tổng đài lấy từ trang chính chủ ssi.com.vn, đối chiếu ngày 15/08/2026.",
+            "Trang chính chủ không nêu điều kiện độ tuổi — hỏi trực tiếp trước khi mở.",
+        ),
     ),
     Provider(
         key="tcbs",

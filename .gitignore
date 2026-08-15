@@ -11,3 +11,6 @@ env/
 .coverage
 htmlcov/
 .writetest
+
+# Anh chup giao dien, sinh lai duoc bang tools/capture_ui.py
+anh_giao_dien/
