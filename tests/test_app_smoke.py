@@ -52,18 +52,49 @@ def test_app_boots_without_exception_in_university_mode():
     assert not at.exception, [str(e) for e in at.exception]
 
 
-def test_app_reports_no_unexpected_error_on_first_load():
+def test_first_load_shows_no_red_error_at_all():
+    """Trang vừa mở không được có hộp đỏ nào.
+
+    Học sinh mở link mà thấy chữ đỏ sẽ tưởng phần mềm hỏng. Trạng thái "chỉ
+    dùng mô phỏng" là mặc định an toàn nên hiện dạng thông tin, không phải lỗi.
+    """
+
     at = _run(**{lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL})
     assert not at.exception
+    assert [e.value for e in at.error] == []
 
-    # Cổng vốn thật cố ý báo đỏ khi chưa khai báo tuổi: đó là kết luận đúng
-    # ("chỉ dùng mô phỏng"), không phải sự cố. Mọi thông báo lỗi khác thì không
-    # được xuất hiện trên một trang vừa mở.
-    unexpected = [
-        e.value for e in at.error
-        if "chỉ dùng giao dịch mô phỏng" not in e.value
-    ]
-    assert unexpected == [], unexpected
+
+def test_learner_sees_no_red_error_when_data_providers_fail():
+    """Đúng tình huống trên máy chủ ngoài Việt Nam: mọi nguồn dữ liệu bị chặn."""
+
+    at = _run(**{
+        lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL,
+        "data_status": "error",
+        "data_error": (
+            "Không tải được dữ liệu: Market-data validation failed after trying "
+            "sources KBS, VCI, MSN (CTG:PROVIDER_ERROR; request:INCOMPLETE_PORTFOLIO)."
+        ),
+    })
+    assert not at.exception
+    assert [e.value for e in at.error] == []
+
+    # Và phải nói rõ đường học vẫn dùng được.
+    infos = " ".join(i.value for i in at.info)
+    assert "Lộ trình học" in infos
+
+
+def test_learner_never_sees_raw_provider_error_codes():
+    at = _run(**{
+        lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL,
+        "data_status": "error",
+        "data_error": "PROVIDER_ERROR; INCOMPLETE_PORTFOLIO; HTTP 403",
+    })
+    shown = " ".join(
+        [i.value for i in at.info] + [w.value for w in at.warning]
+        + [e.value for e in at.error]
+    )
+    for jargon in ("PROVIDER_ERROR", "INCOMPLETE_PORTFOLIO", "403"):
+        assert jargon not in shown, jargon
 
 
 def test_university_renders_all_five_areas():

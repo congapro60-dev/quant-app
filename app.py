@@ -23,6 +23,7 @@ from safe_ai_tools import (
 from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
+import data_status_ui as dstatus
 import learning_modes as lmode
 from feature_guides import render_guide
 from learning_ui import (
@@ -322,13 +323,11 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
             prices_df = fetch_data(all_tickers, start_str, end_str)
     except Exception as exc:
         _clear_market_state(f"Không tải được dữ liệu: {exc}")
-        if show_msgs:
-            st.error(st.session_state.data_error)
+        # Không báo ở đây nữa: khối trạng thái dữ liệu bên dưới sẽ trình bày
+        # theo đúng người đọc, tránh vừa hiện lỗi đỏ vừa hiện lời giải thích.
         return False
     if prices_df.empty or market_ticker not in prices_df.columns:
         _clear_market_state("Không tải được dữ liệu chỉ số thị trường hoặc dữ liệu không đạt kiểm định.")
-        if show_msgs:
-            st.error(st.session_state.data_error)
         return False
     valid_assets = [t for t in asset_tickers if t in prices_df.columns]
     failed_assets = [t for t in asset_tickers if t not in prices_df.columns]
@@ -532,7 +531,21 @@ if not has_data:
         )
 
 if st.session_state.get('data_status') == 'error' and st.session_state.get('data_error'):
-    st.error(f"Dữ liệu hiện không hợp lệ: {st.session_state.data_error}")
+    # Học sinh mở link trên máy chủ ngoài Việt Nam sẽ luôn gặp lỗi nguồn dữ
+    # liệu. Đổ chuỗi lỗi kỹ thuật ra màn hình đỏ khiến các em tưởng phần mềm
+    # hỏng, trong khi đường học không cần dữ liệu và vẫn chạy đủ.
+    _err = st.session_state.data_error
+    _kind = dstatus.classify(_err)
+    _is_learner = lmode.get_mode(st.session_state) == lmode.MODE_HIGHSCHOOL
+
+    if _kind == dstatus.KIND_INPUT:
+        st.error(dstatus.message_for(_kind, is_learner=_is_learner))
+    else:
+        st.info(dstatus.message_for(_kind, is_learner=_is_learner))
+
+    if dstatus.should_show_technical_detail(_kind, is_learner=_is_learner):
+        with st.expander("Chi tiết kỹ thuật"):
+            st.code(_err)
 
 
 def _download_df(df, label, filename):

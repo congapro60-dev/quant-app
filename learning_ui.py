@@ -418,7 +418,13 @@ def render_readiness_gate() -> None:
 
     st.markdown("---")
     if decision.paper_only:
-        st.error("Kết luận: **chỉ dùng giao dịch mô phỏng trong ứng dụng.**")
+        # Không tô đỏ: "chỉ dùng mô phỏng" là trạng thái mặc định an toàn và
+        # đúng đắn, không phải sự cố. Tô đỏ làm người học tưởng mình đang gặp
+        # lỗi, trong khi đây chính là chỗ họ nên ở.
+        st.info(
+            "Kết luận: **chỉ dùng giao dịch mô phỏng trong ứng dụng.** "
+            "Đây là trạng thái an toàn, không phải lỗi."
+        )
     else:
         # Cố ý không dùng ngôn ngữ "đủ điều kiện": các ô trên là tự khai, ứng
         # dụng không xác minh được người đại diện hay chính sách công ty chứng
