@@ -24,6 +24,7 @@ from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
 import learning_modes as lmode
+from feature_guides import render_guide
 from learning_ui import (
     render_journal_area,
     render_learning_area,
@@ -769,6 +770,7 @@ def run_ai_analysis(df, request, ai_config, extra_context=""):
 # ---------- KHỐI NGHIÊN CỨU ĐẦU TƯ ----------
 if invest_tab is not None:
     with invest_tab:
+        render_guide(lmode.FEATURE_INVEST_DESK)
         render_investment_desk(
             st.session_state.prices_df,
             st.session_state.returns_df,
@@ -779,10 +781,12 @@ if invest_tab is not None:
 
 if paper_tab is not None:
     with paper_tab:
+        render_guide(lmode.FEATURE_PAPER)
         render_paper_portfolio(st.session_state.prices_df)
 
 if backtest_tab is not None:
     with backtest_tab:
+        render_guide(lmode.FEATURE_BACKTEST)
         render_backtest(
             st.session_state.prices_df,
             st.session_state.valid_assets,
@@ -793,6 +797,7 @@ if backtest_tab is not None:
 # ---------- TAB: GIÁ TRONG PHIÊN (INTRADAY) ----------
 if intraday_tab is not None:
     with intraday_tab:
+        render_guide(lmode.FEATURE_INTRADAY)
         st.header("Giá khớp lệnh trong phiên")
         st.warning(
             "⚠️ **Đây là dữ liệu khớp lệnh có độ trễ, không phải bảng giá tức thời.** "
@@ -958,6 +963,7 @@ if intraday_tab is not None:
 # ---------- TAB 1: SIM ----------
 if tab1 is not None:
     with tab1:
+        render_guide(lmode.FEATURE_SIM)
         if not has_data:
             # Banner "Bắt đầu" ở đầu trang đã hướng dẫn; ở đây chỉ cần một dòng nhẹ.
             st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
@@ -1033,6 +1039,7 @@ if tab1 is not None:
 # ---------- TAB 2: MARKOWITZ ----------
 if tab2 is not None:
     with tab2:
+        render_guide(lmode.FEATURE_MARKOWITZ)
         if not has_data:
             st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         else:
@@ -1117,6 +1124,7 @@ if tab2 is not None:
 # ---------- TAB 3: AI ----------
 if tab3 is not None:
     with tab3:
+        render_guide(lmode.FEATURE_ADVISOR)
         if not has_data:
             st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
         else:
@@ -1155,6 +1163,7 @@ if tab3 is not None:
 # ---------- TAB 4: EVIEWS ----------
 if tab4 is not None:
     with tab4:
+        render_guide(lmode.FEATURE_EVIEWS)
         st.subheader("📈 Eviews tiếng Việt (Giả lập)")
         st.markdown("Tải tệp (file), chọn trang tính (sheet), rồi dùng trình đơn (menu) **Chọn nhanh** hoặc gõ lệnh EViews. "
                     "Hỗ trợ: `LS` (hồi quy bình phương tối thiểu), `GENR` (tạo biến: LOG/D/trễ X(-1)/@TREND), "
@@ -1348,6 +1357,7 @@ if tab4 is not None:
 # ---------- TAB 5: ÔN THI ----------
 if tab5 is not None:
     with tab5:
+        render_guide(lmode.FEATURE_EXAM)
         st.subheader("🎓 Công cụ Ôn thi Kinh tế lượng")
         st.markdown("Tính nhanh các đại lượng để làm bài kiểm tra thực hành. Dùng chung dữ liệu đã nạp ở thẻ (tab) **EViews**.")
         from exam_calculator import (

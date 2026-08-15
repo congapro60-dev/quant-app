@@ -11,6 +11,7 @@ from typing import Any
 import streamlit as st
 
 import curriculum as cur
+import feature_guides as guides
 import learning_modes as lmode
 import policy_audit as audit
 import progress_profile as pp
@@ -232,6 +233,7 @@ def render_journal_area() -> None:
 
 
 def _render_progress(profile: dict[str, Any]) -> None:
+    guides.render_guide(guides.PANEL_PROGRESS)
     st.subheader("Bài kiểm tra đầu vào và đầu ra")
     c1, c2 = st.columns(2)
     with c1:
@@ -295,6 +297,7 @@ def _render_progress(profile: dict[str, Any]) -> None:
 
 
 def _render_journal(profile: dict[str, Any]) -> None:
+    guides.render_guide(guides.PANEL_JOURNAL)
     st.subheader("Ghi nhật ký trước khi hành động")
     st.caption(
         "Viết trước khi đặt lệnh mô phỏng. Viết sau khi biết kết quả thì trí nhớ "
@@ -332,6 +335,7 @@ def _render_journal(profile: dict[str, Any]) -> None:
 
 def render_readiness_gate() -> None:
     st.subheader("Sẵn sàng dùng vốn thật")
+    guides.render_guide(guides.PANEL_READINESS)
     st.warning(
         "Ứng dụng **không** mở tài khoản, **không** giữ tiền và **không** gửi lệnh. "
         "Phần này chỉ giúp bạn tự soát trước khi bàn với người đại diện và công ty "
@@ -494,6 +498,7 @@ def _render_risk_limits(age_band: str) -> None:
 
 def render_policy_audit() -> None:
     st.subheader("Lịch sử thiết lập")
+    guides.render_guide(guides.PANEL_POLICY)
     st.caption(
         "Ghi lại mọi lần đổi nhóm tuổi, đổi xác nhận hay đổi hạn mức rủi ro. "
         "Khác với **Nhật ký quyết định** — nơi bạn tự viết lý do trước khi đặt "
@@ -514,6 +519,7 @@ def render_policy_audit() -> None:
 
 def render_provider_directory() -> None:
     st.subheader("Nơi mở tài khoản")
+    guides.render_guide(guides.PANEL_PROVIDERS)
     st.caption(
         "Danh sách xếp theo bảng chữ cái, không xếp hạng, không mã giới thiệu và "
         "không tiếp thị liên kết. Ứng dụng không nhận hoa hồng từ bất kỳ đơn vị nào."
