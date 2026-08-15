@@ -11,6 +11,7 @@ from typing import Any
 import streamlit as st
 
 import curriculum as cur
+import curriculum_university as uni
 import feature_guides as guides
 import learning_modes as lmode
 import policy_audit as audit
@@ -94,15 +95,21 @@ def render_learning_area() -> None:
 def _render_university_track() -> None:
     st.header("Lộ trình định lượng")
     st.caption(
-        "Bản đồ sáu bước dẫn tới đúng công cụ trong ứng dụng, kèm cái bẫy hay "
-        "gặp ở mỗi bước. Đây không phải bài giảng nhập môn."
+        "Sáu bài bám giáo trình môn học: lợi suất, độ dao động danh mục, mô hình "
+        "chỉ số đơn, phân tách rủi ro, quy trình ước lượng và phân tích trung "
+        "bình–phương sai. Chấm điểm ngay trên máy."
     )
-    for step in UNIVERSITY_TRACK:
-        with st.expander(step["title"]):
-            st.markdown(f"**Mục tiêu.** {step['goal']}")
-            st.markdown(f"**Cần làm.** {step['do']}")
-            st.markdown(f"**Ở đâu.** {step['where']}")
-            st.warning(f"**Dễ sai.** {step['trap']}")
+
+    with st.expander("🧭 Bản đồ nhanh: mỗi bước dùng công cụ nào"):
+        for step in UNIVERSITY_TRACK:
+            st.markdown(f"**{step['title']}** — {step['goal']}")
+            st.caption(f"Ở đâu: {step['where']} · Dễ sai: {step['trap']}")
+
+    _render_lesson_track(
+        uni.all_lessons(),
+        unlock_note=None,
+        key_prefix="dh",
+    )
 
     st.markdown("---")
     with st.expander("📗 Cần ôn lại nền tảng? Mở sáu mô-đun trung học phổ thông"):
@@ -110,7 +117,7 @@ def _render_university_track() -> None:
             "Dành cho người muốn xem lại khái niệm gốc: lãi kép, lợi suất, "
             "biến động, tương quan và nhân quả."
         )
-        _render_highschool_track(compact=True)
+        _render_lesson_track(cur.all_lessons(), unlock_note=None, key_prefix="thpt_on")
 
 
 def _render_highschool_track(compact: bool = False) -> None:
@@ -120,19 +127,45 @@ def _render_highschool_track(compact: bool = False) -> None:
         "Sáu mô-đun nền tảng. Bài làm được chấm ngay trên máy, không cần khóa "
         "giao diện lập trình (API) hay kết nối tới trí tuệ nhân tạo (AI)."
     )
+    _render_lesson_track(
+        cur.all_lessons(),
+        unlock_note=(
+            f"Đã đạt {{done}}/{cur.UNLOCK_REQUIRED_LESSONS} mô-đun cần thiết "
+            "để mở khóa công cụ nâng cao"
+        ),
+        key_prefix="thpt",
+    )
+
+
+def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:
+    """Dựng một lộ trình bài học.
+
+    Dùng chung cho cả lộ trình trung học phổ thông và lộ trình đại học, để phần
+    chấm điểm và hiển thị đáp án chỉ tồn tại một bản.
+    """
+
+    if not lessons:
+        st.info("Lộ trình này chưa có bài học.")
+        return
 
     profile = _profile()
     scores = profile.setdefault("lesson_scores", {})
 
-    done = sum(1 for l in cur.all_lessons() if scores.get(l.lesson_id, 0) >= cur.UNLOCK_THRESHOLD)
-    st.progress(
-        min(1.0, done / cur.UNLOCK_REQUIRED_LESSONS),
-        text=f"Đã đạt {done}/{cur.UNLOCK_REQUIRED_LESSONS} mô-đun cần thiết để mở khóa công cụ nâng cao",
-    )
+    if unlock_note:
+        done = sum(
+            1 for l in lessons if scores.get(l.lesson_id, 0) >= cur.UNLOCK_THRESHOLD
+        )
+        st.progress(
+            min(1.0, done / cur.UNLOCK_REQUIRED_LESSONS),
+            text=unlock_note.format(done=done),
+        )
 
-    titles = [f"{l.order}. {l.title}" for l in cur.all_lessons()]
-    picked = st.selectbox("Chọn mô-đun:", range(len(titles)), format_func=lambda i: titles[i])
-    lesson = cur.all_lessons()[picked]
+    titles = [f"{l.order}. {l.title}" for l in lessons]
+    picked = st.selectbox(
+        "Chọn bài:", range(len(titles)),
+        format_func=lambda i: titles[i], key=f"{key_prefix}_pick",
+    )
+    lesson = lessons[picked]
 
     st.subheader(lesson.title)
     current = scores.get(lesson.lesson_id)
@@ -152,7 +185,7 @@ def _render_highschool_track(compact: bool = False) -> None:
     st.info(lesson.interactive)
 
     st.markdown("#### ✍️ Câu hỏi")
-    with st.form(f"quiz_{lesson.lesson_id}"):
+    with st.form(f"quiz_{key_prefix}_{lesson.lesson_id}"):
         responses: dict[str, Any] = {}
         for idx, q in enumerate(lesson.questions, start=1):
             st.markdown(f"**Câu {idx}.** {q.prompt}")
@@ -164,7 +197,7 @@ def _render_highschool_track(compact: bool = False) -> None:
                     "Chọn một đáp án:", range(len(q.options)),
                     index=None,
                     format_func=lambda i, opts=q.options: opts[i],
-                    key=f"{q.qid}_r", label_visibility="collapsed",
+                    key=f"{key_prefix}_{q.qid}_r", label_visibility="collapsed",
                 )
             else:
                 # value=None vì lý do tương tự: ô để trống phải khác với số 0
@@ -172,7 +205,7 @@ def _render_highschool_track(compact: bool = False) -> None:
                 responses[q.qid] = st.number_input(
                     "Nhập kết quả:", value=None, step=0.01,
                     placeholder="Nhập số…",
-                    key=f"{q.qid}_n", label_visibility="collapsed",
+                    key=f"{key_prefix}_{q.qid}_n", label_visibility="collapsed",
                 )
         submitted = st.form_submit_button("Nộp bài", type="primary")
 
@@ -207,7 +240,12 @@ def _render_highschool_track(compact: bool = False) -> None:
 
     st.markdown("#### 📚 Nguồn học liệu")
     for name, url in lesson.resources:
-        st.markdown(f"- [{name}]({url})")
+        # Tài liệu môn học bản in không có đường dẫn công khai; in dạng chữ
+        # thay vì tạo liên kết rỗng dẫn tới trang trắng.
+        if url:
+            st.markdown(f"- [{name}]({url})")
+        else:
+            st.markdown(f"- {name}")
 
 
 # ---------------------------------------------------------------------------

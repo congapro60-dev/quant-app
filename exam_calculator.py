@@ -54,13 +54,19 @@ def calc_cov_matrix_data(returns_df):
     return returns_df.cov()
 
 def calc_markowitz_params_formula():
+    # Ký hiệu bám giáo trình môn học: A = [1]'V⁻¹[1], B là số hạng chéo
+    # [r̄]'V⁻¹[1], C = [r̄]'V⁻¹[r̄], và D = A·C − B². Nhiều tài liệu khác hoán
+    # đổi vai trò B và C; ở đây theo giáo trình vì sinh viên đối chiếu bài làm
+    # với chính giáo trình đó. Giá trị số không đổi, chỉ tên gọi khác.
     return r"""
     \text{Các đại lượng trong cấu trúc ma trận của Markowitz (Biên duyên):} \\
     A = [1]^T V^{-1} [1] \\
-    B = [\bar{r}]^T V^{-1} [\bar{r}] \\
-    C = [\bar{r}]^T V^{-1} [1] \\
-    D = A \cdot B - C^2 \\
-    \text{Với } V^{-1} \text{ là ma trận nghịch đảo của ma trận hiệp phương sai, } [1] \text{ là vector cột các số 1, } [\bar{r}] \text{ là vector lợi suất kỳ vọng.}
+    B = [\bar{r}]^T V^{-1} [1] \quad \text{(số hạng chéo)} \\
+    C = [\bar{r}]^T V^{-1} [\bar{r}] \\
+    D = A \cdot C - B^2 \\
+    \text{Phương sai danh mục biên duyên: } \sigma_P^2(\bar{r}_P) = \frac{A\bar{r}_P^2 - 2B\bar{r}_P + C}{D} \\
+    \text{Với } V^{-1} \text{ là ma trận nghịch đảo của ma trận hiệp phương sai, } [1] \text{ là vector cột các số 1, } [\bar{r}] \text{ là vector lợi suất kỳ vọng.} \\
+    \text{Lưu ý: một số tài liệu khác đổi vai trò } B \text{ và } C; \text{ hãy bám ký hiệu của giáo trình đang dùng.}
     """
 
 def calc_markowitz_params_data(returns_df):
@@ -74,40 +80,25 @@ def calc_markowitz_params_data(returns_df):
         return {"error": "Ma trận hiệp phương sai bị suy biến (không thể tìm ma trận nghịch đảo)."}
         
     ones = np.ones(num_assets)
-    
-    # Calculate A, B, C, D based on the specific PDF formulas:
-    # A = [1]' V^-1 [1]
-    A = ones.T @ inv_cov_matrix @ ones
-    
-    # B = [r]' V^-1 [r]  -> where [r] is the expected return vector
-    B = mean_returns.T @ inv_cov_matrix @ mean_returns
-    
-    # C = [\bar{r}] V^-1 [1]  -> Note in the PDF transcript: C = [\bar{r}] V^-1 [1] and B = [r]' V^-1 [r]. 
-    # Actually wait. Standard math convention: A=1'V^-1 1, B=mu'V^-1 1, C=mu'V^-1 mu. 
-    # Let's strictly follow the extracted text from PDF:
-    # [1]'V^-1[1] = A
-    # [r]'V^-1[r] = B
-    # [\bar{r}]V^-1[1] = C
-    C = mean_returns.T @ inv_cov_matrix @ ones
-    
-    # D = AC - B^2
-    D = A * B - C**2 # Note: depending on the exact PDF text it was AC - B^2, but standard is AB - C^2. Wait, if B=r'V^-1 r and C=r'V^-1 1, then AC-B^2 is dimensionally wrong? No, A,B,C are scalars. 
-    # Actually, standard is A=1'V^-1 1, B=\mu'V^-1 \mu, C=1'V^-1 \mu, D=AB-C^2. 
-    # The PDF states: D = AC - B^2 (where B is the cross term). Let's provide the values of A, B, C, and the determinant-like variable D.
-    # To be safe and avoid confusion, let's output the matrix multiplications explicitly.
-    
-    val_1_V_1 = ones.T @ inv_cov_matrix @ ones
-    val_r_V_r = mean_returns.T @ inv_cov_matrix @ mean_returns
-    val_r_V_1 = mean_returns.T @ inv_cov_matrix @ ones
-    
-    # Based on PDF: A = 1'V^-1 1, B = r'V^-1 r, C = r'V^-1 1, D = AC - B^2
-    # But usually the denominator is D = (1'V^-1 1)(r'V^-1 r) - (1'V^-1 r)^2. 
-    # So D = A(1'V^-1 1) * B(r'V^-1 r) - C(r'V^-1 1)^2.
-    # We will output all combinations so the user has exactly what they need regardless of naming mix-ups in the PDF.
-    
+
+    # Ba tích ma trận gốc. Đặt tên theo đúng phép tính chứ không theo chữ cái,
+    # để không phụ thuộc quy ước đặt tên của bất kỳ tài liệu nào.
+    val_1_V_1 = ones.T @ inv_cov_matrix @ ones            # [1]' V^-1 [1]
+    val_r_V_1 = mean_returns.T @ inv_cov_matrix @ ones    # [r̄]' V^-1 [1]  (chéo)
+    val_r_V_r = mean_returns.T @ inv_cov_matrix @ mean_returns  # [r̄]' V^-1 [r̄]
+
+    # Ký hiệu theo giáo trình môn học:
+    #   A = [1]'V^-1[1] ; B = [r̄]'V^-1[1] ; C = [r̄]'V^-1[r̄] ; D = A*C - B^2
+    # Định thức D là cùng một số dù tài liệu gọi tên chữ cái thế nào, vì nó luôn
+    # bằng (1'V^-1 1)(r̄'V^-1 r̄) trừ đi bình phương số hạng chéo.
+    A = val_1_V_1
+    B = val_r_V_1
+    C = val_r_V_r
+    D = A * C - B ** 2
+
     return {
-        '1^T * V^-1 * 1 (A hoặc C tùy tài liệu)': val_1_V_1,
-        'r^T * V^-1 * r (B hoặc A tùy tài liệu)': val_r_V_r,
-        'r^T * V^-1 * 1 (C hoặc B tùy tài liệu)': val_r_V_1,
-        'Định thức D = (1^T V^-1 1)(r^T V^-1 r) - (r^T V^-1 1)^2': (val_1_V_1 * val_r_V_r) - (val_r_V_1 ** 2)
+        'A = [1]ᵀ V⁻¹ [1]': A,
+        'B = [r̄]ᵀ V⁻¹ [1]  (số hạng chéo)': B,
+        'C = [r̄]ᵀ V⁻¹ [r̄]': C,
+        'D = A·C − B² (định thức)': D,
     }
