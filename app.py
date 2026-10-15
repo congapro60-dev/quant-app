@@ -14,6 +14,7 @@ from data_loader import (
     vietnam_now,
 )
 from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm
+from sample_data import make_sample_prices
 from safe_ai_tools import (
     SafeAnalysisError,
     analyze_request,
@@ -325,7 +326,7 @@ def _clear_market_state(error_message=""):
     st.session_state.data_error = str(error_message)
 
 
-def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=True):
+def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=True, prices_override=None):
     asset_tickers = list(dict.fromkeys([t.strip().upper() for t in asset_tickers if t.strip()]))
     market_ticker = market_ticker.strip().upper()
     if not asset_tickers or not market_ticker:
@@ -345,8 +346,11 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
         return False
     all_tickers = list(dict.fromkeys(asset_tickers + [market_ticker]))
     try:
-        with st.spinner('Đang tải và kiểm định dữ liệu từ vnstock...'):
-            prices_df = fetch_data(all_tickers, start_str, end_str)
+        if prices_override is not None:
+            prices_df = prices_override.copy()
+        else:
+            with st.spinner('Đang tải và kiểm định dữ liệu từ vnstock...'):
+                prices_df = fetch_data(all_tickers, start_str, end_str)
     except Exception as exc:
         _clear_market_state(f"Không tải được dữ liệu: {exc}")
         # Không báo ở đây nữa: khối trạng thái dữ liệu bên dưới sẽ trình bày
@@ -423,6 +427,14 @@ def run_analysis(asset_tickers, market_ticker, start_str, end_str, show_msgs=Tru
 
 
 # Kích hoạt phân tích khi bấm nút
+if st.session_state.pop("sample_data_requested", False):
+    _sample = make_sample_prices()
+    run_analysis(
+        ["CTG", "HPG", "FPT"], "VNINDEX",
+        _sample.index.min().strftime("%Y-%m-%d"), _sample.index.max().strftime("%Y-%m-%d"),
+        show_msgs=False, prices_override=_sample,
+    )
+
 if submitted:
     # A manual query replaces the previous research universe.  Invalidate all
     # dependent artifacts before attempting it so a failed CTG/FPT request can

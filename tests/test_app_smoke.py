@@ -188,3 +188,19 @@ def test_learning_area_renders_module_list(mode):
     at = _run(**{lmode.MODE_KEY: mode})
     assert not at.exception
     assert at.selectbox, "Khu vực Lộ trình học phải có bộ chọn mô-đun."
+
+
+def test_offline_sample_button_populates_research_state():
+    at = _run(**{
+        lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL,
+        "data_status": "error",
+        "data_error": "PROVIDER_ERROR",
+    })
+    assert not at.exception
+    at.button(key="load_sample_data").click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert at.session_state["data_status"] == "ok"
+    assert at.session_state["data_source"] == "Dữ liệu minh họa offline (synthetic sample)"
+    assert not at.session_state["prices_df"].empty
+    assert at.session_state["sim_results_list"]
+    assert at.session_state["opt_res"]

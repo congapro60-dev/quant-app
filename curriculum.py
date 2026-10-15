@@ -130,7 +130,7 @@ LESSONS: tuple[Lesson, ...] = (
         questions=(
             Question(
                 qid="m1_q1",
-                prompt="Gửi 20 triệu đồng, lãi kép 5% một năm, sau 3 năm được bao nhiêu (làm tròn triệu đồng)?",
+                prompt="Gửi 20 triệu đồng, lãi kép 5% một năm, sau 3 năm được bao nhiêu? Nhập đến hai chữ số thập phân, đơn vị triệu đồng.",
                 kind=QUESTION_NUMBER,
                 answer_value=23.15,
                 tolerance=0.1,

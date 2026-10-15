@@ -97,6 +97,13 @@ def render_history() -> None:
     prices = st.session_state.get("prices_df", pd.DataFrame())
     if st.session_state.get("data_status") != "ok" or prices.empty:
         st.info("Chọn mã và bấm **Phân tích** để xem lịch sử giá. Có thể học hoặc chuẩn bị danh mục mô phỏng trong lúc chờ nguồn dữ liệu.")
+        st.button(
+            "Nạp bộ dữ liệu minh họa offline",
+            key="load_sample_data",
+            help="Dữ liệu tổng hợp cố định cho học tập; không phải giá thật và không dùng để giao dịch.",
+            on_click=lambda: st.session_state.update(sample_data_requested=True),
+        )
+        st.caption("Bộ mẫu chạy không cần mạng, phù hợp khi nguồn giá bị chặn hoặc khi dạy trên lớp.")
         return
     st.subheader("Dữ liệu đang nghiên cứu")
     market = st.session_state.get("market_ticker", "")

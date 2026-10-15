@@ -73,8 +73,9 @@ def test_finished_track_keeps_review_available():
 ])
 def test_blank_answers_remain_wrong_and_feedback_survives_rerun(mode, prefix, lesson):
     at = _run(mode)
-    assert all(widget.value is None for widget in at.radio)
-    assert all(widget.value is None for widget in at.number_input)
+    quiz_keys = tuple(f"{prefix}_{q.qid}_" for q in lesson.questions)
+    assert all(widget.value is None for widget in at.radio if widget.key.startswith(quiz_keys))
+    assert all(widget.value is None for widget in at.number_input if widget.key.startswith(quiz_keys))
     _submit(at, lesson, prefix)
     assert at.session_state["progress_profile"]["lesson_scores"][lesson.lesson_id] == 0
     assert at.session_state["lesson_feedback"][lesson.lesson_id]["correct"] == [False] * len(lesson.questions)
@@ -142,3 +143,19 @@ def test_university_practice_buttons_match_lesson_instructions(monkeypatch):
     assert destinations[-1] == (lmode.AREA_DATA, "history")
     assert "Lịch sử giá cuối ngày" in learning_ui.UNIVERSITY_TRACK[0]["where"]
     assert not at.exception
+
+
+def test_every_highschool_lesson_has_a_real_practice_action():
+    at = _run(lmode.MODE_HIGHSCHOOL)
+    expected_keys = {
+        cur.INTERACTIVE_COMPOUND: "thpt_compound_run",
+        cur.INTERACTIVE_MARKET: "thpt_practice",
+        cur.INTERACTIVE_RETURN: "thpt_practice",
+        cur.INTERACTIVE_RISK: "thpt_risk_run",
+        cur.INTERACTIVE_CHART: "thpt_practice",
+        cur.INTERACTIVE_PAPER: "thpt_practice",
+    }
+    for index, lesson in enumerate(cur.all_lessons()):
+        at.selectbox(key="thpt_pick").set_value(index).run()
+        assert not at.exception
+        assert at.button(key=expected_keys[lesson.interactive_kind])

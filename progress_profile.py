@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Trọng số rubric theo yêu cầu chương trình.
 RUBRIC_WEIGHTS: dict[str, float] = {
@@ -37,14 +37,18 @@ MAX_IMPORT_BYTES = 256 * 1024      # 256 KB là quá đủ cho một hồ sơ
 MAX_JSON_DEPTH = 8
 MAX_LESSONS = 200
 MAX_JOURNAL_ENTRIES = 500
+MAX_ATTEMPTS_PER_LESSON = 100
+MAX_DIAGNOSTIC_ATTEMPTS = 50
 MAX_TEXT_LEN = 2000
 MAX_KEY_LEN = 64
 
 TOP_LEVEL_KEYS = {
     "schema_version", "pre_test", "post_test",
-    "lesson_scores", "journal", "rubric_scores",
+    "lesson_scores", "lesson_attempts", "diagnostic_attempts",
+    "journal", "rubric_scores", "self_reflection_scores",
 }
 TEST_KEYS = {"score", "taken_at"}
+ATTEMPT_KEYS = {"score", "taken_at", "correct_qids", "correct"}
 JOURNAL_KEYS = {"at", "title", "decision", "rationale", "risk", "sources"}
 
 # Dấu hiệu dữ liệu định danh — hồ sơ học tập không chứa các trường này.
@@ -74,6 +78,16 @@ class RubricResult:
         ]
 
 
+class DiagnosticResult(dict):
+    """Mapping result with attribute access for local diagnostic quiz callers."""
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+
 def empty_profile() -> dict[str, Any]:
     # rubric_scores để rỗng, không điền sẵn 0.0: "chưa chấm" và "chấm 0 điểm"
     # là hai trạng thái khác nhau, điền sẵn 0 sẽ xoá mất ranh giới đó.
@@ -82,8 +96,11 @@ def empty_profile() -> dict[str, Any]:
         "pre_test": {"score": None, "taken_at": None},
         "post_test": {"score": None, "taken_at": None},
         "lesson_scores": {},
+        "lesson_attempts": {},
+        "diagnostic_attempts": {"pre_test": [], "post_test": []},
         "journal": [],
         "rubric_scores": {},
+        "self_reflection_scores": {},
     }
 
 
@@ -101,26 +118,232 @@ def _clamp_score(value: Any) -> float:
     return max(0.0, min(100.0, score))
 
 
+def _timestamp(value: Any = None) -> str:
+    if value is None:
+        return _now_iso()
+    if isinstance(value, datetime):
+        return value.isoformat(timespec="seconds")
+    return str(value)[:64]
+
+
+def _diagnostic_lessons(lessons: Any = None) -> tuple[Any, ...]:
+    if lessons is not None:
+        return tuple(lessons)
+    # Lazy import keeps progress_profile usable as a small standalone storage
+    # module and avoids a module-level dependency cycle for callers/tests.
+    import curriculum
+
+    return tuple(curriculum.all_lessons())
+
+
+def diagnostic_questions(lessons: Any = None) -> list[dict[str, Any]]:
+    """Return local quiz metadata derived from ``Lesson.questions``.
+
+    The question objects stay local; only safe display metadata is returned so
+    Streamlit can render a diagnostic form without an API key or network call.
+    """
+
+    rows: list[dict[str, Any]] = []
+    for lesson in _diagnostic_lessons(lessons):
+        for question in lesson.questions:
+            rows.append({
+                "lesson_id": str(lesson.lesson_id),
+                "qid": str(question.qid),
+                "prompt": question.prompt,
+                "kind": question.kind,
+                "options": tuple(question.options),
+            })
+    return rows
+
+
+def build_diagnostic_quiz(lessons: Any = None) -> list[dict[str, Any]]:
+    """Alias for callers that prefer the assessment-oriented name."""
+
+    return diagnostic_questions(lessons)
+
+
+def _response_for(responses: Any, lesson_id: str, qid: str) -> Any:
+    if not isinstance(responses, dict):
+        return None
+    if qid in responses:
+        return responses[qid]
+    scoped = responses.get(lesson_id)
+    if isinstance(scoped, dict):
+        return scoped.get(qid)
+    return responses.get((lesson_id, qid))
+
+
+def grade_diagnostic(
+    lessons: Any = None,
+    responses: dict[str, Any] | None = None,
+) -> DiagnosticResult:
+    """Grade a complete local diagnostic quiz from ``Lesson.questions``.
+
+    ``grade_diagnostic(responses)`` uses the default THPT curriculum;
+    ``grade_diagnostic(lessons, responses)`` supports a selected track.
+    """
+
+    if responses is None and isinstance(lessons, dict):
+        responses, lessons = lessons, None
+    records = []
+    lesson_scores: dict[str, float] = {}
+    for lesson in _diagnostic_lessons(lessons):
+        correct_for_lesson: dict[str, bool] = {}
+        for question in lesson.questions:
+            ok = bool(question.check(_response_for(responses, lesson.lesson_id, question.qid)))
+            correct_for_lesson[str(question.qid)] = ok
+            records.append((str(lesson.lesson_id), str(question.qid), ok))
+        if lesson.questions:
+            lesson_scores[str(lesson.lesson_id)] = round(
+                sum(correct_for_lesson.values()) / len(lesson.questions) * 100,
+                2,
+            )
+    correct = {qid: ok for _, qid, ok in records}
+    correct_qids = [qid for _, qid, ok in records if ok]
+    total = len(records)
+    return DiagnosticResult(
+        score=round(len(correct_qids) / total * 100, 2) if total else 0.0,
+        correct_count=len(correct_qids),
+        total=total,
+        correct=correct,
+        correct_qids=correct_qids,
+        lesson_scores=lesson_scores,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Ghi tiến độ
 # ---------------------------------------------------------------------------
 
 def record_test(profile: dict[str, Any], which: str, score: Any) -> dict[str, Any]:
+    """Legacy score setter retained only for old imported profiles/callers.
+
+    New UI code records answers through :func:`record_diagnostic` instead.
+    """
+
     if which not in ("pre_test", "post_test"):
         raise ValueError("which phải là 'pre_test' hoặc 'post_test'.")
     profile[which] = {"score": _clamp_score(score), "taken_at": _now_iso()}
     return profile
 
 
-def record_lesson(profile: dict[str, Any], lesson_id: str, score: Any) -> dict[str, Any]:
+def record_diagnostic(
+    profile: dict[str, Any],
+    responses: dict[str, Any] | DiagnosticResult,
+    *,
+    which: str = "pre_test",
+    lessons: Any = None,
+    at: Any = None,
+) -> dict[str, Any]:
+    """Persist one local pre/post diagnostic attempt.
+
+    The legacy ``pre_test``/``post_test`` summary is updated so older exports
+    and rubric calculations continue to work; answers never become rubric data.
+    """
+
+    if which in ("pre", "pretest"):
+        which = "pre_test"
+    elif which in ("post", "posttest"):
+        which = "post_test"
+    if which not in ("pre_test", "post_test"):
+        raise ValueError("which phải là 'pre_test' hoặc 'post_test'.")
+    result = (
+        responses
+        if isinstance(responses, DiagnosticResult)
+        else grade_diagnostic(lessons, responses)
+    )
+    taken_at = _timestamp(at)
+    attempts = profile.setdefault("diagnostic_attempts", {"pre_test": [], "post_test": []})
+    if not isinstance(attempts, dict):
+        raise ValueError("diagnostic_attempts phải là đối tượng.")
+    bucket = attempts.setdefault(which, [])
+    if len(bucket) >= MAX_DIAGNOSTIC_ATTEMPTS:
+        del bucket[0]
+    bucket.append({
+        "score": _clamp_score(result.get("score", 0.0)),
+        "taken_at": taken_at,
+        "correct_qids": list(result.get("correct_qids", [])),
+        "correct": dict(result.get("correct", {})),
+    })
+    profile[which] = {
+        "score": _clamp_score(result.get("score", 0.0)),
+        "taken_at": taken_at,
+    }
+    return profile
+
+
+def diagnostic_attempts(profile: dict[str, Any], which: str = "pre_test") -> list[dict[str, Any]]:
+    key = {"pre": "pre_test", "pretest": "pre_test", "post": "post_test", "posttest": "post_test"}.get(which, which)
+    buckets = profile.get("diagnostic_attempts") or {}
+    return list(buckets.get(key) or []) if isinstance(buckets, dict) else []
+
+
+def record_lesson_attempt(
+    profile: dict[str, Any],
+    lesson_id: str,
+    score: Any,
+    correct: Any = None,
+    *,
+    at: Any = None,
+) -> dict[str, Any]:
+    """Append a lesson attempt while keeping latest ``lesson_scores`` intact."""
+
     key = str(lesson_id or "").strip()[:MAX_KEY_LEN]
     if not key:
         raise ValueError("lesson_id trống.")
     scores = profile.setdefault("lesson_scores", {})
+    attempts_by_lesson = profile.setdefault("lesson_attempts", {})
     if len(scores) >= MAX_LESSONS and key not in scores:
         raise ValueError("Vượt quá số bài học cho phép.")
-    scores[key] = _clamp_score(score)
+    if not isinstance(attempts_by_lesson, dict):
+        raise ValueError("lesson_attempts phải là đối tượng.")
+    bucket = attempts_by_lesson.setdefault(key, [])
+    if len(bucket) >= MAX_ATTEMPTS_PER_LESSON:
+        del bucket[0]
+    if isinstance(correct, dict):
+        correct_map = {str(qid)[:MAX_KEY_LEN]: bool(ok) for qid, ok in correct.items()}
+    elif correct is None:
+        correct_map = {}
+    else:
+        correct_map = {str(qid)[:MAX_KEY_LEN]: True for qid in correct}
+    clean_score = _clamp_score(score)
+    bucket.append({
+        "score": clean_score,
+        "taken_at": _timestamp(at),
+        "correct_qids": [qid for qid, ok in correct_map.items() if ok],
+        "correct": correct_map,
+    })
+    # Existing unlock code reads this map. It intentionally remains latest,
+    # while ``best_lesson_score`` exposes the historical maximum separately.
+    scores[key] = clean_score
     return profile
+
+
+def record_lesson(profile: dict[str, Any], lesson_id: str, score: Any) -> dict[str, Any]:
+    """Backward-compatible score setter; now also leaves an attempt trail."""
+
+    return record_lesson_attempt(profile, lesson_id, score)
+
+
+def lesson_attempts(profile: dict[str, Any], lesson_id: str) -> list[dict[str, Any]]:
+    key = str(lesson_id or "").strip()[:MAX_KEY_LEN]
+    attempts = profile.get("lesson_attempts") or {}
+    if not isinstance(attempts, dict):
+        return []
+    return list(attempts.get(key) or [])
+
+
+def latest_lesson_attempt(profile: dict[str, Any], lesson_id: str) -> dict[str, Any] | None:
+    attempts = lesson_attempts(profile, lesson_id)
+    return attempts[-1] if attempts else None
+
+
+def best_lesson_score(profile: dict[str, Any], lesson_id: str) -> float | None:
+    attempts = lesson_attempts(profile, lesson_id)
+    if attempts:
+        return max(_clamp_score(item.get("score", 0.0)) for item in attempts)
+    legacy = (profile.get("lesson_scores") or {}).get(str(lesson_id))
+    return None if legacy is None else _clamp_score(legacy)
 
 
 def add_journal_entry(
@@ -208,8 +431,11 @@ def export_json(profile: dict[str, Any]) -> str:
         "pre_test": profile.get("pre_test") or {"score": None, "taken_at": None},
         "post_test": profile.get("post_test") or {"score": None, "taken_at": None},
         "lesson_scores": profile.get("lesson_scores") or {},
+        "lesson_attempts": profile.get("lesson_attempts") or {},
+        "diagnostic_attempts": profile.get("diagnostic_attempts") or {"pre_test": [], "post_test": []},
         "journal": profile.get("journal") or [],
         "rubric_scores": profile.get("rubric_scores") or {},
+        "self_reflection_scores": profile.get("self_reflection_scores") or {},
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -305,6 +531,68 @@ def import_json(text: str | bytes) -> dict[str, Any]:
         str(k)[:MAX_KEY_LEN]: _clamp_score(v) for k, v in lessons.items()
     }
 
+    attempts = data.get("lesson_attempts")
+    if attempts is None:
+        attempts = {}
+    if not isinstance(attempts, dict):
+        raise ProfileImportError("'lesson_attempts' phải là đối tượng.")
+    if len(attempts) > MAX_LESSONS:
+        raise ProfileImportError("Quá nhiều bài học trong lịch sử.")
+    _reject_pii(attempts)
+    clean_attempts: dict[str, list[dict[str, Any]]] = {}
+    for lesson_id, bucket in attempts.items():
+        if not isinstance(bucket, list):
+            raise ProfileImportError("Lịch sử mỗi bài học phải là danh sách.")
+        if len(bucket) > MAX_ATTEMPTS_PER_LESSON:
+            raise ProfileImportError("Quá nhiều lần làm một bài học.")
+        clean_bucket = []
+        for item in bucket:
+            if not isinstance(item, dict) or set(item) - ATTEMPT_KEYS:
+                raise ProfileImportError("Lần làm bài chứa khóa không hợp lệ.")
+            correct = item.get("correct") or {}
+            if not isinstance(correct, dict):
+                raise ProfileImportError("Trường 'correct' phải là đối tượng.")
+            if any(not isinstance(value, bool) for value in correct.values()):
+                raise ProfileImportError("Trường 'correct' phải chứa boolean.")
+            correct_qids = item.get("correct_qids") or []
+            if not isinstance(correct_qids, list) or any(not isinstance(qid, str) for qid in correct_qids):
+                raise ProfileImportError("Trường 'correct_qids' phải là danh sách chuỗi.")
+            clean_bucket.append({
+                "score": _clamp_score(item.get("score")),
+                "taken_at": _timestamp(item.get("taken_at")),
+                "correct_qids": [str(qid)[:MAX_KEY_LEN] for qid in correct_qids],
+                "correct": {str(qid)[:MAX_KEY_LEN]: value for qid, value in correct.items()},
+            })
+        clean_attempts[str(lesson_id)[:MAX_KEY_LEN]] = clean_bucket
+    profile["lesson_attempts"] = clean_attempts
+
+    diagnostic = data.get("diagnostic_attempts")
+    if diagnostic is None:
+        diagnostic = {"pre_test": [], "post_test": []}
+    if not isinstance(diagnostic, dict) or set(diagnostic) - {"pre_test", "post_test"}:
+        raise ProfileImportError("'diagnostic_attempts' chứa khóa không hợp lệ.")
+    clean_diagnostic: dict[str, list[dict[str, Any]]] = {"pre_test": [], "post_test": []}
+    for which in clean_diagnostic:
+        bucket = diagnostic.get(which) or []
+        if not isinstance(bucket, list) or len(bucket) > MAX_DIAGNOSTIC_ATTEMPTS:
+            raise ProfileImportError("Lịch sử chẩn đoán không hợp lệ.")
+        for item in bucket:
+            if not isinstance(item, dict) or set(item) - ATTEMPT_KEYS:
+                raise ProfileImportError("Lần chẩn đoán chứa khóa không hợp lệ.")
+            correct = item.get("correct") or {}
+            correct_qids = item.get("correct_qids") or []
+            if not isinstance(correct, dict) or any(not isinstance(value, bool) for value in correct.values()):
+                raise ProfileImportError("Trường 'correct' của chẩn đoán không hợp lệ.")
+            if not isinstance(correct_qids, list) or any(not isinstance(qid, str) for qid in correct_qids):
+                raise ProfileImportError("Trường 'correct_qids' của chẩn đoán không hợp lệ.")
+            clean_diagnostic[which].append({
+                "score": _clamp_score(item.get("score")),
+                "taken_at": _timestamp(item.get("taken_at")),
+                "correct_qids": [str(qid)[:MAX_KEY_LEN] for qid in correct_qids],
+                "correct": {str(qid)[:MAX_KEY_LEN]: value for qid, value in correct.items()},
+            })
+    profile["diagnostic_attempts"] = clean_diagnostic
+
     journal = data.get("journal")
     if journal is None:
         journal = []
@@ -332,10 +620,29 @@ def import_json(text: str | bytes) -> dict[str, Any]:
     if set(rubric) - set(RUBRIC_WEIGHTS):
         raise ProfileImportError("'rubric_scores' chứa tiêu chí không hợp lệ.")
     # Chỉ giữ tiêu chí thực sự có trong tệp, để tiêu chí chưa chấm vẫn là chưa chấm.
-    profile["rubric_scores"] = {
+    clean_rubric_scores = {
         key: _clamp_score(value)
         for key, value in rubric.items()
         if value is not None
     }
+    # Version 1 exposed editable rubric fields to learners. Preserve those
+    # values as reflection data instead of silently treating them as teacher
+    # marks after the schema split.
+    profile["rubric_scores"] = {} if version < 2 else clean_rubric_scores
+
+    reflection = data.get("self_reflection_scores")
+    if reflection is None:
+        reflection = {}
+    if not isinstance(reflection, dict):
+        raise ProfileImportError("'self_reflection_scores' phải là đối tượng.")
+    if set(reflection) - set(RUBRIC_WEIGHTS):
+        raise ProfileImportError("'self_reflection_scores' chứa tiêu chí không hợp lệ.")
+    profile["self_reflection_scores"] = {
+        key: _clamp_score(value)
+        for key, value in reflection.items()
+        if value is not None
+    }
+    if version < 2:
+        profile["self_reflection_scores"].update(clean_rubric_scores)
 
     return profile

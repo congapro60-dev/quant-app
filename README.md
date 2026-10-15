@@ -22,8 +22,18 @@ Các tính năng lớn chưa triển khai được ghi rõ trong [lộ trình ph
   bản yêu cầu rồi tải `.md`. Người dùng tự gửi sang Muse; app không gọi API Muse
   hay gửi hồ sơ, điểm số, danh mục, khóa API. Quyền tạo ảnh/video/âm thanh cần
   kiểm tra trong tài khoản Muse; tài liệu tạo ra cần được duyệt.
+- **Tác nhân AI bên ngoài:** có thể mở [AI Phân tích chứng khoán Việt Nam trên
+  Agents AI](https://agents.ai.vn/agents/stock-ai) từ khu học liệu để tham khảo.
+  Trang công khai mô tả quyền `a2a` và trả ảnh dashboard; chưa có API công khai
+  được xác minh nên Quant App không tự gửi dữ liệu sang đó, không dùng kết quả
+  này làm tín hiệu giao dịch hoặc điểm học.
 - **Nhật ký và tiến độ:** sao lưu hồ sơ JSON trước khi đóng phiên. Danh mục mô
   phỏng có bản sao lưu riêng tại khu Đầu tư.
+- **Gói lớp học:** giáo viên tạo gói giao bài, học sinh nạp và xuất gói kết quả
+  bằng mã ẩn danh cục bộ. Tệp bị từ chối nếu chứa PII, khóa API hoặc dữ liệu
+  danh mục riêng.
+- **Khi nguồn giá lỗi:** bấm **Nạp bộ dữ liệu minh họa offline**. Đây là dữ liệu
+  tổng hợp cố định để học và chạy thử mô hình, không phải giá thật.
 
 Chi tiết đợt cải thiện giao diện: [plan.md](plan.md).
 

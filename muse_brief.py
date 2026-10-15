@@ -88,6 +88,16 @@ def render_muse_workshop() -> None:
                        file_name=f"muse_{lessons[lesson_index].lesson_id}_{purpose}.md",
                        mime="text/markdown", key="muse_download")
     st.link_button("Mở Muse", "https://muse.ai/", help="Mở website; chưa gửi nội dung. Quyền sử dụng phụ thuộc tài khoản Muse của bạn.")
+    st.link_button(
+        "Mở AI phân tích chứng khoán Việt Nam",
+        "https://agents.ai.vn/agents/stock-ai",
+        help="Mở tác nhân bên ngoài để tham khảo; Quant App không tự gửi dữ liệu sang đó.",
+    )
+    st.caption(
+        "Tác nhân bên ngoài thuộc agents.ai.vn được mô tả là trả ảnh dashboard qua A2A. "
+        "Chưa có tài liệu API công khai được xác minh; xem như nguồn tham khảo độc lập, "
+        "không thay thế dữ liệu kiểm định của Quant App và không phải cam kết lợi nhuận."
+    )
     with st.expander("Ứng dụng thêm cho nghiên cứu tài chính"):
         st.write("Nhờ Muse tổng hợp báo cáo doanh nghiệp công khai, ghi rõ nguồn và ngày công bố; đối chiếu thông tin giữa nhiều nguồn trước khi dùng.")
         st.write("Nhờ Muse tạo tình huống học về lãi kép, đa dạng hóa hoặc rủi ro. Chỉ dùng số liệu giả định có nhãn, kiểm tra đáp án bằng công cụ tính của Quant App.")

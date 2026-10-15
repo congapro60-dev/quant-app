@@ -7,6 +7,7 @@ chính không phình thêm.
 from __future__ import annotations
 
 from typing import Any
+from statistics import pstdev
 
 import streamlit as st
 
@@ -19,6 +20,7 @@ import progress_profile as pp
 import provider_directory as pdir
 import readiness_gate as rg
 import risk_limits as rlim
+import classroom_packages as cp
 from workspace_ui import navigate_to
 
 
@@ -159,6 +161,54 @@ def _pick_lesson(key: str, index: int) -> None:
     st.session_state[key] = index
 
 
+def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
+    """Run one local practice action for every THPT lesson.
+
+    Each curriculum promise must point to a real action. Network data remains
+    optional; the first and fourth modules therefore use tiny local calculators.
+    """
+
+    kind = lesson.interactive_kind
+    if kind == cur.INTERACTIVE_COMPOUND:
+        principal, rate, years = st.columns(3)
+        with principal:
+            p = st.number_input("Tiền gốc (triệu đồng)", min_value=0.0, value=20.0,
+                                step=1.0, key=f"{key_prefix}_compound_p")
+        with rate:
+            r = st.number_input("Lãi suất (%/năm)", min_value=-100.0, value=5.0,
+                                step=0.5, key=f"{key_prefix}_compound_r")
+        with years:
+            n = st.number_input("Số năm", min_value=0.0, value=3.0, step=1.0,
+                                key=f"{key_prefix}_compound_n")
+        if st.button("Tính lãi kép", key=f"{key_prefix}_compound_run", type="primary"):
+            value = p * (1 + r / 100) ** n
+            st.success(f"Giá trị sau {n:g} năm: **{value:,.2f} triệu đồng**.")
+            st.caption("Đây là phép tính minh họa, chưa trừ thuế/phí và không phải dự báo đầu tư.")
+    elif kind == cur.INTERACTIVE_MARKET:
+        st.button("Mở giá trong phiên", key=f"{key_prefix}_practice",
+                  on_click=navigate_to, args=(lmode.AREA_DATA, lmode.FEATURE_INTRADAY))
+    elif kind in (cur.INTERACTIVE_RETURN, cur.INTERACTIVE_CHART):
+        st.button("Mở lịch sử giá", key=f"{key_prefix}_practice",
+                  on_click=navigate_to, args=(lmode.AREA_DATA, "history"))
+    elif kind == cur.INTERACTIVE_RISK:
+        raw = st.text_input(
+            "Nhập các lợi suất (%) cách nhau bằng dấu phẩy",
+            value="-2, 1, 0.5, 3, -1",
+            key=f"{key_prefix}_risk_values",
+        )
+        if st.button("Tính độ dao động", key=f"{key_prefix}_risk_run", type="primary"):
+            try:
+                values = [float(item.strip()) for item in raw.split(",") if item.strip()]
+                if len(values) < 2:
+                    raise ValueError
+                st.success(f"Độ lệch chuẩn mẫu minh họa: **{pstdev(values):.2f} điểm phần trăm**.")
+            except ValueError:
+                st.warning("Cần ít nhất hai số hợp lệ, ngăn cách bằng dấu phẩy.")
+    elif kind == cur.INTERACTIVE_PAPER:
+        st.button("Mở giao dịch mô phỏng", key=f"{key_prefix}_practice",
+                  on_click=navigate_to, args=(lmode.AREA_INVEST, lmode.FEATURE_PAPER))
+
+
 def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:
     """Dựng một lộ trình bài học.
 
@@ -245,6 +295,8 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
                 f"Mở {target['label']}", key=f"{key_prefix}_practice",
                 on_click=navigate_to, args=(target["area"], feature),
             )
+    else:
+        _render_thpt_practice(lesson, key_prefix=key_prefix)
 
     st.markdown("#### 3. Tự kiểm tra")
     st.caption("Câu để trống tính là chưa đúng. Có thể làm lại; điểm lần nộp gần nhất được lưu.")
@@ -274,7 +326,12 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
 
     if submitted:
         score = lesson.grade(responses)
-        pp.record_lesson(profile, lesson.lesson_id, score)
+        pp.record_lesson_attempt(
+            profile,
+            lesson.lesson_id,
+            score,
+            {q.qid: q.check(responses.get(q.qid)) for q in lesson.questions},
+        )
         unlocked = (
             cur.should_unlock_advanced(profile.get("lesson_scores"))
             and not st.session_state.get(lmode.UNLOCK_KEY)
@@ -332,32 +389,69 @@ def render_journal_area() -> None:
 
     # "Sẵn sàng dùng vốn thật" và "Nơi mở tài khoản" đã chuyển sang khu Đầu tư,
     # nơi chúng thuộc về. Trước đây chúng nằm ở đây chỉ vì tiện lúc viết mã.
-    tab_progress, tab_journal, tab_settings = st.tabs(
-        ["Tiến độ và tiêu chí đánh giá (rubric)", "Nhật ký quyết định", "Lịch sử thiết lập"]
+    tab_progress, tab_journal, tab_classroom, tab_settings = st.tabs(
+        ["Tiến độ và tiêu chí đánh giá (rubric)", "Nhật ký quyết định",
+         "Gói lớp học", "Lịch sử thiết lập"]
     )
 
     with tab_progress:
         _render_progress(profile)
     with tab_journal:
         _render_journal(profile)
+    with tab_classroom:
+        _render_classroom_packages(profile)
     with tab_settings:
         render_policy_audit()
 
 
+def _render_diagnostic_form(
+    profile: dict[str, Any], which: str, title: str, key_prefix: str,
+) -> None:
+    st.markdown(f"**{title}**")
+    questions = pp.diagnostic_questions(cur.all_lessons())
+    with st.form(f"diagnostic_{key_prefix}"):
+        responses: dict[str, Any] = {}
+        for index, question in enumerate(questions, start=1):
+            st.markdown(f"**Câu {index}.** {question['prompt']}")
+            if question["kind"] == cur.QUESTION_SINGLE:
+                responses[question["qid"]] = st.radio(
+                    "Chọn một đáp án:", range(len(question["options"])), index=None,
+                    format_func=lambda i, opts=question["options"]: opts[i],
+                    key=f"diagnostic_{key_prefix}_{question['qid']}_r",
+                    label_visibility="collapsed",
+                )
+            else:
+                responses[question["qid"]] = st.number_input(
+                    "Nhập kết quả:", value=None, step=0.01,
+                    placeholder="Nhập số…",
+                    key=f"diagnostic_{key_prefix}_{question['qid']}_n",
+                    label_visibility="collapsed",
+                )
+        submitted = st.form_submit_button("Nộp bài chẩn đoán", type="primary")
+
+    if submitted:
+        result = pp.grade_diagnostic(cur.all_lessons(), responses)
+        pp.record_diagnostic(profile, result, which=which)
+        st.success(f"Đã lưu {title.lower()}: {result['score']:.0f}/100.")
+
+    previous = pp.diagnostic_attempts(profile, which)
+    if previous:
+        latest = previous[-1]
+        st.caption(f"Lần gần nhất: **{latest['score']:.0f}/100** · {latest['taken_at']}")
+
+
 def _render_progress(profile: dict[str, Any]) -> None:
     guides.render_guide(guides.PANEL_PROGRESS)
-    st.subheader("Bài kiểm tra đầu vào và đầu ra")
+    st.subheader("Chẩn đoán đầu vào và đầu ra")
+    st.caption(
+        "Hai bài dùng cùng bộ câu hỏi cục bộ trong chương trình học. Điểm được "
+        "tính từ câu trả lời, không nhập tay và không phải điểm rubric chính thức."
+    )
     c1, c2 = st.columns(2)
     with c1:
-        pre = st.number_input("Điểm kiểm tra đầu vào (pre-test):", 0.0, 100.0, step=1.0)
-        if st.button("Lưu điểm đầu vào"):
-            pp.record_test(profile, "pre_test", pre)
-            st.success("Đã lưu.")
+        _render_diagnostic_form(profile, "pre_test", "Đầu vào (pre-test)", "pre")
     with c2:
-        post = st.number_input("Điểm kiểm tra đầu ra (post-test):", 0.0, 100.0, step=1.0)
-        if st.button("Lưu điểm đầu ra"):
-            pp.record_test(profile, "post_test", post)
-            st.success("Đã lưu.")
+        _render_diagnostic_form(profile, "post_test", "Đầu ra (post-test)", "post")
 
     st.subheader("Điểm từng mô-đun")
     scores = profile.get("lesson_scores") or {}
@@ -375,19 +469,24 @@ def _render_progress(profile: dict[str, Any]) -> None:
         "Kiến thức 30%, lập luận 30%, kỷ luật rủi ro và chất lượng nguồn 25%, "
         "nhật ký và phản tư 15%."
     )
-    manual = profile.setdefault("rubric_scores", {k: 0.0 for k in pp.RUBRIC_WEIGHTS})
+    reflection = profile.setdefault("self_reflection_scores", {})
+    st.caption(
+        "Tự phản tư chỉ là dữ liệu của người học. Chỉ điểm trong "
+        "`rubric_scores` do giáo viên/người chấm ghi mới được tính vào rubric."
+    )
     cols = st.columns(3)
     for col, key in zip(cols, ("lap_luan", "rui_ro_nguon", "nhat_ky")):
         with col:
-            manual[key] = st.number_input(
-                pp.RUBRIC_LABELS[key], 0.0, 100.0,
-                value=float(manual.get(key, 0.0)), step=1.0, key=f"rub_{key}",
+            value = st.number_input(
+                f"Tự phản tư — {pp.RUBRIC_LABELS[key]}", 0.0, 100.0,
+                value=float(reflection.get(key, 0.0)), step=1.0, key=f"self_reflection_{key}",
             )
+            reflection[key] = value
 
     result = pp.compute_rubric(profile)
     st.dataframe(result.as_rows(), width="stretch")
     st.metric("Tổng điểm", f"{result.total:.2f}/100")
-    st.caption("Điểm này đo năng lực và kỷ luật, không đo lợi nhuận.")
+    st.caption("Điểm rubric chính thức chỉ dùng dữ liệu giáo viên/người chấm, không dùng tự phản tư.")
 
     st.subheader("Sao lưu hồ sơ")
     st.caption(
@@ -440,6 +539,104 @@ def _render_journal(profile: dict[str, Any]) -> None:
             st.write(f"**Lý do:** {item.get('rationale', '')}")
             st.write(f"**Rủi ro:** {item.get('risk', '')}")
             st.write(f"**Nguồn:** {item.get('sources', '')}")
+
+
+def _render_classroom_packages(profile: dict[str, Any]) -> None:
+    """Local teacher/student handoff; no account, network, or learner identity."""
+
+    st.subheader("Giao bài và nộp kết quả bằng tệp")
+    st.caption(
+        "Giáo viên tạo gói giao bài (.json), học sinh làm trên máy rồi xuất gói kết quả. "
+        "Chỉ dùng mã học sinh tự đặt; không đưa họ tên, email, số điện thoại, danh mục hay khóa API."
+    )
+    lessons = uni.all_lessons() if lmode.get_mode(st.session_state) == lmode.MODE_UNIVERSITY else cur.all_lessons()
+    lesson_map = {lesson.lesson_id: lesson for lesson in lessons}
+    with st.expander("Giáo viên: tạo gói giao bài", expanded=True):
+        assignment_id = st.text_input("Mã bài giao (assignment ID):", value="bai-01", key="cp_assignment_id")
+        title = st.text_input("Tên bài:", value="Bài tự luyện tài chính", key="cp_assignment_title")
+        instructions = st.text_area(
+            "Yêu cầu:", value="Hoàn thành các mô-đun đã chọn và ghi lại một điều còn chưa rõ.",
+            key="cp_assignment_instructions",
+        )
+        selected = st.multiselect(
+            "Mô-đun giao:", list(lesson_map), default=list(lesson_map)[:1],
+            format_func=lambda key: lesson_map[key].title, key="cp_assignment_lessons",
+        )
+        due_label = st.text_input("Hạn nộp (nhãn tùy chọn):", key="cp_assignment_due")
+        if st.button("Tạo gói giao bài", key="cp_make_assignment", type="primary"):
+            try:
+                assignment = cp.make_assignment(
+                    assignment_id=assignment_id, title=title, instructions=instructions,
+                    lesson_ids=selected, learner_track=lmode.get_mode(st.session_state),
+                    due_label=due_label,
+                )
+                st.session_state["classroom_assignment"] = assignment
+                st.success("Đã tạo gói. Gửi tệp này cho học sinh qua kênh của lớp.")
+            except cp.ClassroomPackageError as exc:
+                st.error(f"Gói bị từ chối: {exc}")
+        assignment = st.session_state.get("classroom_assignment")
+        if assignment:
+            st.download_button(
+                "Tải gói giao bài (.json)", cp.export_assignment(assignment),
+                file_name=f"giao_bai_{assignment['id']}.json", mime="application/json",
+                key="cp_download_assignment",
+            )
+
+    with st.expander("Học sinh: nạp gói và xuất kết quả"):
+        upload_assignment = st.file_uploader(
+            "Nạp gói giao bài (.json):", type=["json"], key="cp_upload_assignment"
+        )
+        if upload_assignment is not None and st.button("Kiểm tra gói giao bài", key="cp_import_assignment"):
+            try:
+                st.session_state["classroom_assignment"] = cp.import_assignment(upload_assignment.getvalue())
+                st.success("Gói hợp lệ. Làm các mô-đun được giao trong Lộ trình học.")
+            except cp.ClassroomPackageError as exc:
+                st.error(f"Tệp bị từ chối: {exc}")
+        assignment = st.session_state.get("classroom_assignment")
+        if assignment:
+            code = st.text_input(
+                "Mã học sinh tự đặt (ví dụ HS-7F3K):", key="cp_student_code",
+                help="Không dùng họ tên, email, số điện thoại hoặc mã trường.",
+            )
+            reflection = st.text_area("Tự phản tư sau khi làm:", key="cp_reflection")
+            if st.button("Tạo gói kết quả", key="cp_make_result", type="primary"):
+                try:
+                    rows = []
+                    for lesson_id in assignment["lesson_ids"]:
+                        attempts = pp.lesson_attempts(profile, lesson_id)
+                        rows.append({
+                            "lesson_id": lesson_id,
+                            "attempts": len(attempts),
+                            "progress": pp.best_lesson_score(profile, lesson_id) or 0.0,
+                        })
+                    result = cp.make_result(
+                        assignment=assignment, student_code=code,
+                        lesson_attempts=rows, self_reflection=reflection,
+                    )
+                    st.session_state["classroom_result"] = result
+                    st.success("Đã tạo gói kết quả. Gửi tệp cho giáo viên.")
+                except cp.ClassroomPackageError as exc:
+                    st.error(f"Gói bị từ chối: {exc}")
+            result = st.session_state.get("classroom_result")
+            if result:
+                st.download_button(
+                    "Tải gói kết quả (.json)", cp.export_result(result),
+                    file_name=f"ket_qua_{result['assignment_id']}_{result['student_code']}.json",
+                    mime="application/json", key="cp_download_result",
+                )
+
+    with st.expander("Giáo viên: xem gói kết quả"):
+        upload_result = st.file_uploader("Nạp gói kết quả (.json):", type=["json"], key="cp_upload_result")
+        if upload_result is not None and st.button("Kiểm tra gói kết quả", key="cp_import_result"):
+            try:
+                result = cp.import_result(upload_result.getvalue())
+                st.success(
+                    f"Gói hợp lệ · mã {result['student_code']} · "
+                    f"{len(result['lesson_attempts'])} mô-đun · không chứa dữ liệu định danh."
+                )
+                st.json(result)
+            except cp.ClassroomPackageError as exc:
+                st.error(f"Tệp bị từ chối: {exc}")
 
 
 # ---------------------------------------------------------------------------

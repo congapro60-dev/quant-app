@@ -75,3 +75,27 @@ chất lượng tài chính. Người dùng đã cho phép thực hiện tự ch
   Source Sans có sẵn của Streamlit. Kiểm tra trực tiếp trên trình duyệt trong
   Codex: chữ “muốn” hiển thị đúng; computed font = `"Source Sans", sans-serif`.
   Chạy lại toàn bộ suite sau sửa: 608/608 đạt trong 187.08 giây.
+
+## Đợt 1 đã duyệt: nền tảng lớp học
+
+Người dùng duyệt hướng nâng cấp để dạy trên lớp và cho học sinh tự luyện.
+Đợt này chỉ làm nền tảng học tập có thể kiểm chứng:
+
+- kiểm tra đầu vào thật, không cho nhập điểm giả;
+- lưu lịch sử lần làm, lỗi từng câu và tiến bộ;
+- tách tự phản tư khỏi điểm giáo viên;
+- gói bài tập giáo viên → học sinh và gói kết quả học sinh → giáo viên;
+- giữ app chạy không cần API, tài khoản hoặc model ngoài.
+
+Chưa làm trong đợt này: cơ sở dữ liệu tài khoản, bảng điều khiển trực tuyến,
+đồng bộ lớp qua Internet, cảnh báo nền, API môi giới, tự động giao dịch.
+
+### Kết quả đợt 1
+
+- Đã làm: chẩn đoán cục bộ, lịch sử lần làm, tự phản tư tách rubric, thực hành
+  THPT có nút/chức năng thật, gói lớp học JSON an toàn, bộ dữ liệu minh họa
+  offline, liên kết tham khảo Agents AI không tự truyền dữ liệu.
+- Chưa làm: tài khoản/đồng bộ trực tuyến và dashboard giáo viên. Đây là bước kế
+  tiếp vì cần quyết định lưu trữ, phân quyền và quyền truy cập dữ liệu học sinh.
+- Kiểm thử đợt: 629 kiểm thử toàn bộ đạt; thêm kiểm tra AppTest bộ mẫu chạy được
+  SIM/Markowitz sau lỗi nguồn dữ liệu.
