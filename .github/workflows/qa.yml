@@ -11,7 +11,9 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.14"]
+        # vnstock 4.0.2 currently has no Python 3.14 distribution on PyPI.
+        # Keep CI on the supported runtimes; local app logic remains unchanged.
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
