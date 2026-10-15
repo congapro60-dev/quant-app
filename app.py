@@ -15,6 +15,7 @@ from data_loader import (
 )
 from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm
 from sample_data import make_sample_prices
+from agents_ai import dashboard_url
 from safe_ai_tools import (
     SafeAnalysisError,
     analyze_request,
@@ -226,11 +227,28 @@ with st.sidebar:
             st.caption("⚠️ Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
 
 with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọn"):
-    ai_provider = st.radio("Nhà cung cấp (provider) AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"], horizontal=True)
+    ai_provider = st.radio(
+        "Nhà cung cấp (provider) AI:",
+        ["Không dùng", "Anthropic (Claude)", "Google (Gemini)", "Agents AI (HungLeAI)"],
+        horizontal=True,
+    )
     ai_config = None
     if ai_provider != "Không dùng":
-        api_key = st.text_input("Khóa giao diện lập trình (API key):", type="password", key="api_key_val")
-        if ai_provider == "Anthropic (Claude)":
+        credential_label = (
+            "Bearer credential (Firebase/API key) của Agents AI:"
+            if ai_provider == "Agents AI (HungLeAI)"
+            else "Khóa giao diện lập trình (API key):"
+        )
+        api_key = st.text_input(credential_label, type="password", key="api_key_val")
+        if ai_provider == "Agents AI (HungLeAI)":
+            model_choice = "hungle-stock-dashboard"
+            st.link_button("Mở dashboard realtime Agents AI", dashboard_url(), width="stretch")
+            st.caption(
+                "Agents AI hiện dùng luồng `consult`/dashboard có xác thực. "
+                "Không dán credential vào chat; chỉ nhập trực tiếp tại đây. "
+                "Nếu Account Console chưa cho tạo key, cần dùng credential do Agents AI cấp."
+            )
+        elif ai_provider == "Anthropic (Claude)":
             model_choice = st.selectbox("Mô hình (model):", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
         else:
             model_choice = st.selectbox("Mô hình (model):", ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
@@ -267,10 +285,10 @@ with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọ
             elif st.session_state.get('ai_ok') is False:
                 st.error(f"🔴 Khóa API chưa dùng được: {st.session_state.get('ai_err','')}")
             else:
-                st.info("🔑 Đã nhận khóa API — có thể dùng ngay. Bấm nút trên để xác nhận khóa hợp lệ (khuyên dùng).")
+                st.info("🔑 Đã nhận credential — có thể dùng ngay. Bấm nút trên để xác nhận credential hợp lệ (khuyên dùng).")
         else:
-            st.caption("Nhập khóa API để bật phân tích bằng trí tuệ nhân tạo (AI).")
-        st.caption("🔒 Khóa API chỉ lưu tạm trong phiên, không ghi vào mã nguồn (code).")
+            st.caption("Nhập credential để bật phân tích bằng trí tuệ nhân tạo (AI).")
+        st.caption("🔒 Credential chỉ lưu tạm trong phiên, không ghi vào mã nguồn (code).")
 
 # Dựng đích đến trước biểu mẫu; kết quả phân tích được ghi vào đúng khu dữ liệu.
 _visible_features = lmode.visible_features(st.session_state)
@@ -1179,8 +1197,10 @@ if tab3 is not None:
                 advice_key = hashlib.sha256(cache_material.encode('utf-8')).hexdigest()
                 if st.button("Tạo bản diễn giải bằng trí tuệ nhân tạo (AI)", width="stretch", type="primary", key="generate_investment_advice"):
                     with st.spinner(f"Đang chờ {ai_provider} diễn giải kết quả đã kiểm định..."):
+                        _advice_config = dict(ai_config)
+                        _advice_config["symbol"] = market_ticker
                         st.session_state.advice_cache[advice_key] = generate_expert_advice(
-                            sim_results_list, opt_res, prices_df[market_ticker], ai_config
+                            sim_results_list, opt_res, prices_df[market_ticker], _advice_config
                         )
                 if advice_key in st.session_state.advice_cache:
                     st.markdown("#### Bản diễn giải bằng trí tuệ nhân tạo (AI)")

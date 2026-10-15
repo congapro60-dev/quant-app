@@ -5,6 +5,7 @@ from collections.abc import Mapping
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from agents_ai import consult as agents_ai_consult
 from scipy.optimize import minimize
 from statsmodels.stats.diagnostic import (
     acorr_breusch_godfrey,
@@ -567,6 +568,14 @@ def call_llm(prompt, config):
 
     model_name = str(config.get("model") or "").strip()
     try:
+        if provider == "Agents AI (HungLeAI)":
+            result = agents_ai_consult(
+                str(prompt),
+                api_key,
+                symbol=str(config.get("symbol") or ""),
+            )
+            return result.text
+
         if provider == "Anthropic (Claude)":
             import anthropic
 

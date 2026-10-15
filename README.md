@@ -24,9 +24,13 @@ Các tính năng lớn chưa triển khai được ghi rõ trong [lộ trình ph
   kiểm tra trong tài khoản Muse; tài liệu tạo ra cần được duyệt.
 - **Tác nhân AI bên ngoài:** có thể mở [AI Phân tích chứng khoán Việt Nam trên
   Agents AI](https://agents.ai.vn/agents/stock-ai) từ khu học liệu để tham khảo.
-  Trang công khai mô tả quyền `a2a` và trả ảnh dashboard; chưa có API công khai
-  được xác minh nên Quant App không tự gửi dữ liệu sang đó, không dùng kết quả
-  này làm tín hiệu giao dịch hoặc điểm học.
+  Quant App đã có lựa chọn `Agents AI (HungLeAI)` trong phần kết nối AI. Luồng
+  gọi dùng route `POST /api/agents/hungle-stock-dashboard/consult` với
+  `Authorization: Bearer ...`; dashboard dùng route tạo phiên riêng. Credential
+  chỉ nhập trực tiếp trong phiên Streamlit, không lưu/log. Nếu Account Console
+  chưa bật nút tạo key, cần credential do Agents AI cấp; không dùng cookie hay
+  session token trình duyệt. Kết quả vẫn là tham khảo, không phải tín hiệu giao
+  dịch hoặc điểm học.
 - **Nhật ký và tiến độ:** sao lưu hồ sơ JSON trước khi đóng phiên. Danh mục mô
   phỏng có bản sao lưu riêng tại khu Đầu tư.
 - **Gói lớp học:** giáo viên tạo gói giao bài, học sinh nạp và xuất gói kết quả

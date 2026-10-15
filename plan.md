@@ -99,3 +99,20 @@ Chưa làm trong đợt này: cơ sở dữ liệu tài khoản, bảng điều 
   tiếp vì cần quyết định lưu trữ, phân quyền và quyền truy cập dữ liệu học sinh.
 - Kiểm thử đợt: 629 kiểm thử toàn bộ đạt; thêm kiểm tra AppTest bộ mẫu chạy được
   SIM/Markowitz sau lỗi nguồn dữ liệu.
+
+## Tích hợp Agents AI — kết quả xác minh
+
+- Frontend public của Agents AI xác nhận slug `hungle-stock-dashboard`, base
+  `/api`, luồng mở dashboard `POST /api/agents/hungle-stock-dashboard/dashboard-session`,
+  luồng hỏi AI `POST /api/agents/hungle-stock-dashboard/consult`, và luồng chạy
+  agent `/v1/agents/hungle-stock-dashboard/invoke`.
+- Dashboard cần phiên xác thực; request không có phiên trả
+  `invalid_dashboard_session`. Không đọc cookie/Firebase token/API secret từ
+  trình duyệt.
+- Account/Seller bundle hiện hiển thị danh sách API key nhưng nút tạo key bị
+  khóa. Vì vậy app tích hợp credential do người dùng tự nhập, không tự tạo hoặc
+  trích xuất key.
+- App thêm provider `Agents AI (HungLeAI)`, gửi consult khi người dùng bấm nút
+  diễn giải, không gọi nền và không dùng kết quả để đặt lệnh/ghi điểm.
+- Test toàn bộ sau tích hợp: 633 đạt. Test riêng đầu nối: SSE, JSON, credential,
+  dashboard link và AppTest: 20 đạt.
