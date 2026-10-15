@@ -2,6 +2,8 @@ streamlit==1.60.0
 pandas>=2.3.3,<3.1
 numpy>=2.2.6,<3
 statsmodels==0.14.6
+# Vnstock packages were quarantined from PyPI; use the official package index.
+--extra-index-url https://vnstocks.com/api/simple
 # Keep this pair together: vnstock-ezchart 1.x constrains NumPy below 2.3,
 # which has no CPython 3.14 wheel and makes Streamlit Cloud build NumPy from
 # source indefinitely. 0.0.3 is the chart dependency used by vnstock 4.0.2.
