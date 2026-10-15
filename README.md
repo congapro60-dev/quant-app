@@ -10,6 +10,23 @@
 
 Các tính năng lớn chưa triển khai được ghi rõ trong [lộ trình phát triển](ROADMAP.md).
 
+## Bắt đầu
+
+- **Tổng quan:** chọn Tiếp tục học, Phân tích dữ liệu hoặc Mở danh mục mô phỏng.
+- **Khám phá dữ liệu → Lịch sử giá cuối ngày:** nhập mã, khoảng ngày và bấm
+  Phân tích. So sánh cùng mốc 100 hoặc xem giá gốc; điểm chỉ số tách khỏi giá
+  cổ phiếu. Có bảng giá và tải tệp CSV kèm đơn vị.
+- **Lộ trình học:** tiếp tục bài chưa đạt, chuyển bài trước/sau, xem lại kết quả
+  chấm trong phiên. Lộ trình đại học có nút mở trực tiếp công cụ thực hành.
+- **Lộ trình học → Soạn học liệu với Muse:** chọn bài và mục tiêu tự học, xem
+  bản yêu cầu rồi tải `.md`. Người dùng tự gửi sang Muse; app không gọi API Muse
+  hay gửi hồ sơ, điểm số, danh mục, khóa API. Quyền tạo ảnh/video/âm thanh cần
+  kiểm tra trong tài khoản Muse; tài liệu tạo ra cần được duyệt.
+- **Nhật ký và tiến độ:** sao lưu hồ sơ JSON trước khi đóng phiên. Danh mục mô
+  phỏng có bản sao lưu riêng tại khu Đầu tư.
+
+Chi tiết đợt cải thiện giao diện: [plan.md](plan.md).
+
 ## Cài đặt
 
 ```powershell

@@ -521,7 +521,7 @@ def render_investment_desk(
     st.subheader("Bàn nghiên cứu đầu tư")
     st.caption("Sàng lọc và lập kịch bản có điều kiện. Không phải danh sách cổ phiếu chắc chắn sinh lời.")
     if prices.empty or not assets:
-        st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
+        st.caption("Nạp giá tại Khám phá dữ liệu → Lịch sử giá cuối ngày để bắt đầu.")
         return
 
     screen = _screen_assets(prices, assets, sim_rows)
@@ -683,7 +683,7 @@ def render_paper_portfolio(prices: pd.DataFrame) -> None:
     if not symbols:
         st.warning(
             "Chưa có mã cổ phiếu với giá hợp lệ để ghi giao dịch. "
-            "Hãy thêm mã ở thanh bên và chạy Phân tích lại."
+            "Hãy thêm mã tại Khám phá dữ liệu → Lịch sử giá cuối ngày và chạy Phân tích lại."
         )
     else:
         st.markdown("#### Ghi nhận giao dịch mô phỏng")
@@ -987,7 +987,7 @@ def render_backtest(prices: pd.DataFrame, assets: list[str], market: str) -> Non
         "ở T → thực thi ở T+1 → lợi suất đầu tiên kết thúc ở T+2. Kết quả đã trừ chi phí."
     )
     if prices.empty or not assets or market not in prices.columns:
-        st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
+        st.caption("Nạp giá tại Khám phá dữ liệu → Lịch sử giá cuối ngày để bắt đầu.")
         return
 
     with st.form("backtest_form"):

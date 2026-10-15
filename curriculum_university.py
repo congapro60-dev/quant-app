@@ -72,7 +72,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
             "1%, 2% và 3% cho r̄_P = 0,3(1%) + 0,2(2%) + 0,5(3%) = 2,2%."
         ),
         interactive=(
-            "Nạp vài mã ở thanh bên rồi mở thẻ Ôn thi để xem chuỗi lợi suất logarit "
+            "Nạp vài mã trong Khám phá dữ liệu → Lịch sử giá cuối ngày rồi mở Ôn thi để xem chuỗi lợi suất logarit "
             "ứng dụng tính ra. Đối chiếu vài dòng đầu với phép tính tay của bạn."
         ),
         interactive_kind=INT_RETURN,

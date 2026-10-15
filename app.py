@@ -26,6 +26,11 @@ from investment_ui import render_backtest, render_investment_desk, render_paper_
 import data_status_ui as dstatus
 import learning_modes as lmode
 from feature_guides import render_guide
+from workspace_ui import (
+    HOME_LABEL, NAV_KEY, HISTORY_LABEL, MUSE_LABEL, navigate_to,
+    workspace_tabs, render_overview, render_history,
+)
+from muse_brief import render_muse_workshop
 from learning_ui import (
     render_journal_area,
     render_learning_area,
@@ -53,52 +58,63 @@ st.markdown("""
         --qa-danger: #EF4444;
         --qa-success: #10B981;
     }
-    .block-container { padding-top: 1.25rem; padding-bottom: 3rem; max-width: 1480px; }
+    .stApp { background: radial-gradient(ellipse at 90% 0%, #142d3b 0%, transparent 45%), #0B1220; }
+    .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1320px; }
     h1, h2, h3 { letter-spacing: -0.02em; }
+    h2 { font-size: 1.9rem !important; }
+    h3 { font-size: 1.2rem !important; }
+    .qa-eyebrow { color: #5EEAD4; font-size: .75rem; letter-spacing: .13em; font-weight: 700; }
+    [data-testid="stSidebar"] { border-right: 1px solid #273547; }
+    [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px; }
+    button { min-height: 44px; }
+    p, label { overflow-wrap: anywhere; }
     div[data-testid="stMetric"] {
         background: linear-gradient(145deg, #111827 0%, #172033 100%);
         border: 1px solid var(--qa-border); border-radius: 12px; padding: 14px 16px;
         box-shadow: 0 8px 24px rgba(0,0,0,.16);
     }
     div[data-testid="stMetricValue"] { font-size: 1.6rem; }
-    .stTabs [data-baseweb="tab-list"] { gap: 6px; }
-    .stTabs [data-baseweb="tab"] {
+    .stTabs [role="tablist"] { gap: 6px; flex-wrap: wrap; height: auto; overflow: visible; }
+    .stTabs [role="tab"] {
         background-color: var(--qa-surface); border: 1px solid var(--qa-border);
-        border-radius: 8px 8px 0 0; padding: 10px 16px; min-height: 44px;
+        border-radius: 8px; padding: 10px 14px; min-height: 44px; height: auto; white-space: normal;
     }
-    .stTabs [aria-selected="true"] { background-color: var(--qa-primary); color: white; }
-    .stTabs [data-baseweb="tab"]:focus-visible,
+    .stTabs [aria-selected="true"] { background-color: #134E4A; border-color: #5EEAD4; color: #F0FDFA; }
+    .stTabs .react-aria-SelectionIndicator { display: none; }
+    .stTabs [role="tab"]:focus-visible,
     button:focus-visible, input:focus-visible, textarea:focus-visible {
         outline: 3px solid #F59E0B !important; outline-offset: 2px;
     }
     .qa-hero {
-        padding: 18px 20px; border: 1px solid var(--qa-border); border-radius: 14px;
-        background: linear-gradient(120deg, #111827 0%, #172554 100%); margin-bottom: 14px;
+        padding: 8px 0 18px; border-bottom: 1px solid var(--qa-border); margin-bottom: 4px;
     }
-    .qa-hero h1 { font-size: 2.35rem; line-height: 1.16; }
+    .qa-hero h1 { font-size: 2rem; line-height: 1.16; }
     .qa-hero strong { color: #BFDBFE; }
     .qa-safety {
-        padding: 12px 14px; border-left: 4px solid var(--qa-accent);
-        background: rgba(217,119,6,.10); border-radius: 8px; color: var(--qa-muted);
+        padding: 8px 0; color: var(--qa-muted); font-size: .86rem;
     }
     @media (max-width: 768px) {
         .block-container { padding-left: 1rem; padding-right: 1rem; }
-        .stTabs [data-baseweb="tab"] { padding: 8px 10px; }
-        .qa-hero { padding: 14px 16px; }
+        .stTabs [role="tab"] { padding: 8px 10px; flex: 1 1 40%; }
+        .qa-hero { padding: 8px 0 14px; }
         .qa-hero h1 { font-size: 1.75rem; line-height: 1.2; }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+        .qa-hero { animation: qa-reveal .35s ease-out; }
+        @keyframes qa-reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
     }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="qa-hero">
-  <h1 style="margin:0 0 6px 0">Quant App — Học thuật & Quyết định đầu tư</h1>
-  <div><strong>Phân tích định lượng có kiểm định</strong> · Mô hình chỉ số đơn (SIM) · Danh mục Markowitz · Kiểm thử quá khứ (backtest) · Danh mục mô phỏng (paper portfolio) · EViews</div>
+  <h1 style="margin:0 0 6px 0">Quant App</h1>
+  <div>Học tài chính. Đọc dữ liệu. Thực hành có căn cứ.</div>
 </div>
 """, unsafe_allow_html=True)
-st.markdown("<div class='qa-safety'>Công cụ hỗ trợ quyết định, không cam kết lợi nhuận. Chỉ cân nhắc vốn thật sau khi chiến lược vượt kiểm định ngoài mẫu (OOS) và giao dịch mô phỏng (paper trading).</div>", unsafe_allow_html=True)
+st.markdown("<div class='qa-safety'>Nghiên cứu và học tập · Không cam kết lợi nhuận · Không tự đặt lệnh.</div>", unsafe_allow_html=True)
 
-with st.expander("📘 Thuật ngữ nhanh — đọc tiếng Việt, làm quen tiếng Anh"):
+with st.sidebar.expander("Thuật ngữ Việt – Anh"):
     st.markdown("""
 | Thuật ngữ trên ứng dụng | Nghĩa ngắn gọn |
 |---|---|
@@ -136,38 +152,11 @@ for k, v in {
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
-    # Thứ tự có chủ đích: việc làm mỗi phiên đứng trước việc đặt một lần.
-    # Bản trước để hồ sơ người học lên đầu, đẩy nút Phân tích xuống dưới năm ô
-    # cấu hình — người nghiên cứu phải cuộn qua thứ họ không dùng tới.
-    st.header("⚙️ Tham số đầu vào")
-
-    st.caption("Chọn nhanh danh mục mẫu:")
-    p1, p2 = st.columns(2)
-    p3, p4 = st.columns(2)
-    if p1.button("Ngân hàng", width="stretch"):
-        st.session_state.tickers_val = "CTG, VCB, BID, MBB"; st.rerun()
-    if p2.button("VN30 lớn", width="stretch"):
-        st.session_state.tickers_val = "FPT, HPG, VNM, MWG"; st.rerun()
-    if p3.button("Bất động sản", width="stretch"):
-        st.session_state.tickers_val = "VHM, VIC, NVL, PDR"; st.rerun()
-    if p4.button("Bài thực tập", width="stretch"):
-        st.session_state.tickers_val = "BID, BVH, CTG"; st.rerun()
-
-    with st.form("input_form"):
-        tickers_input = st.text_input("Mã cổ phiếu (cách nhau bằng dấu phẩy):",
-                                      key="tickers_val")
-        index_input = st.text_input("Chỉ số thị trường:", "VNINDEX")
-        c1, c2 = st.columns(2)
-        end_date = vietnam_now().date()
-        start_date = end_date - timedelta(days=365)
-        start_date_input = c1.date_input("Từ ngày:", start_date)
-        end_date_input = c2.date_input("Đến ngày:", end_date)
-        submitted = st.form_submit_button("🚀 Phân tích", width="stretch", type="primary")
-
-    st.markdown("---")
+    st.header("Không gian của bạn")
+    st.button("Về tổng quan", on_click=navigate_to, args=("tong_quan",), width="stretch")
     st.caption(f"Lộ trình: **{lmode.MODE_LABELS[lmode.get_mode(st.session_state)]}**")
 
-    with st.expander("👤 Bạn là ai"):
+    with st.expander("Lộ trình và trình độ", expanded=True):
         st.caption(
             "Chọn lớp là đủ — lộ trình học tự khớp theo. Ứng dụng không hỏi họ "
             "tên, ngày sinh hay giấy tờ."
@@ -186,7 +175,7 @@ with st.sidebar:
         )
         _goals = st.multiselect(
             "Mục tiêu:", list(lmode.GOALS), default=_lp["goals"],
-            format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals",
+            format_func=lambda g: lmode.GOAL_LABELS[g], key="lp_goals", placeholder="Chọn mục tiêu học",
         )
         lmode.store_learner_profile(st.session_state, {
             "grade_level": _grade, "knowledge_level": _level, "goals": _goals,
@@ -235,8 +224,7 @@ with st.sidebar:
         if live_mode and st_autorefresh is None:
             st.caption("⚠️ Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
 
-    st.markdown("---")
-    st.header("Tích hợp trí tuệ nhân tạo (AI) — tùy chọn")
+with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọn"):
     ai_provider = st.radio("Nhà cung cấp (provider) AI:", ["Không dùng", "Anthropic (Claude)", "Google (Gemini)"], horizontal=True)
     ai_config = None
     if ai_provider != "Không dùng":
@@ -282,6 +270,44 @@ with st.sidebar:
         else:
             st.caption("Nhập khóa API để bật phân tích bằng trí tuệ nhân tạo (AI).")
         st.caption("🔒 Khóa API chỉ lưu tạm trong phiên, không ghi vào mã nguồn (code).")
+
+# Dựng đích đến trước biểu mẫu; kết quả phân tích được ghi vào đúng khu dữ liệu.
+_visible_features = lmode.visible_features(st.session_state)
+_shown_areas = lmode.visible_areas(st.session_state, _visible_features)
+_all_tabs = workspace_tabs([HOME_LABEL] + [lmode.AREA_LABELS[a] for a in _shown_areas], NAV_KEY)
+overview_tab = _all_tabs[0]
+_area_tabs = dict(zip(_shown_areas, _all_tabs[1:]))
+area_learning = _area_tabs.get(lmode.AREA_LEARNING)
+area_data = _area_tabs.get(lmode.AREA_DATA)
+area_lab = _area_tabs.get(lmode.AREA_MODEL_LAB)
+area_invest = _area_tabs.get(lmode.AREA_INVEST)
+area_journal = _area_tabs.get(lmode.AREA_JOURNAL)
+
+_data_names = lmode.features_in_area(lmode.AREA_DATA, _visible_features)
+with area_data:
+    _data_subs = workspace_tabs([HISTORY_LABEL] + [lmode.FEATURES[n]["label"] for n in _data_names],
+                                f"tools_{lmode.AREA_DATA}")
+history_tab = _data_subs[0]
+_data_tabs = dict(zip(_data_names, _data_subs[1:]))
+with history_tab:
+    st.subheader("Bạn muốn nghiên cứu mã nào?")
+    st.caption("Chọn mã và khoảng ngày  ·  Phân tích  ·  Đọc biểu đồ hoặc mở mô hình")
+    presets = {"Ngân hàng": "CTG, VCB, BID, MBB", "VN30 lớn": "FPT, HPG, VNM, MWG",
+               "Bất động sản": "VHM, VIC, NVL, PDR", "Bài thực tập": "BID, BVH, CTG"}
+    for col, (label, symbols) in zip(st.columns(4), presets.items()):
+        if col.button(label, width="stretch"):
+            st.session_state.tickers_val = symbols
+            st.rerun()
+    with st.form("input_form"):
+        tickers_input = st.text_input("Mã cổ phiếu (cách nhau bằng dấu phẩy):", key="tickers_val")
+        left, right, last = st.columns(3)
+        index_input = left.text_input("Chỉ số thị trường:", "VNINDEX")
+        end_date = vietnam_now().date()
+        start_date_input = right.date_input("Từ ngày:", end_date - timedelta(days=365))
+        end_date_input = last.date_input("Đến ngày:", end_date)
+        submitted = st.form_submit_button("Phân tích", width="stretch", type="primary")
+    st.caption("Giá cổ phiếu tính bằng nghìn VND/cổ phiếu. Chỉ số thị trường tính bằng điểm.")
+    _data_status_slot = st.container()
 
 # ==================== XỬ LÝ KHI BẤM PHÂN TÍCH ====================
 def _clear_market_state(error_message=""):
@@ -407,10 +433,11 @@ if submitted:
     st.session_state['trade_plans'] = {}
     st.session_state['advice_cache'] = {}
     submitted_uses_today = end_date_input == vietnam_now().date()
-    submitted_ok = run_analysis(
-        tickers_input.split(','), index_input,
-        start_date_input.strftime('%Y-%m-%d'), end_date_input.strftime('%Y-%m-%d')
-    )
+    with _data_status_slot:
+        submitted_ok = run_analysis(
+            tickers_input.split(','), index_input,
+            start_date_input.strftime('%Y-%m-%d'), end_date_input.strftime('%Y-%m-%d')
+        )
     if submitted_ok:
         st.session_state['last_query_uses_today'] = submitted_uses_today
 
@@ -424,27 +451,10 @@ if live_mode and st_autorefresh is not None:
         refresh_query = list(st.session_state['last_query'])
         if st.session_state.get('last_query_uses_today'):
             refresh_query[3] = vietnam_now().date().isoformat()
-        run_analysis(*refresh_query, show_msgs=False)
+        with _data_status_slot:
+            run_analysis(*refresh_query, show_msgs=False)
 
 # ==================== NĂM KHU VỰC ====================
-# Chín chức năng cũ được gom vào năm khu vực. Chế độ đại học thấy đủ cả chín;
-# chế độ THPT chỉ thấy nhóm cơ bản cho tới khi mở khóa bằng tiến độ học.
-_visible_features = lmode.visible_features(st.session_state)
-
-# Chỉ dựng khu vực có nội dung. Trước đây khu vực rỗng vẫn hiện thành một thẻ,
-# bấm vào thấy trang trắng — người dùng tưởng ứng dụng hỏng.
-_shown_areas = lmode.visible_areas(st.session_state, _visible_features)
-_area_tabs = dict(zip(
-    _shown_areas, st.tabs([lmode.AREA_LABELS[a] for a in _shown_areas])
-))
-
-area_learning = _area_tabs.get(lmode.AREA_LEARNING)
-area_data = _area_tabs.get(lmode.AREA_DATA)
-area_lab = _area_tabs.get(lmode.AREA_MODEL_LAB)
-area_invest = _area_tabs.get(lmode.AREA_INVEST)
-area_journal = _area_tabs.get(lmode.AREA_JOURNAL)
-
-
 def _open_area(area, container):
     """Tạo thẻ con cho các chức năng đang hiển thị của một khu vực.
 
@@ -456,11 +466,10 @@ def _open_area(area, container):
     if not names or container is None:
         return {}
     with container:
-        subs = st.tabs([lmode.FEATURES[n]["label"] for n in names])
+        subs = workspace_tabs([lmode.FEATURES[n]["label"] for n in names], f"tools_{area}")
     return dict(zip(names, subs))
 
 
-_data_tabs = _open_area(lmode.AREA_DATA, area_data)
 _lab_tabs = _open_area(lmode.AREA_MODEL_LAB, area_lab)
 
 
@@ -477,7 +486,7 @@ def _open_invest_area(container):
     labels = ([lmode.FEATURES[n]["label"] for n in names]
               + ["Sẵn sàng dùng vốn thật", "Nơi mở tài khoản"])
     with container:
-        subs = st.tabs(labels)
+        subs = workspace_tabs(labels, f"tools_{lmode.AREA_INVEST}")
     return dict(zip(names, subs)), subs[len(names)], subs[len(names) + 1]
 
 
@@ -502,33 +511,31 @@ invest_tab = _invest_tabs.get(lmode.FEATURE_INVEST_DESK)
 paper_tab = _invest_tabs.get(lmode.FEATURE_PAPER)
 tab3 = _invest_tabs.get(lmode.FEATURE_ADVISOR)
 
+with overview_tab:
+    render_overview()
+
 if area_learning is not None:
     with area_learning:
-        render_learning_area()
+        lesson_tab, muse_tab = workspace_tabs(["Bài học và thực hành", MUSE_LABEL],
+                                               f"tools_{lmode.AREA_LEARNING}")
+        with lesson_tab:
+            render_learning_area()
+        with muse_tab:
+            render_muse_workshop()
 
 if area_journal is not None:
     with area_journal:
         render_journal_area()
 
 has_data = (not st.session_state.prices_df.empty) and bool(st.session_state.market_ticker)
-
-# Một lời mời bắt đầu, đặt nơi dễ thấy nhất. Trước đây mỗi thẻ con tự báo
-# "chưa có dữ liệu", nên người mới mở ứng dụng gặp cả chục thông báo giống nhau
-# mà vẫn không biết phải bấm gì trước.
-if not has_data:
-    if lmode.get_mode(st.session_state) == lmode.MODE_UNIVERSITY:
-        st.info(
-            "**Bắt đầu từ đây.** Nhập mã cổ phiếu ở thanh bên rồi bấm "
-            "**🚀 Phân tích** để nạp dữ liệu. Sau đó vào **Phòng thí nghiệm mô "
-            "hình** để chạy mô hình chỉ số đơn (SIM), Markowitz và các kiểm định. "
-            "Chưa cần khóa giao diện lập trình (API) cho bước này."
-        )
-    else:
-        st.info(
-            "**Bắt đầu từ đây.** Vào **Lộ trình học** làm mô-đun đầu tiên — "
-            "không cần dữ liệu và không cần khóa giao diện lập trình (API). "
-            "Muốn xem giá thật thì nhập mã ở thanh bên rồi bấm **🚀 Phân tích**."
-        )
+with history_tab:
+    render_history()
+    if has_data:
+        st.button("Lập kịch bản nghiên cứu", on_click=navigate_to,
+                  args=(lmode.AREA_INVEST, lmode.FEATURE_INVEST_DESK), key="history_scenario")
+        if lmode.is_advanced_unlocked(st.session_state):
+            st.button("Mở mô hình chỉ số đơn (SIM)", on_click=navigate_to,
+                      args=(lmode.AREA_MODEL_LAB, lmode.FEATURE_SIM), key="history_sim")
 
 if st.session_state.get('data_status') == 'error' and st.session_state.get('data_error'):
     # Học sinh mở link trên máy chủ ngoài Việt Nam sẽ luôn gặp lỗi nguồn dữ
@@ -538,14 +545,14 @@ if st.session_state.get('data_status') == 'error' and st.session_state.get('data
     _kind = dstatus.classify(_err)
     _is_learner = lmode.get_mode(st.session_state) == lmode.MODE_HIGHSCHOOL
 
-    if _kind == dstatus.KIND_INPUT:
-        st.error(dstatus.message_for(_kind, is_learner=_is_learner))
-    else:
-        st.info(dstatus.message_for(_kind, is_learner=_is_learner))
-
-    if dstatus.should_show_technical_detail(_kind, is_learner=_is_learner):
-        with st.expander("Chi tiết kỹ thuật"):
-            st.code(_err)
+    with _data_status_slot:
+        if _kind == dstatus.KIND_INPUT:
+            st.error(dstatus.message_for(_kind, is_learner=_is_learner))
+        else:
+            st.info(dstatus.message_for(_kind, is_learner=_is_learner))
+        if dstatus.should_show_technical_detail(_kind, is_learner=_is_learner):
+            with st.expander("Chi tiết kỹ thuật"):
+                st.code(_err)
 
 
 def _download_df(df, label, filename):
@@ -978,8 +985,8 @@ if tab1 is not None:
     with tab1:
         render_guide(lmode.FEATURE_SIM)
         if not has_data:
-            # Banner "Bắt đầu" ở đầu trang đã hướng dẫn; ở đây chỉ cần một dòng nhẹ.
-            st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
+            st.button("Nạp dữ liệu để phân tích rủi ro", on_click=navigate_to,
+                      args=(lmode.AREA_DATA, "history"), key="sim_load")
         else:
             returns_df = st.session_state.returns_df
             market_ticker = st.session_state.market_ticker
@@ -1054,7 +1061,8 @@ if tab2 is not None:
     with tab2:
         render_guide(lmode.FEATURE_MARKOWITZ)
         if not has_data:
-            st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
+            st.button("Nạp dữ liệu để tối ưu danh mục", on_click=navigate_to,
+                      args=(lmode.AREA_DATA, "history"), key="markowitz_load")
         else:
             opt_res = st.session_state.opt_res
             returns_df = st.session_state.returns_df
@@ -1139,7 +1147,8 @@ if tab3 is not None:
     with tab3:
         render_guide(lmode.FEATURE_ADVISOR)
         if not has_data:
-            st.caption("Chưa có dữ liệu — xem hướng dẫn bắt đầu ở đầu trang.")
+            st.button("Nạp dữ liệu cho trợ lý", on_click=navigate_to,
+                      args=(lmode.AREA_DATA, "history"), key="advisor_load")
         else:
             st.subheader("Trợ lý quyết định có điều kiện")
             st.caption("Máy tính tạo số liệu; trí tuệ nhân tạo (AI) chỉ diễn giải. Mọi kế hoạch phải có điểm vô hiệu, giới hạn lỗ và ngày hết hiệu lực.")

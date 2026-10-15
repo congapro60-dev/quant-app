@@ -19,6 +19,7 @@ import progress_profile as pp
 import provider_directory as pdir
 import readiness_gate as rg
 import risk_limits as rlim
+from workspace_ui import navigate_to
 
 
 def _profile() -> dict[str, Any]:
@@ -37,8 +38,10 @@ UNIVERSITY_TRACK = (
     {
         "title": "1. Nạp và kiểm định dữ liệu",
         "goal": "Có bộ giá sạch, đúng mã, đúng khoảng ngày trước khi chạy bất kỳ mô hình nào.",
-        "do": "Nhập mã ở thanh bên rồi bấm Phân tích. Đối chiếu phiên dữ liệu và nguồn.",
-        "where": "Khám phá dữ liệu → Giá trong phiên",
+        "do": "Mở lịch sử giá, nhập mã rồi bấm Phân tích. Đối chiếu phiên dữ liệu và nguồn.",
+        "where": "Khám phá dữ liệu → Lịch sử giá cuối ngày",
+        "area": lmode.AREA_DATA,
+        "feature": "history",
         "trap": "Dữ liệu lỗi vẫn cho ra hệ số đẹp. Kiểm tra trước, đừng tin bảng kết quả.",
     },
     {
@@ -46,6 +49,8 @@ UNIVERSITY_TRACK = (
         "goal": "Ước lượng beta, tách rủi ro hệ thống khỏi rủi ro riêng lẻ.",
         "do": "Chạy hồi quy từng mã theo chỉ số, đọc beta, R² và phần dư.",
         "where": "Phòng thí nghiệm mô hình → Rủi ro chỉ số đơn (SIM)",
+        "area": lmode.AREA_MODEL_LAB,
+        "feature": lmode.FEATURE_SIM,
         "trap": "R² cao không có nghĩa mô hình đúng; phải xem chẩn đoán phần dư.",
     },
     {
@@ -53,6 +58,8 @@ UNIVERSITY_TRACK = (
         "goal": "Biết khi nào suy diễn thống kê từ mô hình là không dùng được.",
         "do": "Đọc kiểm định White, Breusch–Godfrey, Ramsey RESET và Jarque–Bera.",
         "where": "Phòng thí nghiệm mô hình → Rủi ro chỉ số đơn (SIM)",
+        "area": lmode.AREA_MODEL_LAB,
+        "feature": lmode.FEATURE_SIM,
         "trap": "Phương sai sai số thay đổi làm sai số chuẩn sai, kéo theo t và F sai.",
     },
     {
@@ -60,6 +67,8 @@ UNIVERSITY_TRACK = (
         "goal": "Tìm danh mục biến động nhỏ nhất và danh mục Sharpe cao nhất.",
         "do": "Chọn từ hai mã trở lên, xem tỷ trọng và đường biên hiệu quả.",
         "where": "Phòng thí nghiệm mô hình → Danh mục Markowitz",
+        "area": lmode.AREA_MODEL_LAB,
+        "feature": lmode.FEATURE_MARKOWITZ,
         "trap": "Tỷ trọng tối ưu rất nhạy với lợi suất kỳ vọng; sai đầu vào là sai tất cả.",
     },
     {
@@ -67,6 +76,8 @@ UNIVERSITY_TRACK = (
         "goal": "Xem chiến lược còn đứng vững khi rời khỏi dữ liệu đã dùng để xây.",
         "do": "Chạy kiểm thử cuốn chiếu, tính đủ phí, thuế và trượt giá.",
         "where": "Phòng thí nghiệm mô hình → Kiểm thử ngoài mẫu",
+        "area": lmode.AREA_MODEL_LAB,
+        "feature": lmode.FEATURE_BACKTEST,
         "trap": "Quyết định tại T phải thực thi từ T+1; trộn lẫn là rò rỉ tương lai.",
     },
     {
@@ -74,6 +85,8 @@ UNIVERSITY_TRACK = (
         "goal": "Làm lại bài tập trên lớp và đối chiếu đáp án.",
         "do": "Tải tệp của bạn, gõ lệnh LS/GENR/ADF quen thuộc.",
         "where": "Khám phá dữ liệu → EViews tiếng Việt",
+        "area": lmode.AREA_DATA,
+        "feature": lmode.FEATURE_EVIEWS,
         "trap": "Đơn vị và tần suất dữ liệu phải khớp đề bài, nếu không hệ số lệch.",
     },
 )
@@ -101,9 +114,14 @@ def _render_university_track() -> None:
     )
 
     with st.expander("🧭 Bản đồ nhanh: mỗi bước dùng công cụ nào"):
-        for step in UNIVERSITY_TRACK:
+        for idx, step in enumerate(UNIVERSITY_TRACK):
             st.markdown(f"**{step['title']}** — {step['goal']}")
+            st.write(step["do"])
             st.caption(f"Ở đâu: {step['where']} · Dễ sai: {step['trap']}")
+            st.button(
+                f"Mở công cụ bước {idx + 1}", key=f"dh_map_{idx}",
+                on_click=navigate_to, args=(step["area"], step["feature"]),
+            )
 
     _render_lesson_track(
         uni.all_lessons(),
@@ -137,6 +155,10 @@ def _render_highschool_track(compact: bool = False) -> None:
     )
 
 
+def _pick_lesson(key: str, index: int) -> None:
+    st.session_state[key] = index
+
+
 def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:
     """Dựng một lộ trình bài học.
 
@@ -150,6 +172,11 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
 
     profile = _profile()
     scores = profile.setdefault("lesson_scores", {})
+    unfinished = next(
+        (i for i, lesson in enumerate(lessons)
+         if scores.get(lesson.lesson_id, 0) < cur.UNLOCK_THRESHOLD),
+        None,
+    )
 
     if unlock_note:
         done = sum(
@@ -161,30 +188,66 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
         )
 
     titles = [f"{l.order}. {l.title}" for l in lessons]
+    pick_key = f"{key_prefix}_pick"
+    st.button(
+        "Tiếp tục bài chưa đạt", key=f"{key_prefix}_continue",
+        disabled=unfinished is None,
+        on_click=_pick_lesson, args=(pick_key, unfinished),
+    )
+    if unfinished is None:
+        st.success("Đã đạt tất cả bài học. Bạn có thể chọn bài để ôn lại.")
+    else:
+        st.caption(f"Bài chưa đạt đầu tiên: {titles[unfinished]}")
     picked = st.selectbox(
-        "Chọn bài:", range(len(titles)),
-        format_func=lambda i: titles[i], key=f"{key_prefix}_pick",
+        "Chọn bài:", range(len(titles)), index=unfinished or 0,
+        format_func=lambda i: titles[i], key=pick_key,
     )
     lesson = lessons[picked]
+    previous, following = st.columns(2)
+    previous.button(
+        "Bài trước", key=f"{key_prefix}_previous", disabled=picked == 0,
+        on_click=_pick_lesson, args=(pick_key, max(0, picked - 1)),
+        width="stretch",
+    )
+    following.button(
+        "Bài tiếp theo", key=f"{key_prefix}_next", disabled=picked == len(lessons) - 1,
+        on_click=_pick_lesson, args=(pick_key, min(len(lessons) - 1, picked + 1)),
+        width="stretch",
+    )
 
     st.subheader(lesson.title)
+    st.caption(f"Bài {picked + 1}/{len(lessons)} · Đạt từ {cur.UNLOCK_THRESHOLD:.0f}/100 điểm")
     current = scores.get(lesson.lesson_id)
     if current is not None:
         st.caption(f"Điểm gần nhất của bạn: **{current:.0f}/100**")
 
-    st.markdown("#### 🎯 Mục tiêu")
+    st.markdown("#### 1. Mục tiêu")
     st.write(lesson.objective)
 
-    st.markdown("#### 📖 Giải thích")
-    st.write(lesson.explanation)
+    with st.expander("Đọc giải thích", expanded=True):
+        st.write(lesson.explanation)
+    with st.expander("Xem ví dụ có lời giải"):
+        st.write(lesson.example)
 
-    st.markdown("#### 🧮 Ví dụ")
-    st.write(lesson.example)
-
-    st.markdown("#### 🛠️ Thực hành")
+    st.markdown("#### 2. Thực hành")
     st.info(lesson.interactive)
+    if lesson.lesson_id.startswith("dh"):
+        feature = {
+            uni.INT_RETURN: lmode.FEATURE_EXAM,
+            uni.INT_COV: lmode.FEATURE_EXAM,
+            uni.INT_SIM: lmode.FEATURE_SIM,
+            uni.INT_DIAG: lmode.FEATURE_EVIEWS,
+            uni.INT_MARKOWITZ: lmode.FEATURE_EXAM,
+        }.get(lesson.interactive_kind)
+        if feature:
+            target = lmode.FEATURES[feature]
+            st.button(
+                f"Mở {target['label']}", key=f"{key_prefix}_practice",
+                on_click=navigate_to, args=(target["area"], feature),
+            )
 
-    st.markdown("#### ✍️ Câu hỏi")
+    st.markdown("#### 3. Tự kiểm tra")
+    st.caption("Câu để trống tính là chưa đúng. Có thể làm lại; điểm lần nộp gần nhất được lưu.")
     with st.form(f"quiz_{key_prefix}_{lesson.lesson_id}"):
         responses: dict[str, Any] = {}
         for idx, q in enumerate(lesson.questions, start=1):
@@ -212,40 +275,51 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
     if submitted:
         score = lesson.grade(responses)
         pp.record_lesson(profile, lesson.lesson_id, score)
+        unlocked = (
+            cur.should_unlock_advanced(profile.get("lesson_scores"))
+            and not st.session_state.get(lmode.UNLOCK_KEY)
+        )
+        # Lưu trước rerun: lần mở khóa phải giữ được đáp án và phản hồi chấm.
+        st.session_state.setdefault("lesson_feedback", {})[lesson.lesson_id] = {
+            "score": score,
+            "correct": [q.check(responses.get(q.qid)) for q in lesson.questions],
+            "unlocked": unlocked,
+        }
+        if unlocked:
+            st.session_state[lmode.UNLOCK_KEY] = True
+        st.rerun()
+
+    feedback = st.session_state.get("lesson_feedback", {}).get(lesson.lesson_id)
+    if feedback:
+        score = feedback["score"]
+        st.markdown("##### Kết quả lần nộp gần nhất")
         if score >= cur.UNLOCK_THRESHOLD:
             st.success(f"Bạn được {score:.0f}/100. Đạt yêu cầu của mô-đun này.")
         else:
             st.warning(f"Bạn được {score:.0f}/100. Cần từ {cur.UNLOCK_THRESHOLD:.0f} điểm để đạt.")
 
         st.markdown("##### Đáp án và giải thích")
-        for idx, q in enumerate(lesson.questions, start=1):
-            ok = q.check(responses.get(q.qid))
+        for idx, (q, ok) in enumerate(zip(lesson.questions, feedback["correct"]), start=1):
             st.markdown(f"{'✅' if ok else '❌'} **Câu {idx}.** {q.explanation}")
 
-        if (cur.should_unlock_advanced(profile.get("lesson_scores"))
-                and not st.session_state.get(lmode.UNLOCK_KEY)):
-            st.session_state[lmode.UNLOCK_KEY] = True
+        if feedback["unlocked"]:
             st.success(
                 "🔓 Bạn đã mở khóa nhóm công cụ nâng cao: mô hình chỉ số đơn (SIM), "
                 "Markowitz, EViews và kiểm thử ngoài mẫu (out-of-sample backtest)."
             )
-            # Danh sách thẻ được dựng ở đầu app.py nên phải chạy lại cả trang,
-            # nếu không các thẻ vừa mở khóa chỉ hiện ở lần tương tác kế tiếp.
-            st.rerun()
 
-    st.markdown("#### ⚠️ Lỗi hiểu sai thường gặp")
-    for wrong, correction in lesson.misconceptions:
-        with st.expander(f"“{wrong}”"):
+    with st.expander("Lỗi hiểu sai thường gặp"):
+        for wrong, correction in lesson.misconceptions:
+            st.markdown(f"**“{wrong}”**")
             st.write(correction)
 
-    st.markdown("#### 📚 Nguồn học liệu")
-    for name, url in lesson.resources:
-        # Tài liệu môn học bản in không có đường dẫn công khai; in dạng chữ
-        # thay vì tạo liên kết rỗng dẫn tới trang trắng.
-        if url:
-            st.markdown(f"- [{name}]({url})")
-        else:
-            st.markdown(f"- {name}")
+    with st.expander("Nguồn học liệu"):
+        for name, url in lesson.resources:
+            # Tài liệu bản in không có URL: giữ tên nguồn, không tạo liên kết rỗng.
+            if url:
+                st.markdown(f"- [{name}]({url})")
+            else:
+                st.markdown(f"- {name}")
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +333,7 @@ def render_journal_area() -> None:
     # "Sẵn sàng dùng vốn thật" và "Nơi mở tài khoản" đã chuyển sang khu Đầu tư,
     # nơi chúng thuộc về. Trước đây chúng nằm ở đây chỉ vì tiện lúc viết mã.
     tab_progress, tab_journal, tab_settings = st.tabs(
-        ["Tiến độ và rubric", "Nhật ký quyết định", "Lịch sử thiết lập"]
+        ["Tiến độ và tiêu chí đánh giá (rubric)", "Nhật ký quyết định", "Lịch sử thiết lập"]
     )
 
     with tab_progress:
@@ -289,14 +363,14 @@ def _render_progress(profile: dict[str, Any]) -> None:
     scores = profile.get("lesson_scores") or {}
     if scores:
         st.dataframe(
-            [{"Mô-đun": (cur.get_lesson(k).title if cur.get_lesson(k) else k),
+            [{"Mô-đun": next((lesson.title for lesson in cur.all_lessons() + uni.all_lessons() if lesson.lesson_id == k), k),
               "Điểm": v} for k, v in scores.items()],
             width="stretch",
         )
     else:
         st.info("Chưa có mô-đun nào được chấm.")
 
-    st.subheader("Điểm tổng theo rubric")
+    st.subheader("Điểm tổng theo tiêu chí đánh giá (rubric)")
     st.caption(
         "Kiến thức 30%, lập luận 30%, kỷ luật rủi ro và chất lượng nguồn 25%, "
         "nhật ký và phản tư 15%."
@@ -329,6 +403,7 @@ def _render_progress(profile: dict[str, Any]) -> None:
     if uploaded is not None and st.button("Nạp hồ sơ"):
         try:
             st.session_state["progress_profile"] = pp.import_json(uploaded.getvalue())
+            st.session_state.pop("lesson_feedback", None)
             st.success("Đã nạp hồ sơ.")
         except pp.ProfileImportError as exc:
             st.error(f"Tệp bị từ chối: {exc}")

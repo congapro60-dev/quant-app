@@ -72,7 +72,7 @@ def message_for(kind: str, *, is_learner: bool) -> str:
     if kind == KIND_INPUT:
         return (
             "Thông tin nhập vào chưa hợp lệ. Hãy kiểm tra lại mã cổ phiếu và "
-            "khoảng ngày ở thanh bên."
+            "khoảng ngày trong Khám phá dữ liệu → Lịch sử giá cuối ngày."
         )
 
     if kind == KIND_PROVIDER:

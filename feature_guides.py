@@ -71,7 +71,7 @@ GUIDES: dict[str, FeatureGuide] = {
             "Phần rủi ro riêng có thể giảm bằng đa dạng hóa; phần theo thị trường thì không."
         ),
         steps=(
-            "Nhập vài mã và chỉ số ở thanh bên rồi bấm **🚀 Phân tích**.",
+            "Mở **Khám phá dữ liệu → Lịch sử giá cuối ngày**, nhập mã và bấm **Phân tích**.",
             "Đọc bảng tổng quan rủi ro của tất cả các mã.",
             "Chọn một mã ở ô bên dưới để xem biểu đồ hồi quy của riêng mã đó.",
         ),
@@ -96,7 +96,7 @@ GUIDES: dict[str, FeatureGuide] = {
             "nào thì hợp lý hơn. Kết quả cho thấy đa dạng hóa làm giảm biến động ra sao."
         ),
         steps=(
-            "Nạp dữ liệu cho **ít nhất hai mã** ở thanh bên.",
+            "Nạp dữ liệu cho **ít nhất hai mã** trong **Khám phá dữ liệu → Lịch sử giá cuối ngày**.",
             "Xem hai danh mục gợi ý: biến động nhỏ nhất và tỷ lệ Sharpe cao nhất.",
             "Đối chiếu vị trí hai danh mục đó trên đường biên hiệu quả.",
         ),
@@ -120,7 +120,7 @@ GUIDES: dict[str, FeatureGuide] = {
             "điều gì. Kiểm thử ngoài mẫu cho biết nó còn đứng vững khi gặp dữ liệu chưa từng thấy."
         ),
         steps=(
-            "Nạp dữ liệu đủ dài ở thanh bên, tối thiểu vài trăm phiên.",
+            "Nạp tối thiểu vài trăm phiên trong **Khám phá dữ liệu → Lịch sử giá cuối ngày**.",
             "Đặt phí, thuế và độ trượt giá đúng với thực tế bạn sẽ chịu.",
             "Chạy kiểm thử rồi đọc kết quả cùng với đường vốn.",
         ),
@@ -141,7 +141,7 @@ GUIDES: dict[str, FeatureGuide] = {
             "do đúng hay chỉ gặp may."
         ),
         steps=(
-            "Nạp dữ liệu ở thanh bên.",
+            "Nạp giá trong **Khám phá dữ liệu → Lịch sử giá cuối ngày**.",
             "Xem bảng sàng lọc để biết mã nào đang có xu hướng và biến động ra sao.",
             "Lập kịch bản cho một mã: vùng mua, mức dừng lỗ, mục tiêu và ngày hết hiệu lực.",
         ),
