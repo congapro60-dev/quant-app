@@ -594,7 +594,7 @@ def _openai_compatible_chat(prompt, *, api_key, base_url, model):
         "messages": [{"role": "user", "content": str(prompt)}],
         # Model suy luận (ví dụ GLM) tiêu token cho phần suy nghĩ trước khi
         # trả lời; ngân sách quá nhỏ khiến phần nội dung trả về rỗng.
-        "max_tokens": 2048,
+        "max_tokens": 8192,
     }
     data = _http_post_json(
         url, headers=headers, payload=payload, timeout=_OPENAI_COMPATIBLE_TIMEOUT

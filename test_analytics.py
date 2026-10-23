@@ -350,6 +350,7 @@ def test_call_llm_openai_compatible_posts_and_extracts_text(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer k-test"
     assert captured["payload"]["model"] == "model-a"
     assert captured["payload"]["messages"] == [{"role": "user", "content": "chào bạn"}]
+    assert captured["payload"]["max_tokens"] == 8192
 
 
 def test_call_llm_openai_compatible_requires_base_url_and_model():
