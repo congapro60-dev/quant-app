@@ -5,6 +5,7 @@ from streamlit.testing.v1 import AppTest
 
 import curriculum as cur
 import curriculum_university as uni
+import university_teen as unyte
 import learning_modes as lmode
 import progress_profile as pp
 
@@ -253,3 +254,42 @@ def test_ahead_lesson_counts_toward_unlock():
     })
     _submit(at, cur.get_lesson("s3_mau_ghep_nhom"), "thpt_xtra", correct=True)
     assert at.session_state[lmode.UNLOCK_KEY] is True
+
+
+def test_university_teen_covers_all_university_lessons():
+    """Mỗi bài đại học phải có đủ bốn phần thân thiện học sinh."""
+
+    for lesson in uni.UNIVERSITY_LESSONS:
+        parts = unyte.teen_parts(lesson.lesson_id)
+        assert parts is not None, f"Thiếu bản đọc trước: {lesson.lesson_id}"
+        for key, heading in unyte.TEEN_HEADINGS:
+            text = parts.get(key, "")
+            assert isinstance(text, str) and len(text) >= 40, (
+                f"{lesson.lesson_id}.{key} ({heading}) quá ngắn hoặc thiếu"
+            )
+
+
+def test_highschool_shows_university_preview():
+    """HS cấp 3 đọc trước đại học: mục riêng gập, đủ bốn phần dễ hiểu."""
+
+    at = _run(learner_profile={
+        "grade_level": "lop_10", "knowledge_level": "co_ban", "goals": [],
+    })
+    labels = [e.label for e in at.expander]
+    assert any("Kiến thức đại học" in label for label in labels)
+    assert any("Bài đại học 6: Phân tích trung bình – phương sai" in label
+               for label in labels)
+    texts = [m.value for m in at.markdown]
+    for heading in ("Nói dễ hiểu.", "Ví dụ minh họa.",
+                    "Ứng dụng vào tình huống của em.", "Phản tư."):
+        assert any(heading in text for text in texts), heading
+    assert not at.exception
+
+
+def test_university_mode_has_no_teen_preview():
+    """Sinh viên học bản giáo trình; bản đọc trước chỉ dành cho THPT."""
+
+    at = _run(mode=lmode.MODE_UNIVERSITY)
+    labels = [e.label for e in at.expander]
+    assert not any("Kiến thức đại học" in label for label in labels)
+    assert not at.exception

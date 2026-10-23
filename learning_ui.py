@@ -13,6 +13,7 @@ import streamlit as st
 
 import curriculum as cur
 import curriculum_university as uni
+import university_teen as unyte
 import feature_guides as guides
 import learning_modes as lmode
 import policy_audit as audit
@@ -159,6 +160,43 @@ def _render_highschool_track(compact: bool = False) -> None:
         ),
         key_prefix="thpt",
     )
+    _render_university_preview()
+
+
+def _render_university_preview() -> None:
+    """Đọc trước kiến thức đại học dành cho học sinh phổ thông tò mò.
+
+    Chỉ là phần đọc: mỗi bài đại học được kể lại thành bốn khối — nói dễ
+    hiểu, ví dụ minh họa, ứng dụng gần gũi và câu phản tư (nội dung trong
+    :mod:`university_teen`). Bài đầy đủ kèm chấm điểm nằm ở lộ trình đại
+    học; công cụ nâng cao vẫn giữ cổng mở theo tiến độ.
+    """
+
+    previews = [
+        (lesson, unyte.teen_parts(lesson.lesson_id))
+        for lesson in uni.all_lessons()
+    ]
+    previews = [(lesson, parts) for lesson, parts in previews if parts]
+    if not previews:
+        return
+    with st.expander("🎓 Kiến thức đại học — đọc trước nếu em tò mò"):
+        st.caption(
+            "Sáu bài đại học được kể lại thành bốn phần: nói dễ hiểu, ví dụ tính "
+            "tay được, ứng dụng gần gũi và câu phản tư. Muốn học trọn bài kèm "
+            "chấm điểm, đổi 'Bạn là ai' trong Hồ sơ thành sinh viên. Công cụ "
+            "chuyên sâu (Ôn thi, SIM, Markowitz, EViews…) vẫn mở theo cổng tiến "
+            "độ: bất kỳ bốn bài đạt 70/100."
+        )
+        for lesson, parts in previews:
+            with st.expander(f"🎓 Bài đại học {lesson.order}: {lesson.title}"):
+                for key, heading in unyte.TEEN_HEADINGS:
+                    text = parts.get(key, "").strip()
+                    if not text:
+                        continue
+                    if key == "reflection":
+                        st.markdown(f"> **{heading}.** {text}")
+                    else:
+                        st.markdown(f"**{heading}.** {text}")
 
 
 def _pick_lesson(key: str, index: int) -> None:
