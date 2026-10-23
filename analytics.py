@@ -1,5 +1,6 @@
 import json
 import re
+import urllib.request
 from collections.abc import Mapping
 
 import numpy as np
@@ -19,6 +20,10 @@ TRADING_DAYS = 252
 DEFAULT_RISK_FREE_RATE = 0.04
 DEFAULT_FRONTIER_SEED = 42
 DEFAULT_GEMINI_MODEL = "gemini-3.1-pro-preview"
+# Máy chủ tương thích giao thức OpenAI (chat/completions): dùng cho luồng AI
+# dùng chung do trang cấp và cho key riêng của học sinh — cùng một nhãn provider.
+OPENAI_COMPATIBLE_PROVIDER = "Router (OpenAI tương thích)"
+_OPENAI_COMPATIBLE_TIMEOUT = 60.0
 MIN_SIM_OBSERVATIONS = 8
 MIN_PORTFOLIO_OBSERVATIONS = 20
 _WEIGHT_TOLERANCE = 1e-6
@@ -557,6 +562,71 @@ def _friendly_llm_error(exc, *, provider="", model="", api_key=""):
     )
 
 
+def _http_post_json(url, *, headers, payload, timeout=_OPENAI_COMPATIBLE_TIMEOUT):
+    """POST JSON bằng thư viện chuẩn để không thêm phụ thuộc mới khi triển khai."""
+
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=dict(headers),
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        raw = response.read().decode("utf-8")
+    try:
+        return json.loads(raw)
+    except ValueError as exc:
+        raise AnalyticsValidationError(
+            "Máy chủ AI trả về nội dung không phải JSON hợp lệ."
+        ) from exc
+
+
+def _openai_compatible_chat(prompt, *, api_key, base_url, model):
+    """Gọi một máy chủ tương thích OpenAI (chat/completions) và trả về văn bản."""
+
+    url = base_url.rstrip("/") + "/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": str(prompt)}],
+        # Model suy luận (ví dụ GLM) tiêu token cho phần suy nghĩ trước khi
+        # trả lời; ngân sách quá nhỏ khiến phần nội dung trả về rỗng.
+        "max_tokens": 2048,
+    }
+    data = _http_post_json(
+        url, headers=headers, payload=payload, timeout=_OPENAI_COMPATIBLE_TIMEOUT
+    )
+    choices = data.get("choices") if isinstance(data, Mapping) else None
+    if not choices:
+        raise AnalyticsValidationError(
+            "Máy chủ AI không trả về khối kết quả (choices) nào."
+        )
+    message = (choices[0] or {}).get("message") or {}
+    text = message.get("content")
+    if isinstance(text, list):
+        # Một số máy chủ trả về danh sách phần (content parts) thay vì chuỗi.
+        parts = [
+            part["text"] for part in text
+            if isinstance(part, Mapping) and isinstance(part.get("text"), str)
+        ]
+        text = "\n".join(parts)
+    if not isinstance(text, str) or not text.strip():
+        reasoning = message.get("reasoning_content")
+        if isinstance(reasoning, str) and reasoning.strip():
+            raise AnalyticsValidationError(
+                "Máy chủ AI (kiểu suy luận) đã dùng hết ngân sách token cho phần "
+                "suy nghĩ trước khi kịp trả lời; thử câu hỏi ngắn hơn hoặc máy "
+                "chủ khác."
+            )
+        raise AnalyticsValidationError(
+            "Máy chủ AI không trả về nội dung văn bản (text) đọc được."
+        )
+    return text.strip()
+
+
 def call_llm(prompt, config):
     """Call a configured provider without process-global SDK configuration."""
     if not config or not config.get("api_key"):
@@ -568,6 +638,23 @@ def call_llm(prompt, config):
 
     model_name = str(config.get("model") or "").strip()
     try:
+        if provider == OPENAI_COMPATIBLE_PROVIDER:
+            base_url = str(config.get("base_url", "")).strip()
+            if not base_url:
+                raise AnalyticsValidationError(
+                    "Chưa cấu hình địa chỉ máy chủ (base URL) cho luồng OpenAI tương thích."
+                )
+            if not model_name:
+                raise AnalyticsValidationError(
+                    "Chưa cấu hình mã mô hình (model) cho luồng OpenAI tương thích."
+                )
+            return _openai_compatible_chat(
+                str(prompt),
+                api_key=api_key,
+                base_url=base_url,
+                model=model_name,
+            )
+
         if provider == "Agents AI (HungLeAI)":
             result = agents_ai_consult(
                 str(prompt),

@@ -13,7 +13,13 @@ from data_loader import (
     intraday_query_signature,
     vietnam_now,
 )
-from analytics import run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm
+from analytics import (
+    OPENAI_COMPATIBLE_PROVIDER,
+    run_sim, run_diagnostics, markowitz_optimization, generate_expert_advice, call_llm,
+)
+from shared_ai import (
+    SHARED_PROVIDER_OPTION, PERSONAL_ROUTER_OPTION, shared_ai_config,
+)
 from sample_data import make_sample_prices
 from agents_ai import dashboard_url
 from safe_ai_tools import (
@@ -227,68 +233,129 @@ with st.sidebar:
             st.caption("⚠️ Thiếu gói tự làm mới `streamlit-autorefresh` nên chưa tự làm mới được.")
 
 with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọn"):
+    _shared_cfg, _shared_note = shared_ai_config()
+    _provider_options = [
+        "Không dùng",
+        SHARED_PROVIDER_OPTION,
+        "Anthropic (Claude)",
+        "Google (Gemini)",
+        "Agents AI (HungLeAI)",
+        PERSONAL_ROUTER_OPTION,
+    ]
+    _default_provider = SHARED_PROVIDER_OPTION if _shared_cfg else "Không dùng"
     ai_provider = st.radio(
         "Nhà cung cấp (provider) AI:",
-        ["Không dùng", "Anthropic (Claude)", "Google (Gemini)", "Agents AI (HungLeAI)"],
+        _provider_options,
+        index=_provider_options.index(_default_provider),
         horizontal=True,
+        help=(
+            "Mặc định dùng AI chung do trang cấp nên em không cần key riêng. "
+            "Ai có key riêng thì chọn luồng của em; cuối danh sách là luồng máy "
+            "chủ tương thích OpenAI đi kèm key riêng."
+        ),
     )
     ai_config = None
-    if ai_provider != "Không dùng":
-        credential_label = (
-            "Bearer credential (Firebase/API key) của Agents AI:"
-            if ai_provider == "Agents AI (HungLeAI)"
-            else "Khóa giao diện lập trình (API key):"
+    api_key = ""
+    base_url = ""
+    model_choice = ""
+    credential_label = "Khóa giao diện lập trình (API key):"
+
+    if ai_provider == SHARED_PROVIDER_OPTION:
+        if _shared_cfg:
+            api_key = _shared_cfg["api_key"]
+            base_url = _shared_cfg["base_url"]
+            model_choice = _shared_cfg["model"]
+            ai_config = {
+                'provider': OPENAI_COMPATIBLE_PROVIDER,
+                'model': model_choice,
+                'api_key': api_key,
+                'base_url': base_url,
+            }
+            st.caption("🟢 Đang dùng luồng AI chung do trang cấp — không cần nhập gì thêm.")
+        else:
+            st.caption(f"ℹ️ {_shared_note}")
+
+    elif ai_provider == PERSONAL_ROUTER_OPTION:
+        api_key = st.text_input(
+            "API key của luồng riêng (OpenAI tương thích):",
+            type="password", key="api_key_val",
         )
-        api_key = st.text_input(credential_label, type="password", key="api_key_val")
-        if ai_provider == "Agents AI (HungLeAI)":
-            model_choice = "hungle-stock-dashboard"
-            st.link_button("Mở dashboard realtime Agents AI", dashboard_url(), width="stretch")
-            st.caption(
-                "Agents AI hiện dùng luồng `consult`/dashboard có xác thực. "
-                "Không dán credential vào chat; chỉ nhập trực tiếp tại đây. "
-                "Nếu Account Console chưa cho tạo key, cần dùng credential do Agents AI cấp."
-            )
-        elif ai_provider == "Anthropic (Claude)":
-            model_choice = st.selectbox("Mô hình (model):", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
-        else:
-            model_choice = st.selectbox("Mô hình (model):", ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
-            if model_choice == "gemini-3.1-pro-preview":
-                st.caption(
-                    "ℹ️ Gemini 3.1 Pro Preview có thể không có hạn mức (quota) ở bậc miễn phí (Free Tier). "
-                    "Nếu API trả QUOTA_OR_TIER, cần bật bậc trả phí (Paid Tier) cho đúng dự án Google Cloud "
-                    "hoặc chọn Flash; đổi mã nguồn hay mã mô hình (model ID) không thể vượt giới hạn tài khoản."
-                )
-        ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
+        base_url = st.text_input(
+            "Địa chỉ máy chủ (base URL), ví dụ https://example.com/v1:",
+            key="router_base_url",
+        )
+        model_choice = st.text_input("Mã mô hình (model ID):", key="router_model")
+        if api_key and base_url.strip() and model_choice.strip():
+            ai_config = {
+                'provider': OPENAI_COMPATIBLE_PROVIDER,
+                'model': model_choice.strip(),
+                'api_key': api_key,
+                'base_url': base_url.strip(),
+            }
 
-        current_ai_signature = hashlib.sha256(
-            f"{ai_provider}|{model_choice}|{api_key}".encode("utf-8")
-        ).hexdigest() if api_key else None
-        if current_ai_signature != st.session_state.get('ai_connection_signature'):
-            st.session_state['ai_ok'] = None
-            st.session_state['ai_err'] = ""
-
+    elif ai_provider == "Agents AI (HungLeAI)":
+        api_key = st.text_input(
+            "Bearer credential (Firebase/API key) của Agents AI:",
+            type="password", key="api_key_val",
+        )
+        model_choice = "hungle-stock-dashboard"
+        st.link_button("Mở dashboard realtime Agents AI", dashboard_url(), width="stretch")
+        st.caption(
+            "Agents AI hiện dùng luồng `consult`/dashboard có xác thực. "
+            "Không dán credential vào chat; chỉ nhập trực tiếp tại đây. "
+            "Nếu Account Console chưa cho tạo key, cần dùng credential do Agents AI cấp."
+        )
         if api_key:
-            if st.button("🔌 Kích hoạt & kiểm tra kết nối", width="stretch"):
-                with st.spinner("Đang kiểm tra khóa API..."):
-                    test = call_llm("Trả lời đúng 1 từ: OK", ai_config)
-                if test and not str(test).startswith("Lỗi"):
-                    st.session_state['ai_ok'] = True
-                    st.session_state['ai_err'] = ""
-                    st.session_state['ai_connection_signature'] = current_ai_signature
-                else:
-                    st.session_state['ai_ok'] = False
-                    st.session_state['ai_err'] = str(test) if test else "Không nhận được phản hồi."
-                    st.session_state['ai_connection_signature'] = current_ai_signature
-            if (st.session_state.get('ai_ok') is True and
-                    st.session_state.get('ai_connection_signature') == current_ai_signature):
-                st.success(f"🟢 Đã kết nối {ai_provider} — {model_choice}. Sẵn sàng dùng ở các thẻ (tab) AI.")
-            elif st.session_state.get('ai_ok') is False:
-                st.error(f"🔴 Khóa API chưa dùng được: {st.session_state.get('ai_err','')}")
+            ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
+
+    elif ai_provider == "Anthropic (Claude)":
+        api_key = st.text_input(credential_label, type="password", key="api_key_val")
+        model_choice = st.selectbox("Mô hình (model):", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
+        if api_key:
+            ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
+
+    elif ai_provider == "Google (Gemini)":
+        api_key = st.text_input(credential_label, type="password", key="api_key_val")
+        model_choice = st.selectbox("Mô hình (model):", ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
+        if model_choice == "gemini-3.1-pro-preview":
+            st.caption(
+                "ℹ️ Gemini 3.1 Pro Preview có thể không có hạn mức (quota) ở bậc miễn phí (Free Tier). "
+                "Nếu API trả QUOTA_OR_TIER, cần bật bậc trả phí (Paid Tier) cho đúng dự án Google Cloud "
+                "hoặc chọn Flash; đổi mã nguồn hay mã mô hình (model ID) không thể vượt giới hạn tài khoản."
+            )
+        if api_key:
+            ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
+
+    current_ai_signature = hashlib.sha256(
+        f"{ai_provider}|{model_choice}|{api_key}|{base_url}".encode("utf-8")
+    ).hexdigest() if api_key else None
+    if current_ai_signature != st.session_state.get('ai_connection_signature'):
+        st.session_state['ai_ok'] = None
+        st.session_state['ai_err'] = ""
+
+    if ai_config:
+        if st.button("🔌 Kích hoạt & kiểm tra kết nối", width="stretch"):
+            with st.spinner("Đang kiểm tra luồng AI..."):
+                test = call_llm("Trả lời đúng 1 từ: OK", ai_config)
+            if test and not str(test).startswith("Lỗi"):
+                st.session_state['ai_ok'] = True
+                st.session_state['ai_err'] = ""
+                st.session_state['ai_connection_signature'] = current_ai_signature
             else:
-                st.info("🔑 Đã nhận credential — có thể dùng ngay. Bấm nút trên để xác nhận credential hợp lệ (khuyên dùng).")
-        else:
-            st.caption("Nhập credential để bật phân tích bằng trí tuệ nhân tạo (AI).")
-        st.caption("🔒 Credential chỉ lưu tạm trong phiên, không ghi vào mã nguồn (code).")
+                st.session_state['ai_ok'] = False
+                st.session_state['ai_err'] = str(test) if test else "Không nhận được phản hồi."
+                st.session_state['ai_connection_signature'] = current_ai_signature
+        if (st.session_state.get('ai_ok') is True and
+                st.session_state.get('ai_connection_signature') == current_ai_signature):
+            st.success(f"🟢 Đã kết nối {ai_provider} — {model_choice}. Sẵn sàng dùng ở các thẻ (tab) AI.")
+        elif st.session_state.get('ai_ok') is False:
+            st.error(f"🔴 Luồng AI chưa dùng được: {st.session_state.get('ai_err','')}")
+        elif ai_provider != SHARED_PROVIDER_OPTION:
+            st.info("🔑 Đã nhận credential — có thể dùng ngay. Bấm nút trên để xác nhận luồng hoạt động (khuyên dùng).")
+        if ai_provider != SHARED_PROVIDER_OPTION:
+            st.caption("🔒 Credential chỉ lưu tạm trong phiên, không ghi vào mã nguồn (code).")
+    elif ai_provider not in ("Không dùng", SHARED_PROVIDER_OPTION):
+        st.caption("Nhập đủ thông tin luồng để bật phân tích bằng trí tuệ nhân tạo (AI).")
 
 # Dựng đích đến trước biểu mẫu; kết quả phân tích được ghi vào đúng khu dữ liệu.
 _visible_features = lmode.visible_features(st.session_state)

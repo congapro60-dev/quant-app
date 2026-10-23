@@ -323,3 +323,74 @@ def test_expert_advice_rejects_actionable_synonyms(monkeypatch, unsafe_text):
     )
     assert "đã bị loại" in output
     assert unsafe_text not in output
+
+
+def test_call_llm_openai_compatible_posts_and_extracts_text(monkeypatch):
+    captured = {}
+
+    def fake_post(url, *, headers, payload, timeout):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["payload"] = payload
+        captured["timeout"] = timeout
+        return {"choices": [{"message": {"content": "  Xin chào  "}}]}
+
+    monkeypatch.setattr(analytics, "_http_post_json", fake_post)
+    config = {
+        "provider": analytics.OPENAI_COMPATIBLE_PROVIDER,
+        "api_key": "k-test",
+        "base_url": "https://router.example/v1",
+        "model": "model-a",
+    }
+
+    output = analytics.call_llm("chào bạn", config)
+
+    assert output == "Xin chào"
+    assert captured["url"] == "https://router.example/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer k-test"
+    assert captured["payload"]["model"] == "model-a"
+    assert captured["payload"]["messages"] == [{"role": "user", "content": "chào bạn"}]
+
+
+def test_call_llm_openai_compatible_requires_base_url_and_model():
+    base = {"provider": analytics.OPENAI_COMPATIBLE_PROVIDER, "api_key": "k-test"}
+    missing_url = analytics.call_llm("hi", {**base, "model": "m"})
+    missing_model = analytics.call_llm("hi", {**base, "base_url": "https://r.example/v1"})
+
+    assert "base URL" in missing_url
+    assert "mã mô hình" in missing_model
+
+
+def test_call_llm_openai_compatible_redacts_key_on_error(monkeypatch):
+    def fake_post(url, *, headers, payload, timeout):
+        raise PermissionError("401 invalid api key k-test at gateway")
+
+    monkeypatch.setattr(analytics, "_http_post_json", fake_post)
+    out = analytics.call_llm("hi", {
+        "provider": analytics.OPENAI_COMPATIBLE_PROVIDER,
+        "api_key": "k-test",
+        "base_url": "https://r.example/v1",
+        "model": "m",
+    })
+
+    assert "k-test" not in out
+    assert "[REDACTED]" in out
+
+
+def test_call_llm_openai_compatible_reports_empty_reasoning_response(monkeypatch):
+    def fake_post(url, *, headers, payload, timeout):
+        return {"choices": [{"message": {
+            "content": "",
+            "reasoning_content": "đang suy nghĩ…",
+        }}]}
+
+    monkeypatch.setattr(analytics, "_http_post_json", fake_post)
+    out = analytics.call_llm("hi", {
+        "provider": analytics.OPENAI_COMPATIBLE_PROVIDER,
+        "api_key": "k-test",
+        "base_url": "https://r.example/v1",
+        "model": "m",
+    })
+
+    assert "ngân sách token" in out
+    assert "k-test" not in out

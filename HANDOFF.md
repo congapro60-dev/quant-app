@@ -2,6 +2,30 @@
 
 **Cập nhật**: 2026-10-23 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0. Bổ sung 23/10/2026 — luồng AI dùng chung (cấp sẵn của trang)
+
+- Học sinh **không cần API key riêng**: thanh bên mặc định chọn "AI dùng chung
+  (cấp sẵn của trang)". Cấu hình đọc từ `[shared_ai]` trong **Secrets của
+  Streamlit Cloud** (chỉ chủ app nhập; tuyệt đối không dán key vào repo công
+  khai). Mẫu cấu hình: `.streamlit/secrets.example.toml`.
+- Luồng dùng giao thức **OpenAI tương thích** (`POST {base_url}/chat/completions`)
+  qua `urllib` chuẩn trong `analytics._openai_compatible_chat` — không thêm
+  dependency mới. Mọi lỗi gọi AI vẫn đi qua `_friendly_llm_error`, key luôn
+  được che thành `[REDACTED]`.
+- Học sinh có key riêng vẫn chọn luồng của em: Anthropic / Gemini / Agents AI
+  như cũ, hoặc mục mới "Router riêng của em (key riêng)" — máy chủ tương thích
+  OpenAI, nhập full key + base URL + model.
+- ⚠️ Máy chủ AI chạy CLI trên máy local (9router loopback 127.0.0.1) **không
+  truy cập được từ Streamlit Cloud**; Secrets phải dùng endpoint HTTPS công khai.
+- Test: **642 passed** (bổ sung `tests/test_shared_ai.py` và 4 test cho luồng
+  OpenAI tương thích trong `test_analytics.py`). Chạy bằng `.venv` (3.12).
+- Đã thử sống endpoint dùng chung (GLM 5.3 Flash): HTTP 200, trả lời đúng.
+  Model suy luận cần ngân sách token đủ (~300 token cho phần suy nghĩ chỉ với
+  một câu chào), nên code đặt `max_tokens=2048` và có lỗi thân thiện khi máy
+  chủ tiêu hết ngân sách trước khi trả lời.
+- Còn dở, đợi chủ dự án: (a) duyệt diff và cho commit/push; (b) dán `[shared_ai]`
+  thật vào Secrets dashboard của app production.
+
 ## 1. Trạng thái hiện tại
 
 App production **không khởi động được từ 16/10/2026**. Người xem thấy vòng xoay
