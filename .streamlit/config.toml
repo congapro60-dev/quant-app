@@ -7,3 +7,9 @@ font = "sans serif"
 
 [server]
 maxUploadSize = 25
+
+# TEMPORARY (deploy debugging): reveal the full traceback on the public error
+# page so the ImportError Cloud-only failure can be diagnosed without dashboard
+# access. Revert to "full" (default hides traceback) after the incident.
+[client]
+showErrorDetails = "stacktrace"
