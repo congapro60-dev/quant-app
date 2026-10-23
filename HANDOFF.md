@@ -150,4 +150,10 @@ Deploy lại (chỉ chủ app làm được):
   4.0.9 + ezchart 1.0.2 và **vô tình đưa ràng buộc `numpy<2.3` trở lại** → app chết.
 - 2026-10-23: thêm `--only-binary=numpy`, ghi lại chẩn đoán này.
 - 2026-10-23: luồng AI dùng chung (`92050e5`); trọn bộ thống kê phổ thông
-  (4 bài s1–s4 + 3 công cụ, `stats_tools.py` mới) — cần verify deploy sau push.
+  (4 bài s1–s4 + 3 công cụ, `stats_tools.py` mới).
+- 2026-10-23: `f5d89c7` — xen kẽ 10 bài theo nhịp dự án (sau review chủ dự án);
+  `8fa45e6` — mạch học 4 bước (dẫn dắt → tự tính → ý nghĩa → phản tư) cho 3 tab
+  công cụ, 4 nhánh thực hành s1–s4 và "Toán đằng sau Biến động năm hóa". Đã
+  verify trên production (app chạy trong iframe `/~/+/` của Cloud): thứ tự bài
+  1→6 đọc trực tiếp đúng (m1, m2, m3, s1, s2, m4), 3 tab + trang bài s1 hiển thị
+  đủ mạch mới; 708 test pass.
