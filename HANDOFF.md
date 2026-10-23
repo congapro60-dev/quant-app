@@ -157,3 +157,8 @@ Deploy lại (chỉ chủ app làm được):
   verify trên production (app chạy trong iframe `/~/+/` của Cloud): thứ tự bài
   1→6 đọc trực tiếp đúng (m1, m2, m3, s1, s2, m4), 3 tab + trang bài s1 hiển thị
   đủ mạch mới; 708 test pass.
+- 2026-10-23: `84daceb` — tab "Soạn học liệu với Muse" đổi thành "Soạn học liệu
+  với AI": Muse chỉ là một lựa chọn, có thể bị chặn tại VN; thêm st.info chú
+  thích + 5 nút link AI (Muse/ChatGPT/Gemini/Copilot/Zalo AI), file tải về
+  `hoc_lieu_…md`, 2 dòng "Nhờ Muse…" tổng quát thành "Nhờ AI bên ngoài…".
+  Key widget `muse_*` giữ nguyên. 709 test pass.
