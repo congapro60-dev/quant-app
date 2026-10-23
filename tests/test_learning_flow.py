@@ -184,33 +184,72 @@ def test_every_highschool_lesson_has_a_real_practice_action():
         assert at.button(key=expected_keys[lesson.interactive_kind])
 
 
-@pytest.mark.parametrize("grade_key,first_title_fragment", [
-    ("lop_10", "Số gần đúng và sai số"),
-    ("lop_11", "Mẫu số liệu ghép nhóm và số đặc trưng trung tâm"),
-    ("lop_12", "Độ phân tán của mẫu số liệu ghép nhóm"),
+@pytest.mark.parametrize("grade_key,main_count,xtra_count", [
+    ("lop_10", 8, 2),
+    ("lop_11", 9, 1),
+    ("lop_12", 10, 0),
 ])
-def test_grade_promotes_matching_sgk_lessons(grade_key, first_title_fragment):
-    """Chọn lớp nào thì bài SGK của lớp đó lên đầu; vẫn đủ mười bài."""
+def test_grade_splits_track_into_main_and_ahead(grade_key, main_count, xtra_count):
+    """Lộ trình lớp: phần chính giữ nhịp dự án, bài lớp trên gập riêng.
+
+    Lớp 12 là lớp cao nhất: s4 là bài năm nay trong phần chính, không còn
+    mục học trước chương trình.
+    """
 
     at = _run(learner_profile={
         "grade_level": grade_key, "knowledge_level": "co_ban", "goals": [],
     })
-    box = at.selectbox(key="thpt_pick")
-    assert len(box.options) == len(cur.all_lessons())
-    assert box.options[0].startswith("📚")
-    assert first_title_fragment in box.options[0]
+    main_box = at.selectbox(key="thpt_pick")
+    assert len(main_box.options) == main_count
+    assert main_box.options[0].startswith("1. ")
+    if grade_key == "lop_10":
+        assert any("📚 4." in label for label in main_box.options)
+        xtra_box = at.selectbox(key="thpt_xtra_pick")
+        assert len(xtra_box.options) == xtra_count
+        assert any("Mẫu số liệu ghép nhóm" in label for label in xtra_box.options)
+    if grade_key == "lop_11":
+        assert any("📚 7." in label for label in main_box.options)
+        assert any("🧱 4." in label for label in main_box.options)
+        xtra_box = at.selectbox(key="thpt_xtra_pick")
+        assert len(xtra_box.options) == xtra_count
+        assert any("Độ phân tán của mẫu số liệu ghép nhóm" in label
+                   for label in xtra_box.options)
+    if grade_key == "lop_12":
+        assert any("📚 10. Độ phân tán của mẫu số liệu ghép nhóm" in label
+                   for label in main_box.options)
+        foundation = [label for label in main_box.options if label.startswith("🧱")]
+        assert len(foundation) == 3
+        assert not any(w.key == "thpt_xtra_pick" for w in at.selectbox)
 
 
-def test_grade_badge_appears_on_matching_lesson_only():
-    """Dấu SGK Toán chỉ gắn cho bài đúng lớp đã chọn."""
+def test_grade_badges_three_phases():
+    """Ba dấu bài đúng nhóm: 📚 năm nay, 🧱 nền, 📖 học trước chương trình."""
 
     at = _run(learner_profile={
         "grade_level": "lop_11", "knowledge_level": "co_ban", "goals": [],
     })
-    box = at.selectbox(key="thpt_pick")
+    main_box = at.selectbox(key="thpt_pick")
+    current_position = next(i for i, label in enumerate(main_box.options)
+                            if label.startswith("📚"))
+    main_box.set_value(current_position).run()
     assert any("Bài này thuộc SGK Toán lớp 11" in c.value for c in at.caption)
-    m2_position = next(i for i, label in enumerate(box.options)
-                       if label.startswith("2. "))
-    box.set_value(m2_position).run()
-    assert not any("Bài này thuộc SGK" in c.value for c in at.caption)
+    main_box = at.selectbox(key="thpt_pick")
+    foundation_position = next(i for i, label in enumerate(main_box.options)
+                               if label.startswith("🧱"))
+    main_box.set_value(foundation_position).run()
+    assert any("Bài nền từ SGK Toán lớp 10" in c.value for c in at.caption)
+    at.selectbox(key="thpt_xtra_pick").set_value(0).run()
+    assert any("chương trình năm sau" in c.value for c in at.caption)
     assert not at.exception
+
+
+def test_ahead_lesson_counts_toward_unlock():
+    """Điểm bài học trước chương trình vẫn tính vào cổng mở 4 bài."""
+
+    lessons = cur.all_lessons()
+    scores = {lesson.lesson_id: 100 for lesson in lessons[:3]}
+    at = _run(scores=scores, learner_profile={
+        "grade_level": "lop_10", "knowledge_level": "co_ban", "goals": [],
+    })
+    _submit(at, cur.get_lesson("s3_mau_ghep_nhom"), "thpt_xtra", correct=True)
+    assert at.session_state[lmode.UNLOCK_KEY] is True

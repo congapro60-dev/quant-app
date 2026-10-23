@@ -396,32 +396,70 @@ def _learner_grade_number() -> int | None:
     return {"lop_10": 10, "lop_11": 11, "lop_12": 12}.get(level)
 
 
-def _promote_grade_lessons(lessons, my_grade: int) -> tuple:
-    """Bài đúng SGK lớp em lên trước; các bài còn lại giữ nguyên trật tự."""
+def _split_track_lessons(lessons, my_grade: int | None) -> tuple[tuple, tuple]:
+    """Chia lộ trình thành (chính, học trước chương trình).
 
-    mine = [l for l in lessons if l.sgk_grade == my_grade]
-    rest = [l for l in lessons if l.sgk_grade != my_grade]
-    return tuple(mine) + tuple(rest)
+    Phần chính giữ nguyên nhịp dự án: bài tài chính dùng chung, bài SGK năm
+    nay và bài nền năm trước. Bài SGK lớp trên gập vào phần học trước riêng.
+    """
+
+    if my_grade is None:
+        return tuple(lessons), ()
+    main = tuple(
+        l for l in lessons
+        if cur.lesson_phase(l.sgk_grade, my_grade) != "ahead"
+    )
+    ahead = tuple(
+        l for l in lessons
+        if cur.lesson_phase(l.sgk_grade, my_grade) == "ahead"
+    )
+    return main, ahead
 
 
 def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:
     """Dựng một lộ trình bài học.
 
     Dùng chung cho cả lộ trình trung học phổ thông và lộ trình đại học, để phần
-    chấm điểm và hiển thị đáp án chỉ tồn tại một bản.
+    chấm điểm và hiển thị đáp án chỉ tồn tại một bản. Người học khai lớp thì
+    lộ trình tách làm hai phần: phần chính (bài tài chính theo nhịp dự án, bài
+    SGK năm nay và bài nền năm trước) và phần gập "Học trước chương trình" gồm
+    bài SGK của lớp trên.
     """
+
+    my_grade = _learner_grade_number()
+    main, ahead = _split_track_lessons(lessons, my_grade)
+    if not main and not ahead:
+        st.info("Lộ trình này chưa có bài học.")
+        return
+
+    if ahead:
+        st.caption(
+            f"Nhãn bài: 📚 SGK Toán {my_grade} năm nay · 🧱 nền lớp dưới · "
+            f"bài của lớp trên nằm trong mục 📖 ở cuối ({len(ahead)} bài)."
+        )
+    _render_track_body(
+        main, unlock_note=unlock_note, key_prefix=key_prefix,
+        my_grade=my_grade, show_continue=True,
+    )
+    if ahead:
+        with st.expander(f"📖 Học trước chương trình lớp {my_grade} ({len(ahead)} bài)"):
+            st.caption(
+                "Bài của lớp trên, đọc trước cũng được. Làm và chấm bình thường; "
+                "điểm vẫn lưu và vẫn tính vào cổng mở công cụ nâng cao."
+            )
+            _render_track_body(
+                ahead, unlock_note=None, key_prefix=f"{key_prefix}_xtra",
+                my_grade=my_grade, show_continue=False,
+            )
+
+
+def _render_track_body(lessons, *, unlock_note: str | None, key_prefix: str,
+                       my_grade: int | None, show_continue: bool) -> None:
+    """Thân một lộ trình: chọn bài, thực hành và chấm điểm một nhóm bài."""
 
     if not lessons:
         st.info("Lộ trình này chưa có bài học.")
         return
-
-    my_grade = _learner_grade_number()
-    if my_grade is not None and any(l.sgk_grade for l in lessons):
-        lessons = _promote_grade_lessons(lessons, my_grade)
-        st.caption(
-            f"📚 Bài đúng chương trình Toán lớp {my_grade} được đưa lên trước. "
-            "Các bài còn lại vẫn học được như bài mở rộng."
-        )
 
     profile = _profile()
     scores = profile.setdefault("lesson_scores", {})
@@ -440,21 +478,24 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
             text=unlock_note.format(done=done),
         )
 
+    phase_prefix = {"current": "📚 ", "foundation": "🧱 ", "ahead": "📖 "}
     titles = [
-        ("📚 " if my_grade is not None and l.sgk_grade == my_grade else "")
+        (phase_prefix[cur.lesson_phase(l.sgk_grade, my_grade)]
+         if my_grade is not None and l.sgk_grade is not None else "")
         + f"{l.order}. {l.title}"
         for l in lessons
     ]
     pick_key = f"{key_prefix}_pick"
-    st.button(
-        "Tiếp tục bài chưa đạt", key=f"{key_prefix}_continue",
-        disabled=unfinished is None,
-        on_click=_pick_lesson, args=(pick_key, unfinished),
-    )
-    if unfinished is None:
-        st.success("Đã đạt tất cả bài học. Bạn có thể chọn bài để ôn lại.")
-    else:
-        st.caption(f"Bài chưa đạt đầu tiên: {titles[unfinished]}")
+    if show_continue:
+        st.button(
+            "Tiếp tục bài chưa đạt", key=f"{key_prefix}_continue",
+            disabled=unfinished is None,
+            on_click=_pick_lesson, args=(pick_key, unfinished),
+        )
+        if unfinished is None:
+            st.success("Đã đạt tất cả bài học. Bạn có thể chọn bài để ôn lại.")
+        else:
+            st.caption(f"Bài chưa đạt đầu tiên: {titles[unfinished]}")
     picked = st.selectbox(
         "Chọn bài:", range(len(titles)), index=unfinished or 0,
         format_func=lambda i: titles[i], key=pick_key,
@@ -474,9 +515,20 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
 
     st.subheader(lesson.title)
     st.caption(f"Bài {picked + 1}/{len(lessons)} · Đạt từ {cur.UNLOCK_THRESHOLD:.0f}/100 điểm")
-    if my_grade is not None and lesson.sgk_grade == my_grade:
+    phase = cur.lesson_phase(lesson.sgk_grade, my_grade)
+    if phase == "current" and lesson.sgk_grade is not None:
         st.caption(
-            f"📚 Bài này thuộc SGK Toán lớp {my_grade} — đúng chương trình em đang học."
+            f"📚 Bài này thuộc SGK Toán lớp {lesson.sgk_grade} — đúng chương trình em đang học."
+        )
+    elif phase == "foundation":
+        st.caption(
+            f"🧱 Bài nền từ SGK Toán lớp {lesson.sgk_grade} — vững nền này thì "
+            f"bài SGK Toán lớp {my_grade} sẽ nhẹ hơn nhiều."
+        )
+    elif phase == "ahead":
+        st.caption(
+            f"📖 Bài của SGK Toán lớp {lesson.sgk_grade} — chương trình năm sau; "
+            "xem trước thoải mái, điểm vẫn được lưu."
         )
     current = scores.get(lesson.lesson_id)
     if current is not None:

@@ -1049,6 +1049,22 @@ def all_lessons() -> tuple[Lesson, ...]:
     return tuple(sorted(LESSONS, key=lambda l: l.order))
 
 
+def lesson_phase(sgk_grade: int | None, my_grade: int | None) -> str:
+    """Nhóm bài theo lớp của người học.
+
+    Trả về một trong ba giá trị: ``"current"`` — bài dùng chung (tài chính) hoặc
+    đúng SGK lớp người học; ``"foundation"`` — bài SGK lớp dưới, nền cho bài
+    năm nay; ``"ahead"`` — bài SGK lớp trên, học trước chương trình. Người học
+    không khai lớp (sinh viên, "Khác") thì mọi bài đều là ``current``.
+    """
+
+    if my_grade is None or sgk_grade is None:
+        return "current"
+    if sgk_grade == my_grade:
+        return "current"
+    return "foundation" if sgk_grade < my_grade else "ahead"
+
+
 def get_lesson(lesson_id: str) -> Lesson | None:
     wanted = str(lesson_id or "").strip()
     for lesson in LESSONS:
