@@ -2,6 +2,32 @@
 
 **Cập nhật**: 2026-10-23 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0. Bổ sung 23/10/2026 (tối) — chọn lớp đổi thứ tự lộ trình + đã dán secrets
+
+- Người học chọn **lớp 10/11/12** giờ thấy lộ trình khác nhau đúng nghĩa: bài
+  thống kê gắn SGK đúng lớp (s1+s2 Toán 10, s3 Toán 11, s4 Toán 12) được **đưa
+  lên đầu** danh sách bài, kèm dấu 📚 và ghi chú "Bài này thuộc SGK Toán lớp X -
+  đúng chương trình em đang học". Các bài còn lại giữ nguyên trật tự, học được
+  như bài mở rộng. Vẫn đủ 10 bài cho mọi lớp.
+- Cách làm: field mới `sgk_grade` trong `curriculum.Lesson` (cố ý không đặt tên
+  `grade` vì trùng method chấm điểm của Lesson); sắp xếp + nhãn nằm trong
+  `learning_ui._render_lesson_track` qua 2 helper `_learner_grade_number` và
+  `_promote_grade_lessons`. Sinh viên, "Khác" và track đại học không đổi gì.
+  Cổng mở công cụ nâng cao "bất kỳ 4 bài nào ≥70/100" vẫn không phụ thuộc
+  thứ tự; chấm điểm ghi theo lesson_id nên mọi tiến độ cũ được bảo toàn.
+- Dọn nốt chuẩn Streamlit 1.60: 4 chỗ `use_container_width` còn lại (app.py:
+  2 biểu đồ giá trong phiên + bảng lệnh khớp; muse_brief.py: link_button AI)
+  chuyển sang `width="stretch"`. Từ giờ không còn chỗ nào dùng cờ cũ.
+- Secrets đã chốt: chủ dự án dán `[shared_ai]` vào Secrets dashboard của app
+  production (tối 23/10). App xác nhận đang chạy qua ảnh chụp browser thật của
+  chủ dự án. Key dùng chung nằm duy nhất trong Secrets Cloud — KHÔNG ghi vào
+  bất kỳ file nào trong repo; tham chiếu cấu hình xem `.streamlit/secrets.example.toml`.
+- Test: **713 passed** (thêm 2 test nhóm lớp: đề bạt đúng bài SGK của lớp
+  10/11/12 và dấu SGK chỉ dán lên bài đúng lớp; chạy `.venv` 3.12).
+- Việc còn mở (không gấp): nhờ học sinh thật xác nhận trên production —
+  (a) thanh bên mặc định chọn "AI dùng chung (cấp sẵn của trang)"; (b) bảng
+  tần suất hiển thị đủ chữ "Không đổi"/"Số phiên".
+
 ## 0a. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
 
 - Gói "Trọn bộ ngay": 4 bài học thống kê bám SGK Kết nối tri thức theo
@@ -38,7 +64,7 @@
 - Test: **707 passed** (thêm `tests/test_stats_tools.py` 22 test tính tay khớp
   SGK: s²=2.96; An/Bình 1.045/0.045; mẫu 0..9 ghép k=5 mean 4.5, s²=6.48).
   AppTest chạy thật app hai chế độ + từng công cụ, không exception.
-- Việc còn treo từ mục 0b giữ nguyên: dán `[shared_ai]` vào Secrets production.
+- (Dòng "còn chờ dán secrets" đã gỡ: xem mục 0 ở trên — đã dán xong tối 23/10.)
 
 ## 0b. Bổ sung 23/10/2026 (sáng) — luồng AI dùng chung (cấp sẵn của trang)
 
@@ -71,9 +97,9 @@
   app **chạy lại bình thường** (đã soi lần đầu, khối AI ở sidebar hiện đủ 6
   lựa chọn). Đã revert `showErrorDetails` trong commit sau — đừng bật nếu
   không có sự cố.
-- Còn dở, đợi chủ dự án: dán `[shared_ai]` thật vào Secrets dashboard của app
-  production (TOML còn trong clipboard). Chưa dán → sidebar mặc định "Không
-  dùng"; dán xong → tự mặc định "AI dùng chung (cấp sẵn của trang)".
+- ✅ Đã dán xong (tối 23/10, xem mục 0): `[shared_ai]` nằm trong Secrets
+  dashboard app production. Sidebar giờ tự mặc định "AI dùng chung (cấp sẵn
+  của trang)" khi học sinh chưa có key riêng.
 
 ## 1. Trạng thái hiện tại
 

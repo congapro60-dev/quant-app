@@ -1091,7 +1091,7 @@ if intraday_tab is not None:
                 labels={"time": "Thời gian", "price": "Giá khớp"},
             )
             fig_intr.update_traces(line_width=2)
-            st.plotly_chart(fig_intr, use_container_width=True)
+            st.plotly_chart(fig_intr, width="stretch")
 
             if "volume" in ticks.columns:
                 fig_vol = px.bar(
@@ -1099,7 +1099,7 @@ if intraday_tab is not None:
                     title="Khối lượng theo từng lệnh khớp",
                     labels={"time": "Thời gian", "volume": "Khối lượng"},
                 )
-                st.plotly_chart(fig_vol, use_container_width=True)
+                st.plotly_chart(fig_vol, width="stretch")
 
             with st.expander("Xem bảng lệnh khớp chi tiết"):
                 ticks_display = ticks.copy()
@@ -1122,7 +1122,7 @@ if intraday_tab is not None:
                         "side": "Bên giao dịch (side)",
                     }
                 )
-                st.dataframe(ticks_display.tail(200), use_container_width=True)
+                st.dataframe(ticks_display.tail(200), width="stretch")
                 _download_df(ticks_display, "⬇️ Tải toàn bộ lệnh khớp — tệp bảng (CSV)",
                              f"intraday_{result_symbol}.csv")
 

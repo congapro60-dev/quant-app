@@ -105,7 +105,7 @@ def render_muse_workshop() -> None:
     links = st.columns(len(ALTERNATIVE_AI_LINKS))
     for column, (label, url) in zip(links, ALTERNATIVE_AI_LINKS):
         with column:
-            st.link_button(label, url, use_container_width=True,
+            st.link_button(label, url, width="stretch",
                            help="Mở website trong tab mới; Quant App không tự gửi nội dung đi. "
                                 "Quyền sử dụng thuộc tài khoản của bạn.")
     st.caption(
