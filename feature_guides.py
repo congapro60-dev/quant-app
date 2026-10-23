@@ -60,6 +60,86 @@ GUIDES: dict[str, FeatureGuide] = {
             "đó trống là bình thường."
         ),
     ),
+    lmode.FEATURE_STATS_CALC: FeatureGuide(
+        what=(
+            "Tính nhanh các số đặc trưng của một mẫu số liệu không ghép nhóm: trung "
+            "tâm (số trung bình, trung vị, mốt) và phân tán (khoảng biến thiên, tứ "
+            "phân vị, phương sai, độ lệch chuẩn), kèm phát hiện giá trị bất thường."
+        ),
+        why=(
+            "Đây là bộ công cụ của Toán 10 (Bài 13–14) áp thẳng vào thị trường: so "
+            "hai mã, hai giai đoạn không chỉ bằng trung bình mà còn bằng độ lệch "
+            "chuẩn — con số đứng sau nhãn 'Biến động năm hóa' ở tab Đầu tư."
+        ),
+        steps=(
+            "Chọn nguồn dữ liệu: nhập tay một dãy số, hoặc dùng lợi suất ngày của mã đã nạp.",
+            "Bấm **Tính** để thấy đầy đủ các số đặc trưng.",
+            "Đổi sang một dãy khác (ví dụ mã khác) rồi so sánh kết quả giữa hai lần tính.",
+        ),
+        read_result=(
+            "Hàng ô số đầu là trung tâm: trung bình, trung vị, mốt. Hàng sau là phân "
+            "tán: khoảng biến thiên, Q1, Q3, khoảng tứ phân vị, phương sai, độ lệch "
+            "chuẩn. Nếu có giá trị nằm ngoài khoảng 1,5·IQR, ứng dụng ghi rõ đó là "
+            "giá trị bất thường."
+        ),
+        caution=(
+            "Tứ phân vị tính theo cách trung vị nửa trái/phải của SGK; một số bộ "
+            "sách khác nội suy hơi khác nên con số có thể lệch nhẹ. Độ lệch chuẩn ở "
+            "đây tính theo ngày, khác với 'Biến động năm hóa' là s nhân căn 252."
+        ),
+    ),
+    lmode.FEATURE_GROUPING_LAB: FeatureGuide(
+        what=(
+            "Phòng thí nghiệm ghép nhóm: chia một mẫu thành các khoảng đều nhau, đếm "
+            "tần số, rồi ước lượng số đặc trưng từ bảng tần số (Toán 11 và 12)."
+        ),
+        why=(
+            "Đây là cách xử lý mẫu lớn khi chi tiết từng số không có: báo cáo thường "
+            "chỉ cho bảng khoảng - tần số. Công cụ cũng cho thấy ghép nhóm làm mất "
+            "độ chính xác bao nhiêu — nối thẳng với bài Số gần đúng và sai số."
+        ),
+        steps=(
+            "Chọn nguồn dữ liệu: nhập tay hoặc lợi suất ngày của một mã đã nạp.",
+            "Kéo thanh **Số nhóm k** nhỏ dần rồi lớn dần (2 đến 10 nhóm).",
+            "Đọc bảng tần số, các số đặc trưng ghép nhóm và bảng so sánh với tính trực tiếp.",
+        ),
+        read_result=(
+            "Bảng bên trái là nhóm - giá trị đại diện - tần số. Bên phải là x̄g, "
+            "trung vị, mốt, s_g cùng khoảng biến thiên và khoảng tứ phân vị ước "
+            "lượng. Bảng so sánh có cột sai số tương đối (%): càng ít nhóm, sai số "
+            "càng lớn."
+        ),
+        caution=(
+            "Kết quả ghép nhóm là số gần đúng, không phải đúng như tính từ dữ liệu "
+            "thô. Với N nhỏ, ghép nhóm ít nhóm làm số đặc trưng lệch đáng kể — thử "
+            "k = 2 rồi k = 10 để tự cảm nhận."
+        ),
+    ),
+    lmode.FEATURE_FREQ_TABLE: FeatureGuide(
+        what=(
+            "Tổ chức dữ liệu phân loại thành bảng tần suất hai chiều (mã × trạng "
+            "thái phiên tăng/giảm/không đổi) và vẽ biểu đồ cột xếp chồng, tròn."
+        ),
+        why=(
+            "Kỹ năng tổ chức - trực quan hóa dữ liệu của Toán 10: đếm tần số theo "
+            "hai tiêu chí cùng lúc rồi đọc xu thế từ biểu đồ, thay vì nhìn rừng số."
+        ),
+        steps=(
+            "Nạp dữ liệu lịch sử giá ở tab Lịch sử giá cuối ngày (chưa nạp thì công cụ dùng bộ mô phỏng).",
+            "Chọn một vài mã trong danh sách.",
+            "Đọc bảng tần suất hai chiều và hai biểu đồ tự sinh ra.",
+        ),
+        read_result=(
+            "Mỗi hàng của bảng là một mã với số phiên tăng, giảm, không đổi. Hàng "
+            "nào cột 'Tăng' áp đảo thì mã lên xu thế trong giai đoạn; biểu đồ tròn "
+            "cho thấy tỉ trọng từng trạng thái trên tổng số phiên đã đếm."
+        ),
+        caution=(
+            "Số phiên đếm là số phiên liền sau phiên trước, nên nhỏ hơn tổng số "
+            "điểm dữ liệu một đơn vị mỗi mã. Dùng bộ mô phỏng thì kết quả chỉ để "
+            "luyện cách đọc bảng, không phản ánh thị trường thật."
+        ),
+    ),
     lmode.FEATURE_SIM: FeatureGuide(
         what=(
             "Hồi quy lợi suất một cổ phiếu theo lợi suất chỉ số thị trường để tách "

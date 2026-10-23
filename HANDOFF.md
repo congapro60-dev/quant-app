@@ -2,7 +2,32 @@
 
 **Cập nhật**: 2026-10-23 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
-## 0. Bổ sung 23/10/2026 — luồng AI dùng chung (cấp sẵn của trang)
+## 0a. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
+
+- Gói "Trọn bộ ngay": 4 bài học thống kê bám SGK Kết nối tri thức theo
+  Chương trình 2018 — s1 Số gần đúng và sai số (Toán 10, Bài 12), s2 Số đặc
+  trưng đo trung tâm và độ phân tán (Toán 10, Bài 13–14), s3 Mẫu ghép nhóm và
+  số đặc trưng trung tâm (Toán 11, Bài 8–9), s4 Độ phân tán của mẫu ghép nhóm
+  (Toán 12, Bài 9–10). Tổng 10 bài / 38 câu chấm cục bộ, nguồn dẫn SachMem +
+  Thông tư 32/2018.
+- 3 công cụ tương tác trong tab Khám phá dữ liệu (luôn mở ở chế độ THPT):
+  Máy tính số đặc trưng (`stats_calc`), Phòng thí nghiệm ghép nhóm
+  (`grouping_lab`), Bảng tần suất hai chiều và biểu đồ (`freq_table`).
+  `freq_table` chưa nạp dữ liệu thì tự dùng bộ mô phỏng 260 phiên, có ghi rõ.
+- Tính toán gom hết vào `stats_tools.py` mới (hàm thuần dữ liệu được unit test
+  riêng; hàm render chỉ dựng giao diện). Quy ước thống kê: tứ phân vị theo
+  trung vị nửa trái/phải, phương sai chia n, mẫu ghép nhóm dùng giá trị đại
+  diện là trung điểm (một số bộ SGK gọi "tổ trọng tâm" — đã ghi chú caution vì
+  các bộ sách có thể lệch nhẹ).
+- Mối nối chéo cho học sinh: ghép nhóm ↔ sai số (s3 nối s1), "Biến động năm
+  hóa = s·√252" ở tab Đầu tư ↔ độ lệch chuẩn (s2/s4), mỗi bài có 4 nhánh thực
+  hành tương tác ngay trong trang bài học.
+- Test: **707 passed** (thêm `tests/test_stats_tools.py` 22 test tính tay khớp
+  SGK: s²=2.96; An/Bình 1.045/0.045; mẫu 0..9 ghép k=5 mean 4.5, s²=6.48).
+  AppTest chạy thật app hai chế độ + từng công cụ, không exception.
+- Việc còn treo từ mục 0b giữ nguyên: dán `[shared_ai]` vào Secrets production.
+
+## 0b. Bổ sung 23/10/2026 (sáng) — luồng AI dùng chung (cấp sẵn của trang)
 
 - Học sinh **không cần API key riêng**: thanh bên mặc định chọn "AI dùng chung
   (cấp sẵn của trang)". Cấu hình đọc từ `[shared_ai]` trong **Secrets của
@@ -75,7 +100,7 @@ trong vài giây thay vì treo hàng chục phút.
 ## 4. Lệnh nghiệm thu
 
 ```powershell
-# 1. Bộ test (632 test, ~8 phút trên máy này)
+# 1. Bộ test (707 test, ~1 phút trên máy này)
 py -3.12 -m pytest -q --ignore=smoke_test.py
 
 # 2. Kiểm tra bộ phụ thuộc cài được bằng wheel trên Python mục tiêu
@@ -102,7 +127,7 @@ Deploy lại (chỉ chủ app làm được):
 - `app.py` — entrypoint Streamlit.
 - `data_loader.py` — chỗ duy nhất gọi `vnstock` (`Quote`), import lazy trong hàm.
 - `.github/workflows/qa.yml` — CI chạy Python 3.11 và 3.12; đây là căn cứ để chọn 3.12 cho Cloud.
-- `tests/` — 632 test, không cần mạng.
+- `tests/` — 707 test, không cần mạng.
 
 ## 6. Lịch sử
 
@@ -111,3 +136,5 @@ Deploy lại (chỉ chủ app làm được):
 - 2026-10-16: `59ad66b`, `e9eac4e` — PyPI gỡ vnstock, chuyển sang kho chính thức; đổi sang
   4.0.9 + ezchart 1.0.2 và **vô tình đưa ràng buộc `numpy<2.3` trở lại** → app chết.
 - 2026-10-23: thêm `--only-binary=numpy`, ghi lại chẩn đoán này.
+- 2026-10-23: luồng AI dùng chung (`92050e5`); trọn bộ thống kê phổ thông
+  (4 bài s1–s4 + 3 công cụ, `stats_tools.py` mới) — cần verify deploy sau push.

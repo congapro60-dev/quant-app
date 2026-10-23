@@ -232,7 +232,7 @@ AREA_LABELS = {
     AREA_JOURNAL: "Nhật ký và tiến độ",
 }
 
-# Chín chức năng sẵn có, ánh xạ vào năm khu vực.
+# Mười hai chức năng sẵn có, ánh xạ vào năm khu vực.
 # `advanced=True` nghĩa là chế độ THPT chỉ thấy sau khi mở khóa.
 FEATURE_SIM = "sim"
 FEATURE_MARKOWITZ = "markowitz"
@@ -243,10 +243,28 @@ FEATURE_INVEST_DESK = "invest_desk"
 FEATURE_PAPER = "paper_portfolio"
 FEATURE_BACKTEST = "backtest"
 FEATURE_ADVISOR = "advisor"
+FEATURE_STATS_CALC = "stats_calc"
+FEATURE_GROUPING_LAB = "grouping_lab"
+FEATURE_FREQ_TABLE = "freq_table"
 
 FEATURES: dict[str, dict[str, Any]] = {
     FEATURE_INTRADAY: {
         "label": "Giá trong phiên",
+        "area": AREA_DATA,
+        "advanced": False,
+    },
+    FEATURE_STATS_CALC: {
+        "label": "Máy tính số đặc trưng",
+        "area": AREA_DATA,
+        "advanced": False,
+    },
+    FEATURE_GROUPING_LAB: {
+        "label": "Phòng thí nghiệm ghép nhóm",
+        "area": AREA_DATA,
+        "advanced": False,
+    },
+    FEATURE_FREQ_TABLE: {
+        "label": "Bảng tần suất và biểu đồ",
         "area": AREA_DATA,
         "advanced": False,
     },

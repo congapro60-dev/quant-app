@@ -14,14 +14,21 @@ EXPECTED_IDS = [
     "m4_rui_ro_da_dang_hoa",
     "m5_bieu_do_nguon_tin",
     "m6_mo_phong_nhat_ky",
+    "s1_sai_so_phi",
+    "s2_so_dac_trung",
+    "s3_mau_ghep_nhom",
+    "s4_phan_tan_ghep_nhom",
 ]
 
 
-def test_exactly_six_modules_in_declared_order():
+def test_ten_modules_in_declared_order():
     lessons = cur.all_lessons()
-    assert len(lessons) == 6
+    assert len(lessons) == 10
     assert [l.lesson_id for l in lessons] == EXPECTED_IDS
-    assert [l.order for l in lessons] == [1, 2, 3, 4, 5, 6]
+    assert [l.order for l in lessons] == list(range(1, 11))
+    # Sáu bài tài chính đứng trước, bốn bài thống kê phổ thông đứng sau.
+    assert all(l.order <= 6 for l in lessons if l.lesson_id.startswith("m"))
+    assert all(l.order >= 7 for l in lessons if l.lesson_id.startswith("s"))
 
 
 @pytest.mark.parametrize("lesson", list(cur.LESSONS), ids=lambda l: l.lesson_id)
@@ -201,5 +208,5 @@ def test_get_lesson_handles_missing_id():
     assert cur.get_lesson("") is None
 
 
-def test_total_questions_between_eighteen_and_thirty():
-    assert 18 <= cur.total_questions() <= 30
+def test_total_questions_between_eighteen_and_forty():
+    assert 18 <= cur.total_questions() <= 40

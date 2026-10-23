@@ -154,6 +154,10 @@ def test_every_highschool_lesson_has_a_real_practice_action():
         cur.INTERACTIVE_RISK: "thpt_risk_run",
         cur.INTERACTIVE_CHART: "thpt_practice",
         cur.INTERACTIVE_PAPER: "thpt_practice",
+        cur.INTERACTIVE_SAI_SO: "thpt_saiso_run",
+        cur.INTERACTIVE_DAC_TRUNG: "thpt_ungrouped_run",
+        cur.INTERACTIVE_GHEP_NHOM: "thpt_grouped_run",
+        cur.INTERACTIVE_PHAN_TAN: "thpt_practice",
     }
     for index, lesson in enumerate(cur.all_lessons()):
         at.selectbox(key="thpt_pick").set_value(index).run()

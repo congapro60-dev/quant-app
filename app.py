@@ -33,6 +33,7 @@ import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
 import data_status_ui as dstatus
 import learning_modes as lmode
+import stats_tools
 from feature_guides import render_guide
 from workspace_ui import (
     HOME_LABEL, NAV_KEY, HISTORY_LABEL, MUSE_LABEL, navigate_to,
@@ -600,6 +601,9 @@ if _dir_tab is not None:
 # Giữ nguyên tên biến cũ để các khối hiển thị bên dưới không phải viết lại.
 intraday_tab = _data_tabs.get(lmode.FEATURE_INTRADAY)
 tab4 = _data_tabs.get(lmode.FEATURE_EVIEWS)
+stats_tab = _data_tabs.get(lmode.FEATURE_STATS_CALC)
+grouping_tab = _data_tabs.get(lmode.FEATURE_GROUPING_LAB)
+freq_tab = _data_tabs.get(lmode.FEATURE_FREQ_TABLE)
 tab1 = _lab_tabs.get(lmode.FEATURE_SIM)
 tab2 = _lab_tabs.get(lmode.FEATURE_MARKOWITZ)
 tab5 = _lab_tabs.get(lmode.FEATURE_EXAM)
@@ -908,6 +912,28 @@ if backtest_tab is not None:
             st.session_state.prices_df,
             st.session_state.valid_assets,
             st.session_state.market_ticker,
+        )
+
+# ---------- TAB: THỐNG KÊ PHỔ THÔNG (TOÁN 10–12) ----------
+if stats_tab is not None:
+    with stats_tab:
+        render_guide(lmode.FEATURE_STATS_CALC)
+        stats_tools.render_stats_calculator(
+            st.session_state.prices_df, st.session_state.market_ticker,
+        )
+
+if grouping_tab is not None:
+    with grouping_tab:
+        render_guide(lmode.FEATURE_GROUPING_LAB)
+        stats_tools.render_grouping_lab(
+            st.session_state.prices_df, st.session_state.market_ticker,
+        )
+
+if freq_tab is not None:
+    with freq_tab:
+        render_guide(lmode.FEATURE_FREQ_TABLE)
+        stats_tools.render_frequency_table(
+            st.session_state.prices_df, st.session_state.market_ticker,
         )
 
 

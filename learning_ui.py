@@ -16,6 +16,7 @@ import curriculum_university as uni
 import feature_guides as guides
 import learning_modes as lmode
 import policy_audit as audit
+import stats_tools as stt
 import progress_profile as pp
 import provider_directory as pdir
 import readiness_gate as rg
@@ -144,7 +145,8 @@ def _render_highschool_track(compact: bool = False) -> None:
     if not compact:
         st.header("Lộ trình học")
     st.caption(
-        "Sáu mô-đun nền tảng. Bài làm được chấm ngay trên máy, không cần khóa "
+        "Mười bài học nền tảng: sáu bài tài chính và bốn bài thống kê phổ thông "
+        "(Toán 10, 11, 12). Bài làm được chấm ngay trên máy, không cần khóa "
         "giao diện lập trình (API) hay kết nối tới trí tuệ nhân tạo (AI)."
     )
     _render_lesson_track(
@@ -207,6 +209,91 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
     elif kind == cur.INTERACTIVE_PAPER:
         st.button("Mở giao dịch mô phỏng", key=f"{key_prefix}_practice",
                   on_click=navigate_to, args=(lmode.AREA_INVEST, lmode.FEATURE_PAPER))
+    elif kind == cur.INTERACTIVE_SAI_SO:
+        left, right = st.columns(2)
+        with left:
+            assumed = st.number_input("Giá dự báo ā (nghìn đồng)", value=25.0,
+                                      step=0.1, key=f"{key_prefix}_saiso_hat")
+        with right:
+            actual = st.number_input("Giá thực tế a (nghìn đồng)", value=25.5,
+                                     step=0.1, key=f"{key_prefix}_saiso_a")
+        if st.button("Tính sai số", key=f"{key_prefix}_saiso_run", type="primary"):
+            if assumed == 0:
+                st.warning("Giá dự báo phải khác 0 để tính sai số tương đối.")
+            else:
+                err = stt.approx_error(actual, assumed)
+                st.success(
+                    f"Δa = **{err['abs_error']:.2f} nghìn đồng**, "
+                    f"δ = **{err['rel_error_pct']:.2f}%**."
+                )
+                st.caption("Số gần đúng ā thay cho số thật a; δ càng nhỏ dự báo "
+                           "càng chính xác — so hai dự báo bằng δ, không bằng Δa.")
+    elif kind == cur.INTERACTIVE_DAC_TRUNG:
+        raw = st.text_area("Nhập các lợi suất (%) cách nhau bằng dấu phẩy",
+                           value="-2, 1, 0.5, 3, -1",
+                           key=f"{key_prefix}_ungrouped_values")
+        if st.button("Tính số đặc trưng", key=f"{key_prefix}_ungrouped_run",
+                     type="primary"):
+            try:
+                s = stt.summarize_ungrouped(stt.parse_values(raw))
+                st.success(
+                    f"Số trung bình **{s['mean']:.3f}**, phương sai "
+                    f"**{s['variance']:.3f}**, độ lệch chuẩn **{s['std']:.3f}** (%)."
+                )
+                st.caption("Cùng trung bình vẫn có thể khác phân tán. Máy tính "
+                           "đầy đủ có ở tab Khám phá dữ liệu.")
+            except (TypeError, ValueError) as exc:
+                st.warning(str(exc) or "Cần ít nhất hai số hợp lệ, ngăn cách bằng dấu phẩy.")
+        st.button("Mở máy tính số đặc trưng", key=f"{key_prefix}_calc_nav",
+                  on_click=navigate_to, args=(lmode.AREA_DATA, lmode.FEATURE_STATS_CALC))
+    elif kind == cur.INTERACTIVE_GHEP_NHOM:
+        raw = st.text_area("Nhập các lợi suất (%) cách nhau bằng dấu phẩy",
+                           value="-2, 1, 0.5, 3, -1, 1, -0.5, 2",
+                           key=f"{key_prefix}_grouped_values")
+        groups = st.slider("Số nhóm k", 2, 10, 4, key=f"{key_prefix}_grouped_k")
+        if st.button("Ghép nhóm và so sánh", key=f"{key_prefix}_grouped_run",
+                     type="primary"):
+            try:
+                _, _, table = stt.compare_grouping(stt.parse_values(raw), groups)
+                mean_row = table.iloc[0]
+                std_row = table.iloc[3]
+                st.success(
+                    f"x̄: ghép nhóm **{mean_row['Ghép nhóm (ước lượng)']:.3f}** "
+                    f"trực tiếp **{mean_row['Không ghép nhóm']:.3f}** — sai số tương "
+                    f"đối **{mean_row['Sai số tương đối (%)']:.2f}%**. s: ghép nhóm "
+                    f"**{std_row['Ghép nhóm (ước lượng)']:.3f}** trực tiếp "
+                    f"**{std_row['Không ghép nhóm']:.3f}**."
+                )
+                st.caption("Ghép nhóm mất chi tiết nên lệch đi — đúng tinh thần "
+                           "bài Số gần đúng và sai số (Toán 10).")
+            except (TypeError, ValueError) as exc:
+                st.warning(str(exc) or "Cần ít nhất hai số hợp lệ.")
+        st.button("Mở phòng thí nghiệm ghép nhóm", key=f"{key_prefix}_lab_nav",
+                  on_click=navigate_to, args=(lmode.AREA_DATA, lmode.FEATURE_GROUPING_LAB))
+    elif kind == cur.INTERACTIVE_PHAN_TAN:
+        left, right = st.columns(2)
+        with left:
+            raw_a = st.text_area("Giai đoạn 1 — lợi suất (%) cách nhau bằng dấu phẩy",
+                                 value="-1, 0.5, -0.5, 1, 0.5, -1, 1, 0.5",
+                                 key=f"{key_prefix}_ptan_a")
+        with right:
+            raw_b = st.text_area("Giai đoạn 2 — lợi suất (%) cách nhau bằng dấu phẩy",
+                                 value="-3, 1.5, -1, 2.5, 0.5, -2, 1.5, 2.5",
+                                 key=f"{key_prefix}_ptan_b")
+        if st.button("So sánh độ phân tán", key=f"{key_prefix}_practice",
+                     type="primary"):
+            try:
+                s_a = stt.summarize_grouped(stt.parse_values(raw_a), 4)
+                s_b = stt.summarize_grouped(stt.parse_values(raw_b), 4)
+                wider = "Giai đoạn 2" if s_b["std"] > s_a["std"] else "Giai đoạn 1"
+                st.success(
+                    f"s_g giai đoạn 1: **{s_a['std']:.3f}**, giai đoạn 2: "
+                    f"**{s_b['std']:.3f}**. {wider} biến động mạnh hơn."
+                )
+                st.caption("Cùng đơn vị mới so được s_g; phân tán lớn nghĩa là "
+                           "mẫu dao động quanh trung tâm mạnh hơn.")
+            except (TypeError, ValueError) as exc:
+                st.warning(str(exc) or "Cần ít nhất hai số hợp lệ cho mỗi giai đoạn.")
 
 
 def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:

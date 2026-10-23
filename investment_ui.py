@@ -555,6 +555,11 @@ def render_investment_desk(
         na_rep="Không áp dụng (N/A)",
     )
     st.dataframe(formatted, width="stretch", hide_index=True)
+    st.caption(
+        "Biến động năm hóa = độ lệch chuẩn lợi suất ngày nhân √252 — chính là "
+        "số s học ở bài 'Số đặc trưng đo độ phân tán' (Toán 10) và 'Độ phân tán "
+        "của mẫu ghép nhóm' (Toán 12), chỉ chuyển sang thang năm để so mã với nhau."
+    )
 
     st.markdown("#### Kịch bản vào lệnh có điều kiện")
     symbol = st.selectbox("Mã nghiên cứu", screen["Mã"].tolist(), key="scenario_symbol")
