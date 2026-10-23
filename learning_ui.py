@@ -133,7 +133,7 @@ def _render_university_track() -> None:
     )
 
     st.markdown("---")
-    with st.expander("📗 Cần ôn lại nền tảng? Mở sáu mô-đun trung học phổ thông"):
+    with st.expander("📗 Cần ôn lại nền tảng? Mở mười bài học trung học phổ thông"):
         st.caption(
             "Dành cho người muốn xem lại khái niệm gốc: lãi kép, lợi suất, "
             "biến động, tương quan và nhân quả."
@@ -145,9 +145,11 @@ def _render_highschool_track(compact: bool = False) -> None:
     if not compact:
         st.header("Lộ trình học")
     st.caption(
-        "Mười bài học nền tảng: sáu bài tài chính và bốn bài thống kê phổ thông "
-        "(Toán 10, 11, 12). Bài làm được chấm ngay trên máy, không cần khóa "
-        "giao diện lập trình (API) hay kết nối tới trí tuệ nhân tạo (AI)."
+        "Mười bài học đi theo nhịp làm dự án: bài thống kê (Toán 10, 11, 12) "
+        "xen giữa các bài tài chính đúng lúc dự án cần đến nó — học sai số sau "
+        "bài dự báo, học phân tán trước bài rủi ro. Bài làm được chấm ngay trên "
+        "máy, không cần khóa giao diện lập trình (API) hay kết nối tới trí tuệ "
+        "nhân tạo (AI)."
     )
     _render_lesson_track(
         cur.all_lessons(),

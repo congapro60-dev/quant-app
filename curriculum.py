@@ -2,7 +2,11 @@
 
 Sáu bài tài chính (m1–m6) và bốn bài thống kê (s1–s4) bám SGK Kết nối tri thức
 theo Chương trình 2018: Toán 10 (Bài 12–14), Toán 11 (Bài 8–9), Toán 12
-(Bài 9–10). Toàn bộ nội dung và phần chấm điểm nằm cục bộ. Học sinh hoàn thành
+(Bài 9–10). Bài học được xen kẽ theo nhịp làm dự án: mỗi bài thống kê đặt
+ngay trước (hoặc ngay sau) bài tài chính cần dùng nó — s1 sau bài lợi suất
+(dự báo kèm sai số), s2 trước bài rủi ro (biến động = độ lệch chuẩn), s3
+trước bài biểu đồ (bảng tần số nuôi biểu đồ), s4 sau bài mô phỏng (so kết quả
+theo giai đoạn). Toàn bộ nội dung và phần chấm điểm nằm cục bộ. Học sinh hoàn thành
 được bài mà không cần khóa API hay kết nối tới mô hình ngôn ngữ lớn nào.
 
 Mỗi bài có bảy phần theo yêu cầu chương trình: mục tiêu, giải thích, ví dụ,
@@ -97,7 +101,7 @@ INTERACTIVE_PHAN_TAN = "so_sanh_phan_tan"
 
 
 # ---------------------------------------------------------------------------
-# Nội dung sáu mô-đun
+# Nội dung mười bài học
 # ---------------------------------------------------------------------------
 
 LESSONS: tuple[Lesson, ...] = (
@@ -367,7 +371,7 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(
         lesson_id="m4_rui_ro_da_dang_hoa",
-        order=4,
+        order=6,
         title="Rủi ro, biến động và đa dạng hóa",
         objective=(
             "Đo được mức biến động bằng độ lệch chuẩn, phân biệt rủi ro hệ thống với "
@@ -445,7 +449,7 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(
         lesson_id="m5_bieu_do_nguon_tin",
-        order=5,
+        order=8,
         title="Biểu đồ, chất lượng nguồn tin, tương quan và nhân quả",
         objective=(
             "Đọc được biểu đồ giá mà không bị đánh lừa bởi cách chia trục, đánh giá "
@@ -538,7 +542,7 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(
         lesson_id="m6_mo_phong_nhat_ky",
-        order=6,
+        order=9,
         title="Giao dịch mô phỏng và nhật ký quyết định",
         objective=(
             "Thực hiện được một vòng giao dịch mô phỏng đầy đủ, ghi nhật ký quyết "
@@ -633,7 +637,7 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(
         lesson_id="s1_sai_so_phi",
-        order=7,
+        order=4,
         title="Số gần đúng và sai số (Toán 10) — dự báo giá có chính xác không?",
         objective=(
             "Tính được sai số tuyệt đối Δa và sai số tương đối δ của một số gần "
@@ -731,7 +735,7 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(
         lesson_id="s2_so_dac_trung",
-        order=8,
+        order=5,
         title="Số đặc trưng đo trung tâm và độ phân tán (Toán 10) — hai cổ phiếu cùng trung bình, khác nhau ra sao?",
         objective=(
             "Tính được số trung bình, trung vị, tứ phân vị, mốt; khoảng biến "
@@ -832,7 +836,7 @@ LESSONS: tuple[Lesson, ...] = (
     ),
     Lesson(
         lesson_id="s3_mau_ghep_nhom",
-        order=9,
+        order=7,
         title="Mẫu số liệu ghép nhóm và số đặc trưng trung tâm (Toán 11) — khi dữ liệu chỉ ghi theo khoảng",
         objective=(
             "Ghép được mẫu lớn thành các nhóm [u_i; u_(i+1)), tính được tần số, "
@@ -1057,7 +1061,8 @@ UNLOCK_REQUIRED_LESSONS = 4
 def should_unlock_advanced(lesson_scores: dict[str, Any] | None) -> bool:
     """Đủ điều kiện mở công cụ nâng cao cho chế độ THPT.
 
-    Cần đạt từ 70 điểm trở lên ở ít nhất bốn trong sáu mô-đun. Ngưỡng này để
+    Cần đạt từ 70 điểm trở lên ở ít nhất bốn trong mười bài học (bất kỳ bài
+    nào, kể cả bài thống kê). Ngưỡng này để
     người học chạm tới công cụ định lượng sau khi đã có nền, chứ không phải sau
     khi bấm qua loa.
     """

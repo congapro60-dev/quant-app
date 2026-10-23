@@ -1,4 +1,4 @@
-"""Kiểm thử sáu mô-đun THPT: đủ cấu phần, chấm đúng, không cần API."""
+"""Kiểm thử mười bài học THPT: đủ cấu phần, chấm đúng, không cần API."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ EXPECTED_IDS = [
     "m1_tien_ngan_sach",
     "m2_co_phieu_thi_truong",
     "m3_gia_loi_suat",
-    "m4_rui_ro_da_dang_hoa",
-    "m5_bieu_do_nguon_tin",
-    "m6_mo_phong_nhat_ky",
     "s1_sai_so_phi",
     "s2_so_dac_trung",
+    "m4_rui_ro_da_dang_hoa",
     "s3_mau_ghep_nhom",
+    "m5_bieu_do_nguon_tin",
+    "m6_mo_phong_nhat_ky",
     "s4_phan_tan_ghep_nhom",
 ]
 
@@ -26,9 +26,13 @@ def test_ten_modules_in_declared_order():
     assert len(lessons) == 10
     assert [l.lesson_id for l in lessons] == EXPECTED_IDS
     assert [l.order for l in lessons] == list(range(1, 11))
-    # Sáu bài tài chính đứng trước, bốn bài thống kê phổ thông đứng sau.
-    assert all(l.order <= 6 for l in lessons if l.lesson_id.startswith("m"))
-    assert all(l.order >= 7 for l in lessons if l.lesson_id.startswith("s"))
+    # Bài thống kê được xen đúng chỗ dự án cần: sai số sau lợi suất, phân tán
+    # trước rủi ro, ghép nhóm trước biểu đồ, so giai đoạn sau mô phỏng.
+    positions = {l.lesson_id: i for i, l in enumerate(lessons)}
+    assert positions["s1_sai_so_phi"] > positions["m3_gia_loi_suat"]
+    assert positions["s2_so_dac_trung"] < positions["m4_rui_ro_da_dang_hoa"]
+    assert positions["s3_mau_ghep_nhom"] < positions["m5_bieu_do_nguon_tin"]
+    assert positions["s4_phan_tan_ghep_nhom"] > positions["m6_mo_phong_nhat_ky"]
 
 
 @pytest.mark.parametrize("lesson", list(cur.LESSONS), ids=lambda l: l.lesson_id)

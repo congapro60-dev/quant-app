@@ -22,6 +22,11 @@
 - Mối nối chéo cho học sinh: ghép nhóm ↔ sai số (s3 nối s1), "Biến động năm
   hóa = s·√252" ở tab Đầu tư ↔ độ lệch chuẩn (s2/s4), mỗi bài có 4 nhánh thực
   hành tương tác ngay trong trang bài học.
+- Sau duyệt của chủ dự án, 10 bài **xen kẽ theo nhịp làm dự án** (không còn
+  block thống kê ở cuối): m1, m2, m3, s1, s2, m4, s3, m5, m6, s4 — bài thống
+  kê đặt đúng lúc dự án cần (sai số sau dự báo, phân tán trước rủi ro, ghép
+  nhóm trước biểu đồ, so giai đoạn sau mô phỏng). Cổng mở công cụ nâng cao
+  "bất kỳ 4 bài nào ≥70/100" không đổi, không phụ thuộc thứ tự.
 - Test: **707 passed** (thêm `tests/test_stats_tools.py` 22 test tính tay khớp
   SGK: s²=2.96; An/Bình 1.045/0.045; mẫu 0..9 ghép k=5 mean 4.5, s²=6.48).
   AppTest chạy thật app hai chế độ + từng công cụ, không exception.
