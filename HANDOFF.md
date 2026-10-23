@@ -2,19 +2,32 @@
 
 **Cập nhật**: 2026-10-23 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
-## 0. Bổ sung 23/10/2026 (tối) — chọn lớp đổi thứ tự lộ trình + đã dán secrets
+## 0. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
-- Người học chọn **lớp 10/11/12** giờ thấy lộ trình khác nhau đúng nghĩa: bài
-  thống kê gắn SGK đúng lớp (s1+s2 Toán 10, s3 Toán 11, s4 Toán 12) được **đưa
-  lên đầu** danh sách bài, kèm dấu 📚 và ghi chú "Bài này thuộc SGK Toán lớp X -
-  đúng chương trình em đang học". Các bài còn lại giữ nguyên trật tự, học được
-  như bài mở rộng. Vẫn đủ 10 bài cho mọi lớp.
-- Cách làm: field mới `sgk_grade` trong `curriculum.Lesson` (cố ý không đặt tên
-  `grade` vì trùng method chấm điểm của Lesson); sắp xếp + nhãn nằm trong
-  `learning_ui._render_lesson_track` qua 2 helper `_learner_grade_number` và
-  `_promote_grade_lessons`. Sinh viên, "Khác" và track đại học không đổi gì.
-  Cổng mở công cụ nâng cao "bất kỳ 4 bài nào ≥70/100" vẫn không phụ thuộc
-  thứ tự; chấm điểm ghi theo lesson_id nên mọi tiến độ cũ được bảo toàn.
+- Người học chọn **lớp 10/11/12** giờ thấy lộ trình chia đúng ba nhóm:
+  **lộ trình chính** giữ nguyên nhịp dự án (6 bài tài chính + bài SGK năm nay
+  📚 + bài nền năm trước 🧱), nút "Tiếp tục bài chưa đạt" và thanh tiến độ
+  chạy trên nhóm này; bài SGK **lớp trên** gập vào expander "📖 Học trước
+  chương trình" — mở ra vẫn làm và chấm, điểm vẫn tính vào cổng nâng cao.
+  Lớp 12 là lớp cao nhất nên KHÔNG có mục học trước: s4 là bài năm nay nằm
+  trong nhóm chính (📚 10). Sinh viên, "Khác" và track đại học không chia.
+- Cách làm: field `sgk_grade` trong `curriculum.Lesson` (cố ý không đặt tên
+  `grade` vì trùng method chấm điểm `Lesson.grade`); hàm
+  `curriculum.lesson_phase(sgk_grade, my_grade)` phân loại
+  current/foundation/ahead; `learning_ui` tách `_render_lesson_track` thành
+  wrapper chia nhóm + thân chung `_render_track_body`, helper
+  `_split_track_lessons`. Phương án A buổi chiều (đềo bài SGK đúng lớp lên
+  đầu) đã bị phương án C thay thế hành vi; tên hàm promote đã xóa.
+- **Đọc trước kiến thức đại học cho học sinh cấp 3**: module mới
+  `university_teen.py` "dịch" cả 6 bài đại học thành bốn phần — nói dễ
+  hiểu, ví dụ tính tay được, ứng dụng gần gũi, câu phản tư. Hiển thị ở
+  expander "🎓 Kiến thức đại học — đọc trước nếu em tò mò" cuối trang Lộ
+  trình học (chế độ THPT). Chỉ đọc: không chấm, không nút trỏ tới công cụ
+  nâng cao — công cụ chuyên sâu vẫn phải qua cổng 4 bài; nơi nhắc tới công
+  cụ nâng cao đều ghi rõ điều kiện. Lộ trình đại học giữ nguyên văn phong
+  giáo trình, sinh viên không thấy mục này.
+- Cổng mở công cụ nâng cao "bất kỳ 4 bài nào ≥70/100" giữ nguyên ý nghĩa;
+  chấm điểm ghi theo lesson_id nên mọi tiến độ cũ được bảo toàn.
 - Dọn nốt chuẩn Streamlit 1.60: 4 chỗ `use_container_width` còn lại (app.py:
   2 biểu đồ giá trong phiên + bảng lệnh khớp; muse_brief.py: link_button AI)
   chuyển sang `width="stretch"`. Từ giờ không còn chỗ nào dùng cờ cũ.
@@ -22,11 +35,18 @@
   production (tối 23/10). App xác nhận đang chạy qua ảnh chụp browser thật của
   chủ dự án. Key dùng chung nằm duy nhất trong Secrets Cloud — KHÔNG ghi vào
   bất kỳ file nào trong repo; tham chiếu cấu hình xem `.streamlit/secrets.example.toml`.
-- Test: **713 passed** (thêm 2 test nhóm lớp: đề bạt đúng bài SGK của lớp
-  10/11/12 và dấu SGK chỉ dán lên bài đúng lớp; chạy `.venv` 3.12).
+- Test: **717 passed** (thêm test của C: chia nhóm đúng cho 3 lớp — 8+2,
+  9+1, 10+0 —, ba nhãn 📚🧱📖, bài lớp trên vẫn tính cổng mở; thêm test của
+  tính năng đại-học-cho-THPT: phủ sáu bài × bốn phần, mục có mặt ở track
+  THPT và vắng ở track đại học; chạy `.venv` 3.12).
+- Quirk kiểm thử nhớ nhá: AppTest của Streamlit — sau mỗi `.run()` phải
+  lấy lại node widget (`at.selectbox(key=...)`) trước khi `set_value` tiếp;
+  dùng node cũ qua hai lần run gây KeyError lạ trên key widget của bài khác.
 - Việc còn mở (không gấp): nhờ học sinh thật xác nhận trên production —
-  (a) thanh bên mặc định chọn "AI dùng chung (cấp sẵn của trang)"; (b) bảng
-  tần suất hiển thị đủ chữ "Không đổi"/"Số phiên".
+  (a) đổi lớp thấy đúng ba nhóm với dấu 📚🧱📖; (b) mục 📖 gập mặc định,
+  mở ra vẫn chấm được; (c) mục 🎓 đủ sáu bài × bốn phần dễ đọc; (d) thanh
+  bên mặc định "AI dùng chung (cấp sẵn của trang)"; (e) bảng tần suất hiển
+  thị đủ chữ "Không đổi"/"Số phiên".
 
 ## 0a. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
 
