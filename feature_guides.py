@@ -73,8 +73,9 @@ GUIDES: dict[str, FeatureGuide] = {
         ),
         steps=(
             "Chọn nguồn dữ liệu: nhập tay một dãy số, hoặc dùng lợi suất ngày của mã đã nạp.",
-            "Bấm **Tính** để thấy đầy đủ các số đặc trưng.",
-            "Đổi sang một dãy khác (ví dụ mã khác) rồi so sánh kết quả giữa hai lần tính.",
+            "Đọc dẫn dắt, tự tính x̄ và s trên giấy rồi nhập vào ô dự đoán để máy đối chiếu.",
+            "Bấm **Tính** để thấy đầy đủ các số đặc trưng, rồi viết ý nghĩa theo khung mẫu.",
+            "Mở khối phản tư để đào sâu thêm hai câu hỏi về giá trị lạ và lựa chọn theo rủi ro.",
         ),
         read_result=(
             "Hàng ô số đầu là trung tâm: trung bình, trung vị, mốt. Hàng sau là phân "
@@ -101,7 +102,8 @@ GUIDES: dict[str, FeatureGuide] = {
         steps=(
             "Chọn nguồn dữ liệu: nhập tay hoặc lợi suất ngày của một mã đã nạp.",
             "Kéo thanh **Số nhóm k** nhỏ dần rồi lớn dần (2 đến 10 nhóm).",
-            "Đọc bảng tần số, các số đặc trưng ghép nhóm và bảng so sánh với tính trực tiếp.",
+            "Tự tính x̄g trên giấy theo công thức và nhập vào ô dự đoán để đối chiếu.",
+            "Viết ý nghĩa từ bảng so sánh với tính trực tiếp, rồi mở khối phản tư đào sâu.",
         ),
         read_result=(
             "Bảng bên trái là nhóm - giá trị đại diện - tần số. Bên phải là x̄g, "
@@ -126,8 +128,9 @@ GUIDES: dict[str, FeatureGuide] = {
         ),
         steps=(
             "Nạp dữ liệu lịch sử giá ở tab Lịch sử giá cuối ngày (chưa nạp thì công cụ dùng bộ mô phỏng).",
-            "Chọn một vài mã trong danh sách.",
+            "Chọn một vài mã, đoán trước mã nào nhiều phiên tăng rồi đối chiếu với bảng tần số.",
             "Đọc bảng tần suất hai chiều và hai biểu đồ tự sinh ra.",
+            "Viết 2 câu nhận xét theo khung mẫu, rồi mở khối phản tư để thấy bảng bỏ phí thông tin nào.",
         ),
         read_result=(
             "Mỗi hàng của bảng là một mã với số phiên tăng, giảm, không đổi. Hàng "

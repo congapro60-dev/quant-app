@@ -145,6 +145,23 @@ def test_university_practice_buttons_match_lesson_instructions(monkeypatch):
     assert not at.exception
 
 
+def test_stats_practices_ask_for_meaning_then_reflection():
+    """Mạch học của 4 bài thống kê: tính → nêu ý nghĩa → phản tư đào sâu."""
+
+    at = _run(lmode.MODE_HIGHSCHOOL)
+    meaning_keys = {
+        "s1_sai_so_phi": "thpt_saiso_meaning",
+        "s2_so_dac_trung": "thpt_ungrouped_meaning",
+        "s3_mau_ghep_nhom": "thpt_grouped_meaning",
+        "s4_phan_tan_ghep_nhom": "thpt_ptan_meaning",
+    }
+    indices = {lesson.lesson_id: i for i, lesson in enumerate(cur.all_lessons())}
+    for lesson_id, key in meaning_keys.items():
+        at.selectbox(key="thpt_pick").set_value(indices[lesson_id]).run()
+        assert not at.exception
+        at.text_area(key=key)  # văng lỗi nếu khối nêu ý nghĩa bị thiếu
+
+
 def test_every_highschool_lesson_has_a_real_practice_action():
     at = _run(lmode.MODE_HIGHSCHOOL)
     expected_keys = {

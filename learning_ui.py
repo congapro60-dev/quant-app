@@ -230,6 +230,24 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 )
                 st.caption("Số gần đúng ā thay cho số thật a; δ càng nhỏ dự báo "
                            "càng chính xác — so hai dự báo bằng δ, không bằng Δa.")
+        stt.meaning_block(
+            f"{key_prefix}_saiso",
+            "Δa và δ của dự báo vừa tính nói lên điều gì về mức tin cậy?",
+            "Khung tham khảo: “Dự báo ā có thể lệch so với giá thật a đến Δa; quy về "
+            "phần trăm là δ. δ nhỏ thì mới dám dựa vào dự báo; so hai dự báo phải so "
+            "δ vì cùng thang đo.”",
+            hint="Thay dấu … bằng số các em vừa tính; δ dưới khoảng 5% thường được "
+                 "coi là chấp nhận được.",
+        )
+        stt.reflection_block([
+            ("Hai dự báo có Δa bằng nhau thì chắc chắn chính xác như nhau?",
+             "Không: δ = Δa/a nên cùng Δa, dự báo giá lớn có δ nhỏ hơn. Muốn so bằng "
+             "Δa thì hai dự báo phải cùng thang đo, cùng cỡ giá."),
+            ("Vì sao vẫn dùng số gần đúng ā thay cho a khi đã biết a?",
+             "Vì ngày sau vẫn phải dự đoán tiếp; số gần đúng kèm δ cho biết dự báo "
+             "được phép sai bao nhiêu — đó là thông tin để quản trị rủi ro, không phải "
+             "phép tính trưng bày."),
+        ])
     elif kind == cur.INTERACTIVE_DAC_TRUNG:
         raw = st.text_area("Nhập các lợi suất (%) cách nhau bằng dấu phẩy",
                            value="-2, 1, 0.5, 3, -1",
@@ -246,6 +264,22 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                            "đầy đủ có ở tab Khám phá dữ liệu.")
             except (TypeError, ValueError) as exc:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ, ngăn cách bằng dấu phẩy.")
+        stt.meaning_block(
+            f"{key_prefix}_ungrouped",
+            "Dùng x̄ và s vừa tính, viết hai câu mô tả mẫu lợi suất của em.",
+            "Khung tham khảo: “Lợi suất trung bình khoảng x̄…; độ lệch chuẩn s… — tức "
+            "mỗi ngày lợi suất đi lạc quanh x̄ cỡ s. s càng lớn so với x̄ thì trung bình "
+            "càng khó tin để dự đoán một ngày cụ thể.”",
+            hint="Đừng quên kèm đơn vị (%); số không đơn vị không phải ngôn ngữ tài chính.",
+        )
+        stt.reflection_block([
+            ("Bổ sung một ngày +15% vào mẫu thì trung bình hay trung vị đổi mạnh hơn?",
+             "Trung bình bị kéo theo số cực đại nên đổi rõ; trung vị dựa vào vị trí giữa "
+             "nên gần như giữ nguyên. Mẫu có giá trị lạ thì phải đọc kèm trung vị."),
+            ("Nếu tính ra s = 0 thì mẫu lợi suất trông thế nào?",
+             "Mọi số bằng nhau, không dao động — hết rủi ro ngắn hạn nhưng cũng hết cơ "
+             "hội chênh lệch giá, như gửi lãi suất cố định."),
+        ])
         st.button("Mở máy tính số đặc trưng", key=f"{key_prefix}_calc_nav",
                   on_click=navigate_to, args=(lmode.AREA_DATA, lmode.FEATURE_STATS_CALC))
     elif kind == cur.INTERACTIVE_GHEP_NHOM:
@@ -270,6 +304,25 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                            "bài Số gần đúng và sai số (Toán 10).")
             except (TypeError, ValueError) as exc:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ.")
+        stt.meaning_block(
+            f"{key_prefix}_grouped",
+            "Sai số tương đối (%) giữa x̄g và x̄ trực tiếp cho biết mẫu ghép nhóm "
+            "còn đáng tin không?",
+            "Khung tham khảo: “Ghép k = … nhóm, x̄g lệch x̄ trực tiếp khoảng …%. Lệch "
+            "nhỏ nên kết luận về xu thế vẫn có giá trị; cần số chính xác từng ngày thì "
+            "dùng mẫu chưa ghép.”",
+            hint="Cột 'Sai số tương đối (%)' trong bảng so sánh vừa in là số liệu để "
+                 "trích vào câu trả lời.",
+        )
+        stt.reflection_block([
+            ("Đổi k (số nhóm) thì nhóm có tần số lớn nhất thay đổi thế nào? Vì sao?",
+             "k nhỏ thì nhiều số dồn vào ít nhóm nên tần số nhóm đầu cao; k lớn thì tách "
+             "nhỏ, nhóm 'cao nhất' có thể đổi. Kết luận từ bảng ghép nhóm luôn gắn với "
+             "cách chia nhóm."),
+            ("Vì sao dùng trung điểm làm giá trị đại diện, còn trung vị lại phải nội suy?",
+             "Trung điểm đại diện do giả định số rải đều trong khoảng; trung vị nằm giữa "
+             "cắt đôi tần số tích lũy — thường rơi giữa hai lớp nên phải nội suy theo SGK."),
+        ])
         st.button("Mở phòng thí nghiệm ghép nhóm", key=f"{key_prefix}_lab_nav",
                   on_click=navigate_to, args=(lmode.AREA_DATA, lmode.FEATURE_GROUPING_LAB))
     elif kind == cur.INTERACTIVE_PHAN_TAN:
@@ -296,6 +349,23 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                            "mẫu dao động quanh trung tâm mạnh hơn.")
             except (TypeError, ValueError) as exc:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ cho mỗi giai đoạn.")
+        stt.meaning_block(
+            f"{key_prefix}_ptan",
+            "Giai đoạn nào biến động mạnh hơn — con số này đổi cách phân bổ tiền "
+            "của dự án thế nào?",
+            "Khung tham khảo: “Giai đoạn 2 có s_g… lớn hơn giai đoạn 1 (…) nên rủi ro "
+            "cao hơn. Muốn đi êm thì phần lớn tiền theo phong cách giai đoạn 1; nếu vẫn "
+            "giữ tiền theo giai đoạn 2 thì phải đặt điểm cắt lỗ.”",
+            hint="Hai mẫu phải cùng đơn vị (% lợi suất/ngày) thì s_g mới so được.",
+        )
+        stt.reflection_block([
+            ("Hai mẫu có s_g bằng nhau nhưng trung tâm khác nhau — coi là “giống nhau” được không?",
+             "Không: cùng phân tán nhưng vị trí trung tâm khác. Đối chiếu cả trung tâm "
+             "(trung vị/trung bình) lẫn phân tán mới đủ cặp mô tả một mẫu."),
+            ("So một mẫu bằng hiệu trung bình (x̄ B − x̄ A) có đủ để kết luận giai đoạn nào tốt hơn?",
+             "Chưa đủ: hiệu trung bình bỏ qua phân tán. Giai đoạn trung bình cao hơn nhưng "
+             "s_g lớn hơn nhiều vẫn là lựa chọn tồi với người sợ rủi ro."),
+        ])
 
 
 def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:

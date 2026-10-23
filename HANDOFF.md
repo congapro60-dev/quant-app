@@ -22,6 +22,14 @@
 - Mối nối chéo cho học sinh: ghép nhóm ↔ sai số (s3 nối s1), "Biến động năm
   hóa = s·√252" ở tab Đầu tư ↔ độ lệch chuẩn (s2/s4), mỗi bài có 4 nhánh thực
   hành tương tác ngay trong trang bài học.
+- Sau review chủ dự án, mọi chỗ **dùng** kiến thức thống kê chạy đủ mạch học
+  4 bước trong `stats_tools.py`: `theory_lead` (dẫn dắt lý thuyết 1 phút) →
+  "Bước 1 — tự tính trên giấy" (ô dự đoán x̄/s/x̄g so máy, đoán mã tăng nhiều
+  nhất trước khi vẽ) → `meaning_block` (HS viết ý nghĩa trước, đáp án mẫu theo
+  khung câu, model answer động theo số vừa tính) → `reflection_block` (phản tư
+  đào sâu, mỗi câu hỏi ẩn lời giải riêng). Áp ở 3 tab Khám phá dữ liệu, 4 nhánh
+  thực hành s1–s4 trong trang bài học, và expander "Toán đằng sau Biến động
+  năm hóa" ở tab Đầu tư.
 - Sau duyệt của chủ dự án, 10 bài **xen kẽ theo nhịp làm dự án** (không còn
   block thống kê ở cuối): m1, m2, m3, s1, s2, m4, s3, m5, m6, s4 — bài thống
   kê đặt đúng lúc dự án cần (sai số sau dự báo, phân tán trước rủi ro, ghép

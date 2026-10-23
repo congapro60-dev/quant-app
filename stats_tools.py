@@ -299,10 +299,66 @@ CHART_COLORS = ["#5EEAD4", "#93C5FD", "#FBBF24", "#FDA4AF", "#A5B4FC", "#86EFAC"
 DEFAULT_VALUES = "-2, 1, 0.5, 3, -1, 1, -0.5, 2"
 
 
+# ---------------------------------------------------------------------------
+# Ba khối sư phạm dùng chung cho mạch học 4 bước: dẫn dắt lý thuyết → tự tính
+# trên giấy → nêu ý nghĩa → phản tư đào sâu. Mọi nơi dùng kiến thức thống kê
+# đều chạy đủ mạch này để học sinh hiểu tự nhiên thay vì bấm máy tính qua loa.
+# ---------------------------------------------------------------------------
+
+
+def theory_lead(body: str) -> None:
+    """Khối dẫn dắt lý thuyết đặt ngay dưới tiêu đề công cụ.
+
+    Trả lời câu hỏi "cái này dùng để làm gì trong dự án" bằng ngôn ngữ SGK,
+    đủ ngắn để đọc trong một phút trước khi bấm tính.
+    """
+
+    st.markdown(f"🧭 **Hiểu nhanh trước khi tính.** {body}")
+
+
+def meaning_block(key: str, question: str, model_answer: str, *, hint: str = "") -> None:
+    """Học sinh tự viết ý nghĩa trước, sau đó mới cho so đáp án mẫu.
+
+    ``model_answer`` viết theo khung câu để học sinh bắt chước cách diễn đạt
+    "con số kèm ý nghĩa", không phải chỉ chép kết quả. ``key`` chỉ dùng để đặt
+    key widget, tránh trùng giữa các trang.
+    """
+
+    st.markdown(f"✍️ **Nêu ý nghĩa của em:** {question}")
+    st.text_area(
+        "Viết 2–3 câu bằng lời của em (không chấm điểm, viết xong mới so đáp án)",
+        key=f"{key}_meaning",
+        placeholder="Trả lời của em…",
+    )
+    if hint:
+        st.caption(f"Gợi ý: {hint}")
+    with st.expander("Đối chiếu đáp án mẫu"):
+        st.markdown(model_answer)
+
+
+def reflection_block(items: list[tuple[str, str]]) -> None:
+    """Khối phản tư: mỗi câu hỏi đào sâu ẩn lời giải mẫu riêng để tự nghĩ trước.
+
+    ``items`` là danh sách cặp (câu hỏi, lời giải mẫu).
+    """
+
+    st.markdown("🔁 **Phản tư — đào sâu thêm** (tự nghĩ trước rồi mới mở lời giải)")
+    for index, (question, model) in enumerate(items, start=1):
+        with st.expander(f"Câu {index}. {question}"):
+            st.markdown(model)
+
+
 def render_stats_calculator(prices: pd.DataFrame, market: str) -> None:
     """Máy tính số đặc trưng (không ghép nhóm) cho bài học lớp 10."""
 
     st.subheader("Máy tính số đặc trưng (mẫu không ghép nhóm)")
+    theory_lead(
+        "Trung bình x̄ trả lời “thường được bao nhiêu?”, độ lệch chuẩn s trả lời "
+        "“đi lạc quanh mức đó cỡ bao nhiêu?” — cặp trung tâm–phân tán này là gốc của "
+        "mọi ghi chú rủi ro ở tab Đầu tư. Riêng Q1, Q3 và khoảng tứ phân vị khoanh "
+        "vùng “nửa số ở giữa”; giá trị nằm ngoài 1,5·IQR là phiên lạ, đáng dò tin "
+        "trước khi tin vào bảng giá."
+    )
     has_data = not prices.empty
     asset_names = [c for c in prices.columns if c != market] if has_data else []
     options = ("Nhập tay", "Lấy từ dữ liệu đã nạp") if has_data else ("Nhập tay",)
@@ -350,6 +406,33 @@ def render_stats_calculator(prices: pd.DataFrame, market: str) -> None:
         st.caption("Tứ phân vị tính theo cách trung vị của nửa trái/phải; các bộ SGK "
                    "khác có thể nội suy hơi khác một chút nhưng ý nghĩa không đổi.")
 
+    st.markdown("**Bước 1 — tự tính trên giấy trước khi đọc đáp số.** Dùng công thức "
+                "phía trên, tính ra x̄ và s rồi nhập vào hai ô dưới; máy chỉ để đối chiếu.")
+    pred_left, pred_right = st.columns(2)
+    pred_mean = pred_left.number_input("Dự đoán x̄ của em", value=0.0,
+                                       key="stats_calc_pred_mean",
+                                       help="Nhập kết quả tự tính; để 0 nếu chưa tính.")
+    pred_std = pred_right.number_input("Dự đoán s của em", value=0.0,
+                                       key="stats_calc_pred_std",
+                                       help="Nhập kết quả tự tính; để 0 nếu chưa tính.")
+    if pred_mean != 0.0:
+        gap = abs(pred_mean - summary["mean"])
+        tol = max(0.05 * abs(summary["mean"]), 0.05)
+        if gap <= tol:
+            st.success(f"x̄ tự tính khớp máy (lệch {gap:,.4g}) — cách tính của em chuẩn.")
+        else:
+            st.info(f"x̄ tự tính lệch máy {gap:,.4g} (máy ra {summary['mean']:,.4g}). "
+                    "Kiểm tra lại: cộng đủ n số chưa và có chia cho N chứ không phải N−1?")
+    if pred_std != 0.0:
+        gap = abs(pred_std - summary["std"])
+        tol = max(0.1 * summary["std"], 0.05)
+        if gap <= tol:
+            st.success(f"s tự tính khớp máy (lệch {gap:,.4g}).")
+        else:
+            st.info(f"s tự tính lệch máy {gap:,.4g} (máy ra {summary['std']:,.4g}). "
+                    "Nhắc lại: s là căn của phương sai và phương sai chia cho N "
+                    "theo SGK Toán 10.")
+
     mode_text = ", ".join(f"{m:g}" for m in summary["modes"]) if summary["modes"] else "không có (không giá trị nào lặp lại)"
     grid = st.columns(4)
     grid[0].metric("Cỡ mẫu n", f"{summary['n']}")
@@ -376,6 +459,32 @@ def render_stats_calculator(prices: pd.DataFrame, market: str) -> None:
 
     st.caption("Độ lệch chuẩn s càng lớn, lợi suất càng dao động quanh mức trung bình "
                "— trong tab Đầu tư, đó chính là con số 'Biến động năm hóa'.")
+    outlier_text = (
+        ", ".join(f"{v:,.4g}" for v in summary["outliers"]) if summary["outliers"]
+        else "không có"
+    )
+    meaning_block(
+        "stats_calc",
+        "Dùng các số vừa tính, viết 2–3 câu mô tả mẫu lợi suất như một nhận định "
+        "trong báo cáo dự án.",
+        f"Khung tham khảo: “Với n = {summary['n']} số, lợi suất trung bình khoảng "
+        f"{summary['mean']:,.4g} ({unit}); phân tán s = {summary['std']:,.4g} — mỗi số "
+        f"thường lệch khỏi trung bình cỡ {summary['std']:,.4g}. Nửa số liệu nằm trong "
+        f"khoảng [{summary['q1']:,.4g}; {summary['q3']:,.4g}]; giá trị bất thường: "
+        f"{outlier_text}.”",
+        hint="Trình tự nên kể: trung tâm → phân tán → giá trị lạ; kèm ý nghĩa rủi ro cao hay thấp.",
+    )
+    reflection_block([
+        ("Thêm một ngày bật lên +20% vào mẫu thì trung bình hay trung vị đổi mạnh hơn? Vì sao?",
+         "Trung bình bị kéo theo số cực đại nên đổi rõ; trung vị dựa vào vị trí giữa nên "
+         "gần như đứng yên. Mẫu có giá trị bất thường thì phải đọc kèm trung vị mới phản "
+         "ánh trung tâm thật."),
+        ("Hai mã có s ngày là 1,2% và 0,4% — lớp muốn “ngủ ngon” chọn mã nào, muốn cơ hội "
+         "lãi lớn thì sao?",
+         "s nhỏ thì ngày nào cũng gần trung bình nên đi êm (mã 0,4%); s lớn thì dao động "
+         "mạnh, cơ hội lãi lẫn lỗ đều lớn hơn (mã 1,2%). Đây chính là bài toán rủi ro – "
+         "lợi suất sẽ học kỹ ở bài Rủi ro và đa dạng hóa."),
+    ])
     return None
 
 
@@ -383,8 +492,13 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     """Phòng thí nghiệm ghép nhóm: tần số, giá trị đại diện, so sánh ghép/không ghép."""
 
     st.subheader("Phòng thí nghiệm ghép nhóm")
-    st.caption("Ghép nhóm là bước khởi đầu của bảng tần suất: đếm tần số từng khoảng, "
-               "rồi gán giá trị đại diện (trung điểm) cho cả nhóm.")
+    theory_lead(
+        "Mẫu càng lớn (60, 90 phiên) càng không đọc nổi từng số. Ghép nhóm chia mẫu "
+        "thành các khoảng đều, đếm tần số từng khoảng rồi gán cho khoảng một giá trị "
+        "đại diện — trung điểm. Cái được là gọn và dễ báo cáo; cái mất là chi tiết "
+        "trong từng khoảng bị bỏ đi, nên mọi số ghép nhóm chỉ là ước lượng (nối thẳng "
+        "bài Số gần đúng và sai số, Toán 10)."
+    )
     has_data = not prices.empty
     asset_names = [c for c in prices.columns if c != market] if has_data else []
     options = ("Nhập tay", "Lấy từ dữ liệu đã nạp") if has_data else ("Nhập tay",)
@@ -422,6 +536,23 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     num_groups = st.slider("Số nhóm k", 2, 10, 4, key="grouping_lab_k")
     _, grouped, table = compare_grouping(values, num_groups)
 
+    st.markdown("**Bước 1 — tự tính trên giấy.** Hình dung từ bảng tần số phía dưới: "
+                "x̄g = (n₁·c₁ + … + nₖ·cₖ)/N. Tính ra rồi nhập để đối chiếu.")
+    pred_grouped = st.number_input("Dự đoán x̄g của em", value=0.0,
+                                   key="grouping_lab_pred_mean",
+                                   help="Gợi ý: nhân tần số với giá trị đại diện của từng "
+                                        "nhóm, cộng lại rồi chia cho N.")
+    if pred_grouped != 0.0:
+        grouped_mean = float(grouped["mean"])
+        gap = abs(pred_grouped - grouped_mean)
+        tol = max(0.05 * abs(grouped_mean), 0.05)
+        if gap <= tol:
+            st.success(f"x̄g tự tính khớp ước lượng của máy (lệch {gap:,.4g}).")
+        else:
+            st.info(f"x̄g tự tính lệch {gap:,.4g} (máy ước lượng {grouped_mean:,.4g}). "
+                    "Kiểm tra lại: mỗi nhóm nhân đúng giá trị đại diện chưa, có chia "
+                    "cho tổng tần số N chưa?")
+
     left, right = st.columns(2)
     with left:
         st.markdown("**Bảng tần số sau khi ghép nhóm**")
@@ -455,13 +586,41 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     fig.update_layout(height=320, margin=dict(l=10, r=10, t=30, b=10), title="Tần số theo nhóm")
     st.plotly_chart(fig, use_container_width=True, key="grouping_lab_bar")
 
+    direct_mean = float(table.iloc[0]["Không ghép nhóm"])
+    rel_error = float(table.iloc[0]["Sai số tương đối (%)"])
+    meaning_block(
+        "grouping_lab",
+        "So x̄g với x̄ tính trực tiếp: sai số tương đối (%) cho biết mẫu ghép nhóm "
+        "còn đáng tin không?",
+        f"Khung tham khảo: “Ghép {num_groups} nhóm, x̄g = {float(grouped['mean']):,.4g} "
+        f"trong khi tính trực tiếp x̄ = {direct_mean:,.4g}, lệch khoảng {rel_error:,.2f}%. "
+        "Sai số nhỏ nên vẫn dùng số ghép nhóm để nói xu thế; cần chính xác từng ngày thì "
+        "phải quay về mẫu chưa ghép.”",
+        hint="Đọc cột 'Sai số tương đối (%)' ở bảng so sánh; lệch dưới khoảng 5% thường "
+             "được coi là chấp nhận được.",
+    )
+    reflection_block([
+        ("Kéo k từ 2 lên 8 rồi về 2 — bảng tần số và các số đặc trưng đổi thế nào?",
+         "k = 2: mất hầu hết chi tiết, tần số dồn về ít nhóm, các số đặc trưng xấp xỉ "
+         "trung điểm hai nửa; k quá lớn thì mỗi nhóm có ít số, ước lượng nhiễu. Kinh "
+         "nghiệm: mỗi nhóm nên có khoảng 4–6 số."),
+        ("Vì sao lấy trung điểm làm giá trị đại diện cho cả khoảng?",
+         "Giả định các số rải đều trong khoảng nên trung bình của khoảng trùng trung "
+         "điểm; dữ liệu dồn về một đầu thì trung điểm lệch đi — đó cũng chính là nguồn "
+         "gây sai số đã thấy ở bảng so sánh."),
+    ])
+
 
 def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
     """Bảng tần suất hai chiều (mã × trạng thái phiên) và biểu đồ trực quan."""
 
     st.subheader("Bảng tần suất hai chiều và biểu đồ")
-    st.caption("Tổ chức dữ liệu phân loại thành bảng tần suất hai chiều (hàng: mã "
-               "chứng khoán, cột: trạng thái phiên), rồi vẽ biểu đồ để đọc nhanh.")
+    theory_lead(
+        "Giá là số đo lường, còn “phiên tăng hay giảm” là dữ liệu phân loại: gom thành "
+        "bảng tần suất hai chiều (hàng: mã, cột: Tăng/Giảm/Không đổi) rồi vẽ biểu đồ — "
+        "đúng kỹ năng tổ chức dữ liệu của SGK Toán 10. Bảng trả lời nhanh câu hỏi kiểu "
+        "“giai đoạn này mã nào lên xu thế?” mà không cần đọc từng phiên một."
+    )
     prices_local = prices
     demo = False
     if prices_local is None or prices_local.empty:
@@ -476,10 +635,24 @@ def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
     if not symbols:
         st.warning("Hãy chọn ít nhất một mã.")
         return
+    guess = st.selectbox(
+        "Đoán trước khi vẽ: giai đoạn này mã nào có nhiều phiên tăng nhất?",
+        ("Chưa đoán — muốn tự nghĩ đã",) + tuple(symbols),
+        key="freq_guess_top",
+        help="Ghi dự đoán của em ra vở, rồi đối chiếu với bảng bên dưới.",
+    )
     tally = updown_tally(prices_local, symbols)
     if tally.empty or tally["Số phiên"].max() < 1:
         st.warning("Mã đã chọn không có đủ số liệu để đếm phiên.")
         return
+
+    leader = str(tally.loc[tally["Tăng"].idxmax(), "Mã"])
+    if guess != "Chưa đoán — muốn tự nghĩ đã":
+        if guess == leader:
+            st.success(f"Đoán trúng: {leader} dẫn đầu số phiên tăng trong giai đoạn này.")
+        else:
+            st.info(f"Thực ra là {leader}. So lại cột Tăng: {guess} thua mấy phiên? "
+                    "Kết luận về xu thế phải dựa vào tần số, không dựa vào cảm giác.")
 
     left, right = st.columns(2)
     with left:
@@ -504,3 +677,29 @@ def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
     label = "(dữ liệu mô phỏng)" if demo else "(nguồn: giá đã nạp trong phiên làm việc)"
     st.caption(f"Đếm phiên liền sau phiên trước, in đến ngày phiên {last_day} {label}. "
                "Đọc bảng: hàng nào 'Tăng' áp đảo thì mã đó lên xu thế trong giai đoạn này.")
+
+    leader_row = tally.loc[tally["Mã"] == leader]
+    leader_total = float(leader_row[["Tăng", "Giảm", "Không đổi"]].sum(axis=1).iloc[0])
+    leader_up = int(leader_row["Tăng"].iloc[0])
+    rise_pct = leader_up / leader_total * 100 if leader_total else 0.0
+    meaning_block(
+        "freq_table",
+        "Viết 2 câu nhận xét từ bảng này để đưa vào phần chọn mã của báo cáo dự án.",
+        f"Khung tham khảo: “Trong giai đoạn vừa đếm, {leader} có số phiên tăng cao nhất "
+        f"({leader_up} phiên, chiếm {rise_pct:.0f}% các phiên đã đếm) — dấu hiệu lên xu "
+        "thế. Tuy nhiên bảng chỉ đếm trạng thái, chưa nói mỗi phiên tăng mạnh hay nhẹ, "
+        "nên kết luận cuối cần đối chiếu thêm số đặc trưng lợi suất.”",
+        hint="Đọc cả hàng (Tăng + Giảm + Không đổi) chứ đừng chỉ nhìn cột Tăng; "
+             "tỉ lệ phần trăm thuyết phục hơn số thô.",
+    )
+    reflection_block([
+        ("Bảng gom mọi phiên thành ba trạng thái — những thông tin nào bị bỏ phí?",
+         "Độ lớn biến động bị bỏ: hai mã cùng tăng 5 phiên nhưng “tăng nhẹ” và “tăng "
+         "vọt” khác nhau rõ. Muốn thấy điều đó phải quay lại tính s ở máy tính số đặc "
+         "trưng (Toán 10) hoặc s_g ghép nhóm (Toán 12)."),
+        ("Nếu đổi cách phân cột thành “tăng trên 2% / giảm dưới −2% / khác”, kết luận "
+         "về mã dẫn đầu có đổi không?",
+         "Có thể đổi: mỗi phiên chỉ thuộc một ô nên bảng vẫn là tần suất hai chiều đúng "
+         "nghĩa, nhưng tiêu chí phân loại quyết định câu trả lời rút ra. Trình bày báo "
+         "cáo phải ghi rõ tiêu chí đã dùng."),
+    ])
