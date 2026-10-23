@@ -170,3 +170,9 @@ Deploy lại (chỉ chủ app làm được):
   không tồn tại "gemini-3.5-flash"); note quota mở rộng cho gemini-4-argon.
   `DEFAULT_GEMINI_MODEL` giữ nguyên. Nguồn ID: docs chính thức Google
   (ai.google.dev, 22/10/2026) và platform.claude.com (23/10/2026).
+  Verify: 709 test pass + AppTest độc lập (options/default/link/guide/caption
+  quota bật đúng cho pro & argon, tắt cho flash). **Lưu ý verify:** khi mở app
+  production trong iframe `/~/+/` của harness browser, sidebar không được
+  mount (chỉ có main content, kể cả sau reload cứng) — dùng app chạy local
+  (`streamlit run app.py`) hoặc trình duyệt người dùng để soi sidebar; đây là
+  quirk của embed, không phải lỗi code.
