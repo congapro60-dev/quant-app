@@ -69,10 +69,25 @@ Ghi riêng: đã soạn, đã kiểm tra, chưa kiểm chứng. Kèm nguồn và
 """
 
 
+ALTERNATIVE_AI_LINKS = (
+    ("Mở Muse", "https://muse.ai/"),
+    ("Mở ChatGPT", "https://chatgpt.com/"),
+    ("Mở Gemini", "https://gemini.google.com/"),
+    ("Mở Copilot", "https://copilot.microsoft.com/"),
+    ("Mở Zalo AI", "https://zalo.ai/"),
+)
+
+
 def render_muse_workshop() -> None:
-    st.header("Soạn học liệu với Muse")
-    st.write("Tạo bản yêu cầu từ bài học đang có, rồi tự gửi sang Muse để làm bài tự học, hình minh họa hoặc kịch bản video.")
-    st.caption("Bước này chạy tại máy. Không gửi hồ sơ, điểm, danh mục hoặc khóa API sang Muse.")
+    st.header("Soạn học liệu với AI")
+    st.write("Tạo bản yêu cầu từ bài học đang có, rồi tự dán sang AI tùy chọn (Muse, ChatGPT, Gemini, Copilot, Zalo AI…) để làm bài tự học, hình minh họa hoặc kịch bản video.")
+    st.info(
+        "Không có Muse vẫn làm được: bản yêu cầu chỉ là văn bản thường, chạy được với "
+        "bất kỳ AI nào nhận văn bản. Muse có thể không truy cập được từ Việt Nam "
+        "(một số nhà mạng chặn), nên với AI nào lớp bạn vào được thì dùng AI đó — "
+        "đổi AI không làm thay đổi nội dung bản yêu cầu."
+    )
+    st.caption("Bước này chạy tại máy. Không gửi hồ sơ, điểm, danh mục hoặc khóa API sang AI bên ngoài nào.")
     audience = st.selectbox("Nhóm người học", list(AUDIENCE_LABELS),
                             index=1 if lmode.get_mode(st.session_state) == lmode.MODE_UNIVERSITY else 0,
                             format_func=AUDIENCE_LABELS.get, key="muse_audience")
@@ -85,9 +100,19 @@ def render_muse_workshop() -> None:
     with st.expander("Xem bản yêu cầu trước khi gửi", expanded=True):
         st.code(brief, language=None, height=300)
     st.download_button("Tải bản yêu cầu (.md)", brief.encode("utf-8"),
-                       file_name=f"muse_{lessons[lesson_index].lesson_id}_{purpose}.md",
+                       file_name=f"hoc_lieu_{lessons[lesson_index].lesson_id}_{purpose}.md",
                        mime="text/markdown", key="muse_download")
-    st.link_button("Mở Muse", "https://muse.ai/", help="Mở website; chưa gửi nội dung. Quyền sử dụng phụ thuộc tài khoản Muse của bạn.")
+    links = st.columns(len(ALTERNATIVE_AI_LINKS))
+    for column, (label, url) in zip(links, ALTERNATIVE_AI_LINKS):
+        with column:
+            st.link_button(label, url, use_container_width=True,
+                           help="Mở website trong tab mới; Quant App không tự gửi nội dung đi. "
+                                "Quyền sử dụng thuộc tài khoản của bạn.")
+    st.caption(
+        "Cách dùng chung cho mọi AI: tải bản yêu cầu (.md) ở trên hoặc copy khung văn bản, "
+        "dán vào ô chat của AI bạn chọn, yêu cầu trả Markdown rồi giáo viên duyệt lại. "
+        "Muse là một lựa chọn, không phải bắt buộc; một số AI miễn phí nhưng cần đăng ký tài khoản."
+    )
     st.link_button(
         "Mở AI phân tích chứng khoán Việt Nam",
         "https://agents.ai.vn/agents/stock-ai",
@@ -99,6 +124,6 @@ def render_muse_workshop() -> None:
         "không thay thế dữ liệu kiểm định của Quant App và không phải cam kết lợi nhuận."
     )
     with st.expander("Ứng dụng thêm cho nghiên cứu tài chính"):
-        st.write("Nhờ Muse tổng hợp báo cáo doanh nghiệp công khai, ghi rõ nguồn và ngày công bố; đối chiếu thông tin giữa nhiều nguồn trước khi dùng.")
-        st.write("Nhờ Muse tạo tình huống học về lãi kép, đa dạng hóa hoặc rủi ro. Chỉ dùng số liệu giả định có nhãn, kiểm tra đáp án bằng công cụ tính của Quant App.")
-        st.caption("Chưa xác minh API Muse để tích hợp tự động. Nội dung Muse tạo cần được kiểm tra trước khi đưa vào lớp học hoặc nghiên cứu.")
+        st.write("Nhờ AI bên ngoài tổng hợp báo cáo doanh nghiệp công khai, ghi rõ nguồn và ngày công bố; đối chiếu thông tin giữa nhiều nguồn trước khi dùng.")
+        st.write("Nhờ AI bên ngoài tạo tình huống học về lãi kép, đa dạng hóa hoặc rủi ro. Chỉ dùng số liệu giả định có nhãn, kiểm tra đáp án bằng công cụ tính của Quant App.")
+        st.caption("Quant App chưa tích hợp API tự động với AI nào. Nội dung AI tạo cần được kiểm tra trước khi đưa vào lớp học hoặc nghiên cứu.")

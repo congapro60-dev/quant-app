@@ -35,3 +35,16 @@ def test_workshop_does_not_export_private_session_fields():
     at.radio(key="muse_purpose").set_value("review").run()
     assert "3 câu chẩn đoán" in at.code[0].value
     assert not at.exception
+
+
+def test_workshop_offers_muse_and_alternative_ai_links():
+    """Muse có thể bị chặn tại Việt Nam nên tab phải chỉ sẵn AI thay thế."""
+
+    at = AppTest.from_string("from muse_brief import render_muse_workshop\nrender_muse_workshop()", default_timeout=30)
+    at.run()
+    assert not at.exception
+    labels = [link.label for link in at.get("link_button")]
+    for expected in ("Mở Muse", "Mở ChatGPT", "Mở Gemini", "Mở Copilot", "Mở Zalo AI"):
+        assert expected in labels
+    infos = " ".join(info.value for info in at.info)
+    assert "không truy cập được từ Việt Nam" in infos

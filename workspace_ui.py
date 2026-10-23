@@ -14,7 +14,7 @@ HOME_LABEL = "Tổng quan"
 NAV_KEY = "workspace_tabs"
 HISTORY = "history"
 HISTORY_LABEL = "Lịch sử giá cuối ngày"
-MUSE_LABEL = "Soạn học liệu với Muse"
+MUSE_LABEL = "Soạn học liệu với AI"
 
 
 def navigate_to(area: str, feature: str | None = None) -> None:
@@ -76,10 +76,10 @@ def render_overview() -> None:
         st.caption("Lộ trình học và danh mục mô phỏng vẫn dùng được khi nguồn giá chưa sẵn sàng.")
     st.button("Xem tiến độ và sao lưu", on_click=navigate_to,
               args=(lmode.AREA_JOURNAL,), key="overview_progress")
-    with st.expander("Có thể tận dụng Muse vào việc gì?"):
+    with st.expander("Có thể tận dụng AI bên ngoài vào việc gì?"):
         st.write("Soạn bài tự học, lên kịch bản hình/video minh họa, tổng hợp nghiên cứu công khai có nguồn. "
-                 "Bắt đầu bằng bản yêu cầu học liệu từ bài học có sẵn trong Quant App.")
-        st.button("Soạn yêu cầu cho Muse", on_click=navigate_to,
+                 "Bắt đầu bằng bản yêu cầu học liệu từ bài học có sẵn trong Quant App, dán vào AI nào lớp bạn vào được.")
+        st.button("Soạn yêu cầu học liệu cho AI", on_click=navigate_to,
                   args=(lmode.AREA_LEARNING, MUSE_LABEL), key="overview_muse")
 
 
