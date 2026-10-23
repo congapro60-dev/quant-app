@@ -76,6 +76,9 @@ class Lesson:
     questions: tuple[Question, ...]
     misconceptions: tuple[tuple[str, str], ...]
     resources: tuple[tuple[str, str], ...]
+    # SGK Toán lớp nào gắn với bài (10, 11, 12); bài tài chính dùng chung cho
+    # cả ba lớp thì để trống. Không đặt tên "grade" vì trùng method chấm điểm.
+    sgk_grade: int | None = None
 
     def grade(self, responses: dict[str, Any] | None) -> float:
         """Điểm 0–100 cho bài, chấm cục bộ."""
@@ -638,6 +641,7 @@ LESSONS: tuple[Lesson, ...] = (
     Lesson(
         lesson_id="s1_sai_so_phi",
         order=4,
+        sgk_grade=10,
         title="Số gần đúng và sai số (Toán 10) — dự báo giá có chính xác không?",
         objective=(
             "Tính được sai số tuyệt đối Δa và sai số tương đối δ của một số gần "
@@ -736,6 +740,7 @@ LESSONS: tuple[Lesson, ...] = (
     Lesson(
         lesson_id="s2_so_dac_trung",
         order=5,
+        sgk_grade=10,
         title="Số đặc trưng đo trung tâm và độ phân tán (Toán 10) — hai cổ phiếu cùng trung bình, khác nhau ra sao?",
         objective=(
             "Tính được số trung bình, trung vị, tứ phân vị, mốt; khoảng biến "
@@ -837,6 +842,7 @@ LESSONS: tuple[Lesson, ...] = (
     Lesson(
         lesson_id="s3_mau_ghep_nhom",
         order=7,
+        sgk_grade=11,
         title="Mẫu số liệu ghép nhóm và số đặc trưng trung tâm (Toán 11) — khi dữ liệu chỉ ghi theo khoảng",
         objective=(
             "Ghép được mẫu lớn thành các nhóm [u_i; u_(i+1)), tính được tần số, "
@@ -935,6 +941,7 @@ LESSONS: tuple[Lesson, ...] = (
     Lesson(
         lesson_id="s4_phan_tan_ghep_nhom",
         order=10,
+        sgk_grade=12,
         title="Độ phân tán của mẫu số liệu ghép nhóm (Toán 12) — so sánh tính biến động theo từng giai đoạn",
         objective=(
             "Tính được khoảng biến thiên, khoảng tứ phân vị, phương sai và độ lệch "

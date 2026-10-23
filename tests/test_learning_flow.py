@@ -9,7 +9,7 @@ import learning_modes as lmode
 import progress_profile as pp
 
 
-def _run(mode=lmode.MODE_HIGHSCHOOL, scores=None):
+def _run(mode=lmode.MODE_HIGHSCHOOL, scores=None, learner_profile=None):
     at = AppTest.from_string(
         "from learning_ui import render_learning_area\nrender_learning_area()",
         default_timeout=30,
@@ -18,6 +18,8 @@ def _run(mode=lmode.MODE_HIGHSCHOOL, scores=None):
     profile["lesson_scores"] = dict(scores or {})
     at.session_state["progress_profile"] = profile
     at.session_state[lmode.MODE_KEY] = mode
+    if learner_profile is not None:
+        at.session_state[lmode.LEARNER_PROFILE_KEY] = learner_profile
     at.run()
     assert not at.exception
     return at
@@ -180,3 +182,35 @@ def test_every_highschool_lesson_has_a_real_practice_action():
         at.selectbox(key="thpt_pick").set_value(index).run()
         assert not at.exception
         assert at.button(key=expected_keys[lesson.interactive_kind])
+
+
+@pytest.mark.parametrize("grade_key,first_title_fragment", [
+    ("lop_10", "Số gần đúng và sai số"),
+    ("lop_11", "Mẫu số liệu ghép nhóm và số đặc trưng trung tâm"),
+    ("lop_12", "Độ phân tán của mẫu số liệu ghép nhóm"),
+])
+def test_grade_promotes_matching_sgk_lessons(grade_key, first_title_fragment):
+    """Chọn lớp nào thì bài SGK của lớp đó lên đầu; vẫn đủ mười bài."""
+
+    at = _run(learner_profile={
+        "grade_level": grade_key, "knowledge_level": "co_ban", "goals": [],
+    })
+    box = at.selectbox(key="thpt_pick")
+    assert len(box.options) == len(cur.all_lessons())
+    assert box.options[0].startswith("📚")
+    assert first_title_fragment in box.options[0]
+
+
+def test_grade_badge_appears_on_matching_lesson_only():
+    """Dấu SGK Toán chỉ gắn cho bài đúng lớp đã chọn."""
+
+    at = _run(learner_profile={
+        "grade_level": "lop_11", "knowledge_level": "co_ban", "goals": [],
+    })
+    box = at.selectbox(key="thpt_pick")
+    assert any("Bài này thuộc SGK Toán lớp 11" in c.value for c in at.caption)
+    m2_position = next(i for i, label in enumerate(box.options)
+                       if label.startswith("2. "))
+    box.set_value(m2_position).run()
+    assert not any("Bài này thuộc SGK" in c.value for c in at.caption)
+    assert not at.exception

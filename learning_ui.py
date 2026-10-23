@@ -389,6 +389,21 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
         ])
 
 
+def _learner_grade_number() -> int | None:
+    """Lớp SGK (10/11/12) của người học; sinh viên và "Khác" thì không có."""
+
+    level = lmode.get_learner_profile(st.session_state)["grade_level"]
+    return {"lop_10": 10, "lop_11": 11, "lop_12": 12}.get(level)
+
+
+def _promote_grade_lessons(lessons, my_grade: int) -> tuple:
+    """Bài đúng SGK lớp em lên trước; các bài còn lại giữ nguyên trật tự."""
+
+    mine = [l for l in lessons if l.sgk_grade == my_grade]
+    rest = [l for l in lessons if l.sgk_grade != my_grade]
+    return tuple(mine) + tuple(rest)
+
+
 def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -> None:
     """Dựng một lộ trình bài học.
 
@@ -399,6 +414,14 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
     if not lessons:
         st.info("Lộ trình này chưa có bài học.")
         return
+
+    my_grade = _learner_grade_number()
+    if my_grade is not None and any(l.sgk_grade for l in lessons):
+        lessons = _promote_grade_lessons(lessons, my_grade)
+        st.caption(
+            f"📚 Bài đúng chương trình Toán lớp {my_grade} được đưa lên trước. "
+            "Các bài còn lại vẫn học được như bài mở rộng."
+        )
 
     profile = _profile()
     scores = profile.setdefault("lesson_scores", {})
@@ -417,7 +440,11 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
             text=unlock_note.format(done=done),
         )
 
-    titles = [f"{l.order}. {l.title}" for l in lessons]
+    titles = [
+        ("📚 " if my_grade is not None and l.sgk_grade == my_grade else "")
+        + f"{l.order}. {l.title}"
+        for l in lessons
+    ]
     pick_key = f"{key_prefix}_pick"
     st.button(
         "Tiếp tục bài chưa đạt", key=f"{key_prefix}_continue",
@@ -447,6 +474,10 @@ def _render_lesson_track(lessons, *, unlock_note: str | None, key_prefix: str) -
 
     st.subheader(lesson.title)
     st.caption(f"Bài {picked + 1}/{len(lessons)} · Đạt từ {cur.UNLOCK_THRESHOLD:.0f}/100 điểm")
+    if my_grade is not None and lesson.sgk_grade == my_grade:
+        st.caption(
+            f"📚 Bài này thuộc SGK Toán lớp {my_grade} — đúng chương trình em đang học."
+        )
     current = scores.get(lesson.lesson_id)
     if current is not None:
         st.caption(f"Điểm gần nhất của bạn: **{current:.0f}/100**")
