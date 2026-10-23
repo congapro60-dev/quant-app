@@ -23,8 +23,19 @@
   Model suy luận cần ngân sách token đủ (~300 token cho phần suy nghĩ chỉ với
   một câu chào), nên code đặt `max_tokens=2048` và có lỗi thân thiện khi máy
   chủ tiêu hết ngân sách trước khi trả lời.
-- Còn dở, đợi chủ dự án: (a) duyệt diff và cho commit/push; (b) dán `[shared_ai]`
-  thật vào Secrets dashboard của app production.
+- Đã push `92050e5` (feature AI dùng chung). Sau push, app production văng
+  **ImportError** nhưng code không lỗi: tái hiện bằng venv sạch Windows
+  (`requirements.txt` + `python -c "import app"`) lẫn Docker Linux
+  (`python:3.12-slim` và `3.13-slim`) — mọi module gốc import RC 0. Chẩn đoán
+  cuối: **môi trường build trên Cloud bị corrupt**, không phải code.
+- Xử trí: push `7a11825` (commit rỗng) chưa hết vì build tái dùng cache cũ;
+  push `df8a6c4` bật tạm `showErrorDetails="stacktrace"` đã ép build sạch và
+  app **chạy lại bình thường** (đã soi lần đầu, khối AI ở sidebar hiện đủ 6
+  lựa chọn). Đã revert `showErrorDetails` trong commit sau — đừng bật nếu
+  không có sự cố.
+- Còn dở, đợi chủ dự án: dán `[shared_ai]` thật vào Secrets dashboard của app
+  production (TOML còn trong clipboard). Chưa dán → sidebar mặc định "Không
+  dùng"; dán xong → tự mặc định "AI dùng chung (cấp sẵn của trang)".
 
 ## 1. Trạng thái hiện tại
 
