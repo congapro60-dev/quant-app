@@ -311,16 +311,45 @@ with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọ
 
     elif ai_provider == "Anthropic (Claude)":
         api_key = st.text_input(credential_label, type="password", key="api_key_val")
-        model_choice = st.selectbox("Mô hình (model):", ["claude-sonnet-5", "claude-fable-5", "claude-opus-4-8", "claude-haiku-4-5-20251001"])
+        st.link_button("Lấy API key Claude (Console Anthropic)", "https://console.anthropic.com/settings/keys", width="stretch")
+        st.caption(
+            "Cách lấy key: bấm liên kết trên → đăng nhập Console Anthropic → mục **API keys** → "
+            "**Create key** → sao chép key rồi dán vào ô bên trên. Nếu chưa đủ tuổi theo quy định "
+            "của Anthropic, nhờ phụ huynh hoặc thầy cô hỗ trợ tạo tài khoản; luồng **AI dùng chung** "
+            "ở đầu danh sách thì không cần key."
+        )
+        model_choice = st.selectbox(
+            "Mô hình (model):",
+            ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5", "claude-fable-5-1"],
+        )
+        st.caption(
+            "Gợi ý chọn model (dòng 10/2026): `claude-sonnet-5-5` dùng mặc định — cân bằng nhanh và thông minh; "
+            "`claude-haiku-5-5` nhanh, rẻ nhất cho hỏi đáp hằng ngày; `claude-opus-5-5` hoặc `claude-fable-5-1` "
+            "dành cho phân tích sâu, tốn chi phí hơn và có thể cần nạp credit vào tài khoản."
+        )
         if api_key:
             ai_config = {'provider': ai_provider, 'model': model_choice, 'api_key': api_key}
 
     elif ai_provider == "Google (Gemini)":
         api_key = st.text_input(credential_label, type="password", key="api_key_val")
-        model_choice = st.selectbox("Mô hình (model):", ["gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite"])
-        if model_choice == "gemini-3.1-pro-preview":
+        st.link_button("Lấy API key Gemini (Google AI Studio)", "https://aistudio.google.com/apikey", width="stretch")
+        st.caption(
+            "Cách lấy key: bấm liên kết trên → đăng nhập bằng tài khoản Google → nút **Get API key** → "
+            "**Create API key** → sao chép key rồi dán vào ô bên trên. Bậc miễn phí (Free Tier) của "
+            "Google AI Studio đủ để học sinh trải nghiệm các model Flash."
+        )
+        model_choice = st.selectbox(
+            "Mô hình (model):",
+            ["gemini-3.8-flash", "gemini-4-argon", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview"],
+        )
+        st.caption(
+            "Gợi ý chọn model (dòng 10/2026): `gemini-3.8-flash` dùng mặc định — Flash thông minh nhất, nhanh và chi phí thấp; "
+            "`gemini-3.6-flash` hoặc `gemini-3.5-flash-lite` nhẹ hơn, tiết kiệm hạn mức; "
+            "`gemini-4-argon` (mới nhất) hoặc `gemini-3.1-pro-preview` dành cho phân tích sâu nhưng hạn mức miễn phí thấp hoặc không có."
+        )
+        if model_choice in ("gemini-4-argon", "gemini-3.1-pro-preview"):
             st.caption(
-                "ℹ️ Gemini 3.1 Pro Preview có thể không có hạn mức (quota) ở bậc miễn phí (Free Tier). "
+                "ℹ️ Gemini 4 Argon và Gemini 3.1 Pro Preview có thể không có hạn mức (quota) ở bậc miễn phí (Free Tier). "
                 "Nếu API trả QUOTA_OR_TIER, cần bật bậc trả phí (Paid Tier) cho đúng dự án Google Cloud "
                 "hoặc chọn Flash; đổi mã nguồn hay mã mô hình (model ID) không thể vượt giới hạn tài khoản."
             )
