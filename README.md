@@ -49,6 +49,12 @@ python -m venv .venv
 .venv\Scripts\python -m streamlit run app.py
 ```
 
+## Triển khai
+
+Streamlit Cloud phải chọn **Python 3.12** trong *Advanced settings* ngay lúc deploy. App gắn với
+Python 3.14 sẽ treo ở bước cài phụ thuộc vì không có wheel NumPy phù hợp. Chi tiết chẩn đoán và
+các bước deploy lại: [HANDOFF.md](HANDOFF.md).
+
 Gemini dùng SDK `google-genai`. Model Pro trong giao diện là
 `gemini-3.1-pro-preview`; dự án dùng hạn mức miễn phí (Free Tier) có thể không được
 cấp dung lượng sử dụng (quota) cho mô hình này. Ứng dụng phân loại lỗi hạn mức/tầng
