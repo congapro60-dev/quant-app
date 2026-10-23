@@ -176,3 +176,24 @@ Deploy lại (chỉ chủ app làm được):
   mount (chỉ có main content, kể cả sau reload cứng) — dùng app chạy local
   (`streamlit run app.py`) hoặc trình duyệt người dùng để soi sidebar; đây là
   quirk của embed, không phải lỗi code.
+- 2026-10-23: chất lượng câu hỏi học tập + fix mất chữ: (1) `meaning_block`
+  thêm tham số `frame` — giàn giáo câu điền khuyết ("Mã ___ có ___ phiên tăng
+  trên tổng ___ phiên (khoảng ___%)…") hiển thị st.info riêng dưới dòng gợi
+  ý, HS yếu điền số vào là xong; (2) viết lại câu hỏi/gợi ý/phản tư của 3
+  công cụ thống kê (stats_calc, grouping_lab, freq_table trong stats_tools),
+  4 nhánh thực hành s1–s4 (learning_ui) và expander Biến động năm hóa
+  (investment_ui): câu ngắn, kèm ví dụ cụ thể, thuật ngữ giải thích tại chỗ
+  (số thô, chọn cổ phiếu, dữ liệu phân loại, nội suy, trung vị, áp đảo…);
+  câu hỏi "Nêu ý nghĩa" của bảng tần suất đổi từ "phần chọn mã của báo cáo
+  dự án" sang yêu cầu 2 câu kèm ví dụ + giàn giáo điền khuyết; (3) fix mất
+  chữ bảng: bảng tần suất hai chiều trải full chiều rộng + `column_config`
+  đặt cứng px ("Không đổi" 115px, "Số phiên" 100px — hết bị cắt "Khô…"),
+  bảng ghép nhóm và bảng so sánh cũng đặt cứng độ rộng + định dạng số
+  (%.4g/%.2f), hai biểu đồ chuyển xuống hàng dưới đặt cạnh nhau; (4) dọn
+  deprecation Streamlit 1.60 trong stats_tools: 6 chỗ `use_container_width`
+  đổi sang `width="stretch"` (dataframe) hoặc bỏ (plotly mặc định stretch);
+  còn 4 chỗ cũ app.py (3) + muse_brief.py (1) — follow-up. Verify: 709 test
+  pass; render local qua DOM xác nhận câu hỏi/giàn giáo/gợi ý mới; KHÔNG soi
+  được pixel trong harness (thiếu WebGL nên canvas không vẽ, screenshot cần
+  cửa sổ desktop visible) — cần ai đó xem bảng hiển thị đủ chữ "Không đổi",
+  "Số phiên" trên production bằng browser thật.

@@ -232,18 +232,22 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                            "càng chính xác — so hai dự báo bằng δ, không bằng Δa.")
         stt.meaning_block(
             f"{key_prefix}_saiso",
-            "Δa và δ của dự báo vừa tính nói lên điều gì về mức tin cậy?",
+            "Nhìn vào Δa (sai số tuyệt đối — lệch tối đa bao nhiêu) và δ (sai số tương "
+            "đối — quy về %) vừa tính: chúng nói lên điều gì về mức tin cậy của dự báo?",
             "Khung tham khảo: “Dự báo ā có thể lệch so với giá thật a đến Δa; quy về "
             "phần trăm là δ. δ nhỏ thì mới dám dựa vào dự báo; so hai dự báo phải so "
             "δ vì cùng thang đo.”",
             hint="Thay dấu … bằng số các em vừa tính; δ dưới khoảng 5% thường được "
                  "coi là chấp nhận được.",
+            frame="“Dự báo ā có thể lệch so với giá thật a đến Δa = ___; quy về phần "
+                  "trăm là δ = ___. δ như vậy là nhỏ/lớn nên dám/không dám dựa vào "
+                  "dự báo.”",
         )
         stt.reflection_block([
             ("Hai dự báo có Δa bằng nhau thì chắc chắn chính xác như nhau?",
              "Không: δ = Δa/a nên cùng Δa, dự báo giá lớn có δ nhỏ hơn. Muốn so bằng "
              "Δa thì hai dự báo phải cùng thang đo, cùng cỡ giá."),
-            ("Vì sao vẫn dùng số gần đúng ā thay cho a khi đã biết a?",
+            ("Vì sao ta vẫn dùng số gần đúng ā thay cho số thật a trong tính toán?",
              "Vì ngày sau vẫn phải dự đoán tiếp; số gần đúng kèm δ cho biết dự báo "
              "được phép sai bao nhiêu — đó là thông tin để quản trị rủi ro, không phải "
              "phép tính trưng bày."),
@@ -266,14 +270,20 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ, ngăn cách bằng dấu phẩy.")
         stt.meaning_block(
             f"{key_prefix}_ungrouped",
-            "Dùng x̄ và s vừa tính, viết hai câu mô tả mẫu lợi suất của em.",
+            "Dùng x̄ (số trung bình) và s (độ lệch chuẩn — dao động cỡ bao nhiêu) vừa "
+            "tính, viết 2 câu mô tả mẫu lợi suất của em: lãi trung bình mỗi ngày cỡ "
+            "bao nhiêu, dao động ra sao?",
             "Khung tham khảo: “Lợi suất trung bình khoảng x̄…; độ lệch chuẩn s… — tức "
             "mỗi ngày lợi suất đi lạc quanh x̄ cỡ s. s càng lớn so với x̄ thì trung bình "
             "càng khó tin để dự đoán một ngày cụ thể.”",
             hint="Đừng quên kèm đơn vị (%); số không đơn vị không phải ngôn ngữ tài chính.",
+            frame="“Câu 1: Lợi suất trung bình khoảng __%. Câu 2: Độ lệch chuẩn s = __% "
+                  "nên mỗi ngày lợi suất lệch khỏi mức trung bình cỡ __% — rủi ro "
+                  "cao/thấp.”",
         )
         stt.reflection_block([
-            ("Bổ sung một ngày +15% vào mẫu thì trung bình hay trung vị đổi mạnh hơn?",
+            ("Bổ sung một ngày +15% vào mẫu thì trung bình hay trung vị (số nằm giữa "
+             "khi xếp các số từ nhỏ đến lớn) đổi mạnh hơn?",
              "Trung bình bị kéo theo số cực đại nên đổi rõ; trung vị dựa vào vị trí giữa "
              "nên gần như giữ nguyên. Mẫu có giá trị lạ thì phải đọc kèm trung vị."),
             ("Nếu tính ra s = 0 thì mẫu lợi suất trông thế nào?",
@@ -306,20 +316,26 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ.")
         stt.meaning_block(
             f"{key_prefix}_grouped",
-            "Sai số tương đối (%) giữa x̄g và x̄ trực tiếp cho biết mẫu ghép nhóm "
+            "So sánh trung bình ước lượng từ bảng ghép nhóm (x̄g) với trung bình tính "
+            "trực tiếp từ từng số (x̄): lệch nhau bao nhiêu phần trăm? Mẫu ghép nhóm "
             "còn đáng tin không?",
             "Khung tham khảo: “Ghép k = … nhóm, x̄g lệch x̄ trực tiếp khoảng …%. Lệch "
             "nhỏ nên kết luận về xu thế vẫn có giá trị; cần số chính xác từng ngày thì "
             "dùng mẫu chưa ghép.”",
-            hint="Cột 'Sai số tương đối (%)' trong bảng so sánh vừa in là số liệu để "
-                 "trích vào câu trả lời.",
+            hint="Cột 'Sai số tương đối (%)' — cho biết lệch bao nhiêu phần trăm — "
+                 "trong bảng so sánh vừa in là số liệu để trích vào câu trả lời.",
+            frame="“Ghép k = ___ nhóm, x̄g lệch x̄ trực tiếp khoảng ___%. Lệch như vậy "
+                  "là nhỏ/lớn nên kết luận về xu thế vẫn có giá trị/không dùng được; "
+                  "cần chính xác từng ngày thì dùng mẫu chưa ghép.”",
         )
         stt.reflection_block([
-            ("Đổi k (số nhóm) thì nhóm có tần số lớn nhất thay đổi thế nào? Vì sao?",
+            ("Đổi k (số nhóm) thì nhóm có tần số (số phần tử được đếm) lớn nhất thay "
+             "đổi thế nào? Vì sao?",
              "k nhỏ thì nhiều số dồn vào ít nhóm nên tần số nhóm đầu cao; k lớn thì tách "
              "nhỏ, nhóm 'cao nhất' có thể đổi. Kết luận từ bảng ghép nhóm luôn gắn với "
              "cách chia nhóm."),
-            ("Vì sao dùng trung điểm làm giá trị đại diện, còn trung vị lại phải nội suy?",
+            ("Vì sao dùng trung điểm làm giá trị đại diện, còn trung vị lại phải nội "
+             "suy (tính chèn giữa hai biên nhóm)?",
              "Trung điểm đại diện do giả định số rải đều trong khoảng; trung vị nằm giữa "
              "cắt đôi tần số tích lũy — thường rơi giữa hai lớp nên phải nội suy theo SGK."),
         ])
@@ -351,18 +367,23 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ cho mỗi giai đoạn.")
         stt.meaning_block(
             f"{key_prefix}_ptan",
-            "Giai đoạn nào biến động mạnh hơn — con số này đổi cách phân bổ tiền "
-            "của dự án thế nào?",
+            "Giai đoạn nào biến động mạnh hơn (s_g nào lớn hơn)? Con số này đổi cách "
+            "chia tiền của dự án ra sao?",
             "Khung tham khảo: “Giai đoạn 2 có s_g… lớn hơn giai đoạn 1 (…) nên rủi ro "
             "cao hơn. Muốn đi êm thì phần lớn tiền theo phong cách giai đoạn 1; nếu vẫn "
             "giữ tiền theo giai đoạn 2 thì phải đặt điểm cắt lỗ.”",
             hint="Hai mẫu phải cùng đơn vị (% lợi suất/ngày) thì s_g mới so được.",
+            frame="“Giai đoạn ___ có s_g = ___ lớn hơn giai đoạn ___ (___ so với ___) "
+                  "nên rủi ro cao hơn. Muốn đi êm thì phần lớn tiền theo phong cách "
+                  "giai đoạn ___; nếu vẫn giữ thì phải đặt điểm cắt lỗ.”",
         )
         stt.reflection_block([
-            ("Hai mẫu có s_g bằng nhau nhưng trung tâm khác nhau — coi là “giống nhau” được không?",
+            ("Hai mẫu có s_g bằng nhau nhưng trung tâm (trung bình/trung vị) khác "
+             "nhau — coi là “giống nhau” được không?",
              "Không: cùng phân tán nhưng vị trí trung tâm khác. Đối chiếu cả trung tâm "
              "(trung vị/trung bình) lẫn phân tán mới đủ cặp mô tả một mẫu."),
-            ("So một mẫu bằng hiệu trung bình (x̄ B − x̄ A) có đủ để kết luận giai đoạn nào tốt hơn?",
+            ("So một mẫu bằng hiệu trung bình (x̄ B − x̄ A) có đủ để kết luận giai "
+             "đoạn nào tốt hơn?",
              "Chưa đủ: hiệu trung bình bỏ qua phân tán. Giai đoạn trung bình cao hơn nhưng "
              "s_g lớn hơn nhiều vẫn là lựa chọn tồi với người sợ rủi ro."),
         ])

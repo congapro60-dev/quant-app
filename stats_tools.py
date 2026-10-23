@@ -316,12 +316,15 @@ def theory_lead(body: str) -> None:
     st.markdown(f"🧭 **Hiểu nhanh trước khi tính.** {body}")
 
 
-def meaning_block(key: str, question: str, model_answer: str, *, hint: str = "") -> None:
+def meaning_block(key: str, question: str, model_answer: str, *, hint: str = "",
+                  frame: str = "") -> None:
     """Học sinh tự viết ý nghĩa trước, sau đó mới cho so đáp án mẫu.
 
     ``model_answer`` viết theo khung câu để học sinh bắt chước cách diễn đạt
-    "con số kèm ý nghĩa", không phải chỉ chép kết quả. ``key`` chỉ dùng để đặt
-    key widget, tránh trùng giữa các trang.
+    "con số kèm ý nghĩa", không phải chỉ chép kết quả. ``hint`` là gợi ý cách
+    làm; ``frame`` là giàn giáo — câu có chỗ trống (dấu ___) cho học sinh yếu
+    điền số vào, không lạc hướng. ``key`` chỉ dùng để đặt key widget, tránh
+    trùng giữa các trang.
     """
 
     st.markdown(f"✍️ **Nêu ý nghĩa của em:** {question}")
@@ -332,6 +335,8 @@ def meaning_block(key: str, question: str, model_answer: str, *, hint: str = "")
     )
     if hint:
         st.caption(f"Gợi ý: {hint}")
+    if frame:
+        st.info(f"🪜 **Giàn giáo** — chưa biết bắt đầu thì điền số vào chỗ trống: {frame}")
     with st.expander("Đối chiếu đáp án mẫu"):
         st.markdown(model_answer)
 
@@ -354,10 +359,11 @@ def render_stats_calculator(prices: pd.DataFrame, market: str) -> None:
     st.subheader("Máy tính số đặc trưng (mẫu không ghép nhóm)")
     theory_lead(
         "Trung bình x̄ trả lời “thường được bao nhiêu?”, độ lệch chuẩn s trả lời "
-        "“đi lạc quanh mức đó cỡ bao nhiêu?” — cặp trung tâm–phân tán này là gốc của "
-        "mọi ghi chú rủi ro ở tab Đầu tư. Riêng Q1, Q3 và khoảng tứ phân vị khoanh "
-        "vùng “nửa số ở giữa”; giá trị nằm ngoài 1,5·IQR là phiên lạ, đáng dò tin "
-        "trước khi tin vào bảng giá."
+        "“dao động quanh mức đó cỡ bao nhiêu?” — một số nói về trung tâm, một số nói "
+        "về độ phân tán (các số rải rộng hay gom gần nhau); đủ cặp này mới mô tả xong "
+        "một mẫu. Riêng Q1, Q3 và khoảng tứ phân vị (Q3 − Q1) khoanh vùng “nửa số ở "
+        "giữa”; số nằm ngoài 1,5 lần khoảng tứ phân vị là số lạ, đáng dò lại trước "
+        "khi tin vào bảng giá."
     )
     has_data = not prices.empty
     asset_names = [c for c in prices.columns if c != market] if has_data else []
@@ -465,22 +471,29 @@ def render_stats_calculator(prices: pd.DataFrame, market: str) -> None:
     )
     meaning_block(
         "stats_calc",
-        "Dùng các số vừa tính, viết 2–3 câu mô tả mẫu lợi suất như một nhận định "
-        "trong báo cáo dự án.",
+        "Viết 2–3 câu mô tả các số vừa tính, như một nhận xét trong báo cáo của em: "
+        "lợi suất (phần lãi hoặc lỗ mỗi ngày, tính theo %) thường được bao nhiêu và "
+        "dao động cỡ nào?",
         f"Khung tham khảo: “Với n = {summary['n']} số, lợi suất trung bình khoảng "
         f"{summary['mean']:,.4g} ({unit}); phân tán s = {summary['std']:,.4g} — mỗi số "
         f"thường lệch khỏi trung bình cỡ {summary['std']:,.4g}. Nửa số liệu nằm trong "
         f"khoảng [{summary['q1']:,.4g}; {summary['q3']:,.4g}]; giá trị bất thường: "
         f"{outlier_text}.”",
-        hint="Trình tự nên kể: trung tâm → phân tán → giá trị lạ; kèm ý nghĩa rủi ro cao hay thấp.",
+        hint="Kể theo thứ tự: trung tâm — số trung bình x̄ (thường được bao nhiêu) → "
+             "độ phân tán — độ lệch chuẩn s (dao động cỡ bao nhiêu) → giá trị lạ (số "
+             "khác hẳn các số còn lại); mỗi ý kèm nhận xét rủi ro cao hay thấp.",
+        frame="“Câu 1: Lợi suất trung bình khoảng ___. Câu 2: Độ lệch chuẩn s = ___ "
+              "nên mỗi ngày lệch khỏi mức trung bình cỡ ___ — rủi ro cao/thấp. "
+              "Câu 3: Số lạ trong mẫu là ___, đáng dò tin tức.”",
     )
     reflection_block([
-        ("Thêm một ngày bật lên +20% vào mẫu thì trung bình hay trung vị đổi mạnh hơn? Vì sao?",
+        ("Thêm một ngày bật lên +20% vào mẫu thì trung bình hay trung vị (số nằm giữa "
+         "khi xếp các số từ nhỏ đến lớn) đổi mạnh hơn? Vì sao?",
          "Trung bình bị kéo theo số cực đại nên đổi rõ; trung vị dựa vào vị trí giữa nên "
          "gần như đứng yên. Mẫu có giá trị bất thường thì phải đọc kèm trung vị mới phản "
          "ánh trung tâm thật."),
-        ("Hai mã có s ngày là 1,2% và 0,4% — lớp muốn “ngủ ngon” chọn mã nào, muốn cơ hội "
-         "lãi lớn thì sao?",
+        ("Hai mã có s ngày (độ lệch chuẩn lợi suất mỗi ngày) 1,2% và 0,4% — lớp muốn "
+         "“ngủ ngon” chọn mã nào, muốn cơ hội lãi lớn thì sao?",
          "s nhỏ thì ngày nào cũng gần trung bình nên đi êm (mã 0,4%); s lớn thì dao động "
          "mạnh, cơ hội lãi lẫn lỗ đều lớn hơn (mã 1,2%). Đây chính là bài toán rủi ro – "
          "lợi suất sẽ học kỹ ở bài Rủi ro và đa dạng hóa."),
@@ -494,10 +507,11 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     st.subheader("Phòng thí nghiệm ghép nhóm")
     theory_lead(
         "Mẫu càng lớn (60, 90 phiên) càng không đọc nổi từng số. Ghép nhóm chia mẫu "
-        "thành các khoảng đều, đếm tần số từng khoảng rồi gán cho khoảng một giá trị "
-        "đại diện — trung điểm. Cái được là gọn và dễ báo cáo; cái mất là chi tiết "
-        "trong từng khoảng bị bỏ đi, nên mọi số ghép nhóm chỉ là ước lượng (nối thẳng "
-        "bài Số gần đúng và sai số, Toán 10)."
+        "thành các khoảng đều nhau, đếm tần số (số lần lặp lại) từng khoảng rồi thay "
+        "cả khoảng bằng một giá trị đại diện — trung điểm, tức số nằm chính giữa "
+        "khoảng. Cái được là gọn và dễ báo cáo; cái mất là chi tiết trong từng khoảng "
+        "bị bỏ đi, nên mọi số ghép nhóm chỉ là ước lượng (số gần đúng — nối thẳng bài "
+        "Số gần đúng và sai số, Toán 10)."
     )
     has_data = not prices.empty
     asset_names = [c for c in prices.columns if c != market] if has_data else []
@@ -561,8 +575,19 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
             "Giá trị đại diện c": grouped["mids"],
             "Tần số n": grouped["counts"],
         })
-        st.dataframe(freq, hide_index=True, use_container_width=True)
-        st.caption(f"Kích thước nhóm w = {float(grouped['width']):,.4g}; "
+        # Đặt cứng độ rộng cột: tiêu đề dài ("Giá trị đại diện c") không bị
+        # cắt mất chữ khi cửa sổ hẹp.
+        st.dataframe(
+            freq, hide_index=True, width="stretch",
+            column_config={
+                "Nhóm": st.column_config.Column(width=150),
+                "Giá trị đại diện c": st.column_config.NumberColumn(
+                    "Giá trị đại diện c", width=155, format="%.4g"),
+                "Tần số n": st.column_config.NumberColumn("Tần số n", width=90),
+            },
+        )
+        st.caption("c = giá trị đại diện (trung điểm) của nhóm; n = tần số — số phần "
+                   f"tử rơi vào nhóm. Kích thước nhóm w = {float(grouped['width']):,.4g}; "
                    f"tổng tần số N = {int(grouped['n_total'])}.")
     with right:
         st.markdown("**Số đặc trưng ước lượng của mẫu ghép nhóm**")
@@ -579,32 +604,52 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
         st.caption("Một số bộ SGK gọi giá trị đại diện của nhóm là 'tổ trọng tâm' — ý nghĩa giống nhau.")
 
     st.markdown("**So sánh ghép nhóm với không ghép nhóm**")
-    st.dataframe(table, hide_index=True, use_container_width=True)
-    st.caption("Cột cuối là sai số tương đối do ghép nhóm: mất chi tiết nên ước lượng "
-               "lệch đi một chút — đúng tinh thần bài Số gần đúng và sai số (lớp 10).")
+    st.dataframe(
+        table, hide_index=True, width="stretch",
+        column_config={
+            "Số đặc trưng": st.column_config.Column(width=170),
+            "Không ghép nhóm": st.column_config.NumberColumn(
+                "Không ghép nhóm", width=140, format="%.4g"),
+            "Ghép nhóm (ước lượng)": st.column_config.NumberColumn(
+                "Ghép nhóm (ước lượng)", width=170, format="%.4g"),
+            "Chênh lệch": st.column_config.NumberColumn(
+                "Chênh lệch", width=120, format="%.4g"),
+            "Sai số tương đối (%)": st.column_config.NumberColumn(
+                "Sai số tương đối (%)", width=165, format="%.2f"),
+        },
+    )
+    st.caption("Cột cuối cho biết số ghép nhóm lệch bao nhiêu % so với số tính trực "
+               "tiếp: mất chi tiết nên ước lượng lệch đi một chút — đúng tinh thần "
+               "bài Số gần đúng và sai số (lớp 10).")
     fig = px.bar(freq, x="Nhóm", y="Tần số n", color_discrete_sequence=CHART_COLORS[:1])
     fig.update_layout(height=320, margin=dict(l=10, r=10, t=30, b=10), title="Tần số theo nhóm")
-    st.plotly_chart(fig, use_container_width=True, key="grouping_lab_bar")
+    st.plotly_chart(fig, key="grouping_lab_bar")
 
     direct_mean = float(table.iloc[0]["Không ghép nhóm"])
     rel_error = float(table.iloc[0]["Sai số tương đối (%)"])
     meaning_block(
         "grouping_lab",
-        "So x̄g với x̄ tính trực tiếp: sai số tương đối (%) cho biết mẫu ghép nhóm "
-        "còn đáng tin không?",
+        "So sánh trung bình ước lượng x̄g (tính từ bảng ghép nhóm) với trung bình x̄ "
+        "tính trực tiếp từ từng số: lệch nhau bao nhiêu phần trăm? Mẫu ghép nhóm còn "
+        "đáng tin để nói xu thế (hướng đi chung) không?",
         f"Khung tham khảo: “Ghép {num_groups} nhóm, x̄g = {float(grouped['mean']):,.4g} "
         f"trong khi tính trực tiếp x̄ = {direct_mean:,.4g}, lệch khoảng {rel_error:,.2f}%. "
         "Sai số nhỏ nên vẫn dùng số ghép nhóm để nói xu thế; cần chính xác từng ngày thì "
         "phải quay về mẫu chưa ghép.”",
-        hint="Đọc cột 'Sai số tương đối (%)' ở bảng so sánh; lệch dưới khoảng 5% thường "
-             "được coi là chấp nhận được.",
+        hint="Đọc cột 'Sai số tương đối (%)' ở bảng so sánh — cột này cho biết lệch "
+             "bao nhiêu % so với số tính trực tiếp; lệch dưới khoảng 5% thường được coi "
+             "là chấp nhận được.",
+        frame="“x̄g ≈ ___ còn x̄ = ___, lệch khoảng ___%. Sai số nhỏ nên dùng bảng ghép "
+              "nhóm để nói xu thế là chấp nhận được/không nên.”",
     )
     reflection_block([
-        ("Kéo k từ 2 lên 8 rồi về 2 — bảng tần số và các số đặc trưng đổi thế nào?",
+        ("Kéo thanh 'Số nhóm k' từ 2 lên 8 rồi về 2 — bảng tần số và các số đặc trưng "
+         "đổi thế nào?",
          "k = 2: mất hầu hết chi tiết, tần số dồn về ít nhóm, các số đặc trưng xấp xỉ "
          "trung điểm hai nửa; k quá lớn thì mỗi nhóm có ít số, ước lượng nhiễu. Kinh "
          "nghiệm: mỗi nhóm nên có khoảng 4–6 số."),
-        ("Vì sao lấy trung điểm làm giá trị đại diện cho cả khoảng?",
+        ("Vì sao lấy trung điểm (số nằm chính giữa khoảng) làm giá trị đại diện cho "
+         "cả khoảng?",
          "Giả định các số rải đều trong khoảng nên trung bình của khoảng trùng trung "
          "điểm; dữ liệu dồn về một đầu thì trung điểm lệch đi — đó cũng chính là nguồn "
          "gây sai số đã thấy ở bảng so sánh."),
@@ -616,10 +661,12 @@ def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
 
     st.subheader("Bảng tần suất hai chiều và biểu đồ")
     theory_lead(
-        "Giá là số đo lường, còn “phiên tăng hay giảm” là dữ liệu phân loại: gom thành "
-        "bảng tần suất hai chiều (hàng: mã, cột: Tăng/Giảm/Không đổi) rồi vẽ biểu đồ — "
-        "đúng kỹ năng tổ chức dữ liệu của SGK Toán 10. Bảng trả lời nhanh câu hỏi kiểu "
-        "“giai đoạn này mã nào lên xu thế?” mà không cần đọc từng phiên một."
+        "Giá là số đo lường, còn “phiên tăng hay giảm” là dữ liệu phân loại — mỗi "
+        "phiên chỉ rơi vào một trong ba loại: Tăng, Giảm hoặc Không đổi. Đếm số phiên "
+        "từng loại cho từng mã rồi xếp thành bảng tần suất hai chiều (hàng: mã, cột: "
+        "loại phiên; ô: số lần đếm được) và vẽ biểu đồ — đúng kỹ năng tổ chức dữ liệu "
+        "của SGK Toán 10. Bảng trả lời nhanh câu hỏi “giai đoạn này mã nào đang lên "
+        "xu thế (đi lên đều)?” mà không phải đọc từng phiên một."
     )
     prices_local = prices
     demo = False
@@ -654,29 +701,41 @@ def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
             st.info(f"Thực ra là {leader}. So lại cột Tăng: {guess} thua mấy phiên? "
                     "Kết luận về xu thế phải dựa vào tần số, không dựa vào cảm giác.")
 
+    # Bảng trải hết chiều rộng, độ rộng cột đặt cứng: tiêu đề dài ("Không đổi",
+    # "Số phiên") không bị cắt thành "Khô…" trên cửa sổ hẹp.
+    st.markdown("**Bảng tần suất hai chiều**")
+    st.dataframe(
+        tally, hide_index=True, width="stretch",
+        column_config={
+            "Mã": st.column_config.TextColumn("Mã", width=90),
+            "Tăng": st.column_config.NumberColumn("Tăng", width=70, format="%d"),
+            "Giảm": st.column_config.NumberColumn("Giảm", width=70, format="%d"),
+            "Không đổi": st.column_config.NumberColumn("Không đổi", width=115, format="%d"),
+            "Số phiên": st.column_config.NumberColumn("Số phiên", width=100, format="%d"),
+        },
+    )
     left, right = st.columns(2)
     with left:
-        st.markdown("**Bảng tần suất hai chiều**")
-        st.dataframe(tally, hide_index=True, use_container_width=True)
-    with right:
         long = tally.melt(id_vars="Mã", value_vars=("Tăng", "Giảm", "Không đổi"),
                           var_name="Phiên", value_name="Tần số")
         fig = px.bar(long, x="Mã", y="Tần số", color="Phiên", barmode="stack",
                      color_discrete_sequence=CHART_COLORS[:3])
         fig.update_layout(height=320, margin=dict(l=10, r=10, t=30, b=10),
                           legend_title_text="", title="Tần số tăng/giảm theo mã")
-        st.plotly_chart(fig, use_container_width=True, key="freq_bar")
+        st.plotly_chart(fig, key="freq_bar")
+    with right:
         totals = tally.drop(columns="Mã")[["Tăng", "Giảm", "Không đổi"]].sum()
         fig_pie = px.pie(names=totals.index, values=totals.values, hole=0.45,
                          color_discrete_sequence=CHART_COLORS[:3])
         fig_pie.update_layout(height=330, margin=dict(l=10, r=10, t=10, b=10),
                               title="Tỉ trọng trạng thái phiên")
-        st.plotly_chart(fig_pie, use_container_width=True, key="freq_pie")
+        st.plotly_chart(fig_pie, key="freq_pie")
 
     last_day = pd.Timestamp(prices_local.index.max()).strftime("%d/%m/%Y")
     label = "(dữ liệu mô phỏng)" if demo else "(nguồn: giá đã nạp trong phiên làm việc)"
     st.caption(f"Đếm phiên liền sau phiên trước, in đến ngày phiên {last_day} {label}. "
-               "Đọc bảng: hàng nào 'Tăng' áp đảo thì mã đó lên xu thế trong giai đoạn này.")
+               "Đọc bảng: hàng nào cột 'Tăng' chiếm đa số rõ rệt (nhiều hơn hẳn các cột "
+               "còn lại) thì mã đó đang lên xu thế — đi lên đều — trong giai đoạn này.")
 
     leader_row = tally.loc[tally["Mã"] == leader]
     leader_total = float(leader_row[["Tăng", "Giảm", "Không đổi"]].sum(axis=1).iloc[0])
@@ -684,22 +743,31 @@ def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
     rise_pct = leader_up / leader_total * 100 if leader_total else 0.0
     meaning_block(
         "freq_table",
-        "Viết 2 câu nhận xét từ bảng này để đưa vào phần chọn mã của báo cáo dự án.",
+        "Nhìn từng hàng của bảng, viết 2 câu nhận xét để đưa vào phần chọn cổ phiếu "
+        "(mã chứng khoán) trong báo cáo dự án của lớp. Ví dụ: một câu về mã tăng nhiều "
+        "nhất, một câu về mã giảm nhiều nhất.",
         f"Khung tham khảo: “Trong giai đoạn vừa đếm, {leader} có số phiên tăng cao nhất "
         f"({leader_up} phiên, chiếm {rise_pct:.0f}% các phiên đã đếm) — dấu hiệu lên xu "
-        "thế. Tuy nhiên bảng chỉ đếm trạng thái, chưa nói mỗi phiên tăng mạnh hay nhẹ, "
-        "nên kết luận cuối cần đối chiếu thêm số đặc trưng lợi suất.”",
-        hint="Đọc cả hàng (Tăng + Giảm + Không đổi) chứ đừng chỉ nhìn cột Tăng; "
-             "tỉ lệ phần trăm thuyết phục hơn số thô.",
+        "thế (đi lên đều). Tuy nhiên bảng chỉ đếm số phiên tăng/giảm, chưa nói phiên "
+        "tăng mạnh hay nhẹ, nên kết luận cuối cần đối chiếu thêm số đặc trưng lợi suất.”",
+        hint="Đọc cả hàng của mỗi mã (Tăng + Giảm + Không đổi), đừng chỉ nhìn cột Tăng; "
+             "nói theo phần trăm (chiếm bao nhiêu % số phiên) thuyết phục hơn số thô — "
+             "tức số đếm được chưa quy ra %.",
+        frame="“Câu 1: Mã ___ có ___ phiên tăng trên tổng ___ phiên (khoảng ___%), tăng "
+              "nhiều nhất nên đang lên xu thế. Câu 2: Mã ___ có ___ phiên giảm/tăng ít, "
+              "nên không chọn/lưu ý…”",
     )
     reflection_block([
-        ("Bảng gom mọi phiên thành ba trạng thái — những thông tin nào bị bỏ phí?",
-         "Độ lớn biến động bị bỏ: hai mã cùng tăng 5 phiên nhưng “tăng nhẹ” và “tăng "
-         "vọt” khác nhau rõ. Muốn thấy điều đó phải quay lại tính s ở máy tính số đặc "
-         "trưng (Toán 10) hoặc s_g ghép nhóm (Toán 12)."),
-        ("Nếu đổi cách phân cột thành “tăng trên 2% / giảm dưới −2% / khác”, kết luận "
-         "về mã dẫn đầu có đổi không?",
-         "Có thể đổi: mỗi phiên chỉ thuộc một ô nên bảng vẫn là tần suất hai chiều đúng "
-         "nghĩa, nhưng tiêu chí phân loại quyết định câu trả lời rút ra. Trình bày báo "
-         "cáo phải ghi rõ tiêu chí đã dùng."),
+        ("Bảng chỉ đếm mỗi phiên thuộc một trong ba loại (Tăng/Giảm/Không đổi). Theo "
+         "em, khi chỉ đếm như vậy thì thông tin gì về giá bị bỏ qua?",
+         "Bị bỏ là độ lớn biến động: hai mã cùng tăng 5 phiên nhưng “tăng nhẹ” và “tăng "
+         "vọt” khác nhau rõ. Muốn thấy độ lớn phải tính thêm độ lệch chuẩn s của lợi "
+         "suất (dùng công cụ Máy tính số đặc trưng — Toán 10) hoặc s_g của mẫu ghép "
+         "nhóm (Toán 12)."),
+        ("Nếu đổi tiêu chí đếm — phiên tăng thêm hơn 2% mới tính là Tăng, giảm dưới "
+         "−2% mới tính là Giảm, còn lại là “khác” — thì kết luận về mã dẫn đầu có thể "
+         "thay đổi không? Vì sao?",
+         "Có thể đổi: mỗi phiên vẫn chỉ thuộc một ô nên bảng vẫn là bảng tần suất đúng "
+         "nghĩa, nhưng tiêu chí phân loại (quy định phiên nào tính là loại nào) quyết "
+         "định câu trả lời rút ra. Trình bày báo cáo phải ghi rõ tiêu chí đã dùng."),
     ])

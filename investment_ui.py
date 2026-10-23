@@ -571,13 +571,17 @@ def render_investment_desk(
         )
         stats_tools.meaning_block(
             "invest_vol_year",
-            "Mã A có s ngày 1,0%, mã B có s ngày 0,4% — quy về thang năm và chọn theo "
-            "khẩu vị rủi ro của lớp.",
+            "Mã A có s ngày (độ lệch chuẩn lợi suất mỗi ngày) 1,0%, mã B có s ngày "
+            "0,4% — quy cả hai về thang năm rồi chọn theo khẩu vị rủi ro của lớp "
+            "(đi êm hay chấp nhận dao động để kỳ vọng lãi cao hơn).",
             "Khung tham khảo: “A: 1,0% × √252 ≈ 15,9%/năm; B: 0,4% × √252 ≈ 6,3%/năm. "
             "Muốn đi êm thì trọng số nghiêng về B; muốn kỳ vọng lãi cao hơn và chấp "
             "nhận dao động thì thêm A, nhưng phải đa dạng hóa và đặt điểm cắt lỗ.”",
-            hint="Bấm máy: 1 × √252 và 0,4 × √252; đối chiếu với cột 'Biến động năm hóa' "
-                 "trong bảng phía trên.",
+            hint="Bấm máy: nhân mỗi s với √252 (tức 1 × √252 và 0,4 × √252); đối chiếu "
+                 "kết quả với cột 'Biến động năm hóa' trong bảng phía trên.",
+            frame="“s năm của A ≈ 1,0% × √252 ≈ ___%/năm; của B ≈ 0,4% × √252 ≈ "
+                  "___%/năm. Muốn đi êm thì nghiêng về mã ___; muốn cơ hội lãi cao hơn "
+                  "thì thêm mã ___ nhưng phải đa dạng hóa và đặt điểm cắt lỗ.”",
         )
         stats_tools.reflection_block([
             ("Vì sao nhân √252 mà không cộng 252 độ lệch chuẩn lại hay nhân nguyên 252?",
