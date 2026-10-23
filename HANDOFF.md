@@ -162,3 +162,11 @@ Deploy lại (chỉ chủ app làm được):
   thích + 5 nút link AI (Muse/ChatGPT/Gemini/Copilot/Zalo AI), file tải về
   `hoc_lieu_…md`, 2 dòng "Nhờ Muse…" tổng quát thành "Nhờ AI bên ngoài…".
   Key widget `muse_*` giữ nguyên. 709 test pass.
+- 2026-10-23: `c62bbca` — sidebar "Kết nối AI": mỗi provider có key riêng
+  (Claude, Gemini) được thêm nút link lấy API key + hướng dẫn từng bước +
+  caption gợi ý chọn model; cập nhật model dòng 10/2026 (Claude 5.5:
+  sonnet-5-5 mặc định, haiku-5-5, opus-5-5, fable-5-1; Gemini: gemini-3.8-flash
+  mặc định, gemini-4-argon, 3.6-flash, 3.5-flash-lite, 3.1-pro-preview; bỏ ID
+  không tồn tại "gemini-3.5-flash"); note quota mở rộng cho gemini-4-argon.
+  `DEFAULT_GEMINI_MODEL` giữ nguyên. Nguồn ID: docs chính thức Google
+  (ai.google.dev, 22/10/2026) và platform.claude.com (23/10/2026).
