@@ -755,6 +755,19 @@ def _render_diagnostic_form(
         st.caption(f"Lần gần nhất: **{latest['score']:.0f}/100** · {latest['taken_at']}")
 
 
+def _record_reflection(key: str, stored: dict[str, Any]) -> None:
+    """on_change của ô tự phản tư: chỉ ghi khi người học thực sự đổi số.
+
+    Không được gán giá trị lúc render. ``st.tabs`` chạy mã của mọi tab kể cả
+    tab đang ẩn, nên mặc định 0.0 từng bị gán vào hồ sơ ở mọi rerun: hồ sơ
+    trống biến thành hồ sơ "có hoạt động", vô hiệu hoá guard chống ghi đè
+    rỗng trong ``progress_store._profile_has_content`` và mỗi phiên mới lại
+    xả zeros xuống localStorage đè mất tiến độ đã lưu.
+    """
+
+    stored[key] = float(st.session_state[f"self_reflection_{key}"])
+
+
 def _render_progress(profile: dict[str, Any]) -> None:
     guides.render_guide(guides.PANEL_PROGRESS)
     st.subheader("Chẩn đoán đầu vào và đầu ra")
@@ -792,11 +805,13 @@ def _render_progress(profile: dict[str, Any]) -> None:
     cols = st.columns(3)
     for col, key in zip(cols, ("lap_luan", "rui_ro_nguon", "nhat_ky")):
         with col:
-            value = st.number_input(
+            # Chỉ ghi vào hồ sơ qua on_change (xem _record_reflection): render
+            # chạy cả tab ẩn, gán tại đây sẽ tự điền 0.0 vào hồ sơ trống.
+            st.number_input(
                 f"Tự phản tư — {pp.RUBRIC_LABELS[key]}", 0.0, 100.0,
                 value=float(reflection.get(key, 0.0)), step=1.0, key=f"self_reflection_{key}",
+                on_change=_record_reflection, args=(key, reflection),
             )
-            reflection[key] = value
 
     result = pp.compute_rubric(profile)
     st.dataframe(result.as_rows(), width="stretch")

@@ -8,6 +8,7 @@ import curriculum_university as uni
 import university_teen as unyte
 import learning_modes as lmode
 import progress_profile as pp
+import progress_store
 
 
 def _run(mode=lmode.MODE_HIGHSCHOOL, scores=None, learner_profile=None):
@@ -293,3 +294,55 @@ def test_university_mode_has_no_teen_preview():
     labels = [e.label for e in at.expander]
     assert not any("Kiến thức đại học" in label for label in labels)
     assert not at.exception
+
+
+# ---------------------------------------------------------------------------
+# Khu nhật ký: ô tự phản tư không được tự điền 0 khi render (bug zero-fill)
+# ---------------------------------------------------------------------------
+
+def _run_journal_area():
+    at = AppTest.from_string(
+        "from learning_ui import render_journal_area\nrender_journal_area()",
+        default_timeout=30,
+    )
+    at.session_state["progress_profile"] = pp.empty_profile()
+    at.run()
+    assert not at.exception
+    return at
+
+
+def test_render_journal_never_autofills_zero_reflection(monkeypatch):
+    """Render khu nhật ký không được tự điền điểm 0 vào hồ sơ.
+
+    Lỗi cũ: số_input có mặc định 0.0 được gán cạnh render, mà st.tabs chạy
+    mã mọi tab kể cả tab ẩn - nên cứ mỗi rerun hồ sơ trống lại đầy zeros,
+    vượt guard "có hoạt động" và xả xuống localStorage đè tiến độ đã lưu.
+    """
+
+    at = _run_journal_area()
+    assert at.session_state["progress_profile"]["self_reflection_scores"] == {}
+
+    # Hồ sơ sau render phải vẫn là "không có gì đáng lưu" khi persist.
+    called: list = []
+    monkeypatch.setattr(progress_store, "_component", lambda **kw: called.append(kw))
+    state = {"progress_profile": at.session_state["progress_profile"]}
+    assert progress_store.persist_progress(state) is False
+    assert called == []
+
+
+def test_user_editing_reflection_input_records_and_persists(monkeypatch):
+    """Người học thật sự đổi số thì giá trị đó phải vào hồ sơ và được lưu."""
+
+    at = _run_journal_area()
+    at.number_input(key="self_reflection_lap_luan").set_value(45.0).run()
+    assert not at.exception
+    assert at.session_state["progress_profile"]["self_reflection_scores"] == {
+        "lap_luan": 45.0,
+    }
+
+    called: list = []
+    monkeypatch.setattr(progress_store, "_component", lambda **kw: called.append(kw))
+    state = {"progress_profile": at.session_state["progress_profile"]}
+    assert progress_store.persist_progress(state) is True
+    assert called[0]["mode"] == "save"
+    assert called[0]["payload"]["self_reflection_scores"] == {"lap_luan": 45.0}

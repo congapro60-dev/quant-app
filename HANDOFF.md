@@ -47,10 +47,36 @@
 - **Quy tắc QA storage**: phải mở ĐÚNG 1 tab production. Multi-tab cùng
   origin dùng chung localStorage, và session cũ reconnect (khi Cloud deploy
   lại) sẽ rerun rồi ghi đè chéo — đã từng có 5 tab lạc làm hỏng cả chuỗi
-  nghiệm. Dấu hiệu
-  nhận biết build cũ chưa lên: hồ sơ trong storage bị thay bằng chuỗi rỗng
-  dạng compact ~299 ký tự (JSON.stringify của payload rỗng) — guard
-  `5037501` nếu sống thì không bao giờ ghi được chuỗi đó.
+  nghiệm.
+- **Giải mã chuỗi zeros-299 trong storage** (bản ghi cũ ở đây sai — nó KHÔNG
+  phải dấu hiệu "build cũ"): chuỗi `~299` ký tự = payload rỗng canonical
+  (~258) + khối `"self_reflection_scores":{"lap_luan":0,"rui_ro_nguon":0,
+  "nhat_ky":0}`. Nguồn: `learning_ui.py` gán `reflection[key] = value` của
+  number_input (mặc định 0.0) **ngay lúc render**, mà `st.tabs` chạy mã của
+  mọi tab kể cả tab ẩn → mỗi rerun hồ sơ trống đầy zeros → `_profile_has_content`
+  coi `0 is not None` là "có hoạt động" → guard `5037501` bị vô hiệu → persist
+  ghi zeros-299 đè storage ở run-1 mỗi phiên. Chuỗi này sinh được trên chính
+  HEAD, nên hành vi storage không phân biệt được build `c3730e7` và HEAD.
+  Component file là **3098 bytes** byte-identical local/live, nhưng file đó
+  không đổi từ `c3730e7` nên đối chiếu byte cũng không phân biệt được build.
+- **Fix bug #4 (24/10, sau chuỗi 3 fix trên)**: bỏ side effect zero-fill —
+  `learning_ui.py` chuyển gán `reflection[key] = value` sang callback
+  `on_change` (`_record_reflection`) nên hồ sơ chỉ nhận giá trị khi người học
+  thật sự đổi số; hồ sơ trống giữ nguyên là trống, guard chống ghi đè rỗng
+  hoạt động đúng lại. Ngữ nghĩa "điểm 0 hợp lệ" được giữ: điểm 0 do người học
+  thao tác thật thì vẫn ghi; chỉ dừng việc render tự điền 0. Regression:
+  2 test AppTest mới trong `tests/test_learning_flow.py` (render không tự-fill;
+  đổi input thì ghi và persist).
+- **Kỹ thuật QA phiên mới trên production (chuẩn hoá)**: (1) Navigate tab
+  thẳng `https://quant-app-…streamlit.app/~/+/` — app nhúng trong iframe của
+  Cloud, outer shell không thấy stApp; (2) click tab ứng dụng bằng
+  `DIV[role="tab"]` (click phần tử con như STRONG không ăn); (3) **canary** —
+  ghi vào storage một hồ sơ có top-key lạ `"canary"` (bị `import_json` từ chối
+  vì key lạ) rồi reload: canary bị đè = bug ghi-đè còn sống, sống sót = guard
+  hiệu lực; tái hiện 100% mỗi phiên mới trước fix. Lưu ý race còn tồn tại:
+  component khôi phục đọc storage lúc mount và gửi postMessage, restore dùng
+  giá trị widget (không re-read storage) — dữ liệu "tự hồi phục" nhờ read-early
+  thắng race persist; đến khi fix #4 deploy, race window vẫn là rủi ro nền.
 - **Tệp JSON xuất tay vẫn là sao lưu chính thức** (tab "Nhật ký và tiến độ")
   vì iOS Safari có thể xoá localStorage sau ~7 ngày không truy cập; đổi máy,
   đổi trình duyệt hoặc xoá dữ liệu trình duyệt là mất.
@@ -76,9 +102,10 @@
   thay thế; MCP chrome-devtools có thể chết giữa phiên (timeout — phải
   reconnect từ /mcps), mọi việc DOM/localStorage làm trọn với browser tích
   hợp, chỉ riêng chụp ảnh mới cần CDP.
-- Test: **732 passed** (thêm `tests/test_progress_store.py` — 15 test với
+- Test: **734 passed** (thêm `tests/test_progress_store.py` — 15 test với
   monkeypatch `_component`, gồm 3 test cho chuỗi fix: chờ giá trị trình duyệt,
-  bỏ qua persist hồ sơ rỗng, persist khi có nhật ký; full suite ~293s).
+  bỏ qua persist hồ sơ rỗng, persist khi có nhật ký; thêm 2 test AppTest
+  zero-fill bug #4 trong `tests/test_learning_flow.py`; full suite ~137s).
 
 ## 0a. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
