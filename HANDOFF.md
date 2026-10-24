@@ -75,11 +75,30 @@ có nhánh code song song):
 - **Còn nợ, ghi thẳng:** chưa xác minh được hình thức văn bản đồng ý của người đại
   diện; chưa xác minh chính sách CVS ngoài luồng MoMo; chưa loại trừ tuyệt đối mọi
   văn bản pháp lý khác về chứng quyền. Không suy diễn các phần này thành kết luận.
-- **Trạng thái:** `tested` (775 passed) → `deployed` (commit trên master).
-  **Chưa `verified` trên UI production**: cloud browser không bấm được vào tab
-  Streamlit nên chưa đọc được nội dung tab MoMo bản mới. Đã xác minh được: app
-  production boot sạch, không traceback, danh sách tab có "Chứng khoán trên MoMo".
-  Nếu sau khi Reboot tab vẫn hiện bản cũ, kiểm bằng cách bấm tay vào tab.
+- **Trạng thái: `verified` (25/10/2026).** Đã đọc trực tiếp tab MoMo trên production
+  sau khi Reboot và xác nhận đúng bản mới: **4 bảng** (trước 3), có cột **Nguồn**
+  trong bảng phí, mục 5 "Mở tài khoản gồm những bước nào" với **7 bước** và dòng
+  "Xác thực gương mặt", mục 6 là cảnh báo pháp lý, nhãn tuổi 15–17 ghi rõ
+  "chưa mở được qua MoMo". `775 passed`, commit `6839e37`.
+- **Bẫy khi kiểm production bằng cloud browser (mất ~30 phút, đừng lặp lại):**
+  1. `browser.click` cần `ref` của accessibility tree, nhưng snapshot dừng ở
+     `[Iframe]` vì Streamlit dựng DOM bằng React. Phải dùng `browser.frames` để lấy
+     frame id của iframe `~/+`, rồi `browser.evaluate` với `frameID`.
+  2. `element.click()` bị React bỏ qua. Phải bắn đủ chuỗi sự kiện
+     `pointerdown → mousedown → pointerup → mouseup → click`.
+  3. **Bẫy lớn nhất:** tab con báo `aria-selected="true"` **dù tab cha chưa mở** —
+     phần tử nằm trong khối ẩn `clientHeight: 0`, bấm vào là bấm bản vô hình. Phải
+     bấm tab cha ("Đầu tư") trước, xác nhận `width > 0` của tab con, rồi mới bấm.
+  4. Dialog onboarding hiện ở lần mở đầu và chặn toàn trang (`elementFromPoint` trả
+     `stDialog`, toạ độ về 0,0). Đóng nó trước.
+  5. Bảng `st.dataframe` vẽ bằng **canvas** (Glide Grid) nên `innerText` của chúng
+     luôn rỗng — đừng kết luận "bảng trống". Đọc qua `[role="columnheader"]` hoặc
+     đếm `[data-testid="stDataFrame"]` có width > 0.
+  6. Mở quá nhiều tab làm browser treo (`browser.frames` timeout 60s). Giữ 1–2 tab.
+- **Streamlit Cloud không tự rebuild sau push** dù trang chủ họ nói vậy. Phải vào
+  `share.streamlit.io` → hover dòng app → nút menu ở cột cuối → **Reboot** → hộp
+  xác nhận. Sau Reboot, iframe rỗng một lúc; health `/~/+/_stcore/health` trả `ok`
+  là app đã sống, chỉ cần mở lại `~/+/` để nó dựng DOM.
 
 ## 0z3. Bổ sung 25/10/2026 — đối chiếu lại trang chính chủ, hai trang KHÔNG cùng nội dung
 
