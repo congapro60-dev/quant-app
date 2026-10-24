@@ -191,10 +191,16 @@ def _mark_tour_seen() -> None:
 
 
 def _finish_tour() -> None:
-    """Kết thúc tour: đánh dấu đã xem và đưa người học tới bài chẩn đoán."""
+    """Kết thúc tour: đánh dấu đã xem, chuyển khu, rồi buộc rerun toàn app.
+
+    st.dialog chạy như fragment: bấm nút trong dialog chỉ rerun riêng dialog,
+    thanh tab phía sau không được dựng lại. Thiếu st.rerun() thì cờ và
+    NAV_KEY đổi đúng mà màn hình vẫn đứng ở Tổng quan.
+    """
 
     _mark_tour_seen()
     navigate_to(lmode.AREA_JOURNAL)
+    st.rerun()
 
 
 @st.dialog("Chào mừng đến Quant App", width="large")

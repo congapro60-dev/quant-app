@@ -156,8 +156,19 @@ def test_first_tour_opens_then_defer_marks_seen_for_good():
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
 
 
-def test_first_tour_finish_marks_seen_and_navigates():
-    """Xong tour: cờ seen được ghi và người học về đúng khu chẩn đoán."""
+def test_first_tour_finish_marks_seen_and_navigates(monkeypatch):
+    """Xong tour: cờ seen được ghi, đổi khu, VÀ buộc rerun cả app.
+
+    Bài học từ lỗi thật trên production: st.dialog chạy như fragment, nên
+    bấm nút cuối chỉ rerun riêng dialog; thiếu st.rerun() thì NAV_KEY đổi
+    mà thanh tab không dựng lại, màn hình vẫn đứng ở Tổng quan. AppTest
+    rerun cả app nên không tự bắt được — phải khoá hợp đồng này lại.
+    """
+
+    import workspace_ui as wu
+
+    reruns: list[int] = []
+    monkeypatch.setattr(wu.st, "rerun", lambda *a, **k: reruns.append(1))
 
     at = AppTest.from_file(APP, default_timeout=120).run()
     at.button(key="tour_next").click().run()
@@ -165,9 +176,25 @@ def test_first_tour_finish_marks_seen_and_navigates():
     at.button(key="tour_next").click().run()
     at.button(key="tour_finish").click().run()
 
+    assert reruns == [1], "Nút cuối tour phải gọi st.rerun để dựng lại thanh tab."
     assert at.session_state["progress_profile"]["seen_tour"] is True
     assert at.session_state[NAV_KEY] == lm.AREA_LABELS[lm.AREA_JOURNAL]
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
+
+
+def test_mark_tour_seen_is_pure_and_does_not_rerun(monkeypatch):
+    """Cờ seen chỉ ghi state; không rerun để tránh vòng lặp khi mở tour."""
+
+    import workspace_ui as wu
+
+    reruns: list[int] = []
+    monkeypatch.setattr(wu.st, "rerun", lambda *a, **k: reruns.append(1))
+    monkeypatch.setitem(wu.st.session_state, "progress_profile", {"seen_tour": False})
+
+    wu._mark_tour_seen()
+
+    assert wu.st.session_state["progress_profile"]["seen_tour"] is True
+    assert reruns == []
 
 
 def test_first_tour_never_opens_when_profile_has_progress():
