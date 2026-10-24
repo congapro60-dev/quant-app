@@ -189,6 +189,27 @@ def test_persist_without_profile_is_silent_noop(monkeypatch):
     assert called == []
 
 
+def test_persist_skips_empty_profile_to_protect_saved_data(monkeypatch):
+    """Hồ sơ phiên còn trống thì KHÔNG ghi - nếu ghi thì lần chạy đầu mỗi
+    phiên xoá sạch tiến độ đã lưu trước khi khôi phục kịp đọc."""
+
+    called: list = []
+    monkeypatch.setattr(progress_store, "_component", lambda **kw: called.append(kw))
+    assert progress_store.persist_progress(_state_with_scores({})) is False
+    assert called == []
+
+
+def test_persist_runs_once_session_has_any_activity(monkeypatch):
+    called: list = []
+    monkeypatch.setattr(progress_store, "_component", lambda **kw: called.append(kw))
+
+    state = _state_with_scores({})
+    # Chỉ nhật ký cũng đủ đáng lưu
+    state["progress_profile"]["journal"] = [{"note": "Mình hiểu sai số gần đúng", "taken_at": "2026-10-24T12:00:00+07:00"}]
+    assert progress_store.persist_progress(state) is True
+    assert len(called) == 1
+
+
 # ---------------------------------------------------------------------------
 # Ngưỡng đạt
 # ---------------------------------------------------------------------------

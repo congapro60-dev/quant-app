@@ -108,11 +108,37 @@ def restore_progress(state: dict[str, Any]) -> int:
     return passed
 
 
+def _profile_has_content(payload: dict[str, Any]) -> bool:
+    """Hồ sơ có hoạt động nào đáng lưu hay không.
+
+    Hồ sơ phiên mới khởi tạo trống rỗng vẫn hợp lệ về schema, nhưng nếu cứ
+    ghi xuống thì lần chạy đầu của mỗi phiên sẽ xoá sạch dữ liệu đã lưu
+    trước khi component khôi phục kịp đọc. Vậy nên chỉ ghi khi có ít nhất
+    một hoạt động thật: điểm bài (kể đủ điểm 0), lượt làm, nhật ký, rubric
+    hay kiểm tra đầu/cuối; list/dict rỗng chỉ là "chưa có gì".
+    """
+
+    def _means_activity(value: Any) -> bool:
+        if isinstance(value, (dict, list)):
+            return len(value) > 0
+        return value is not None
+
+    for key, value in payload.items():
+        if key == "schema_version":
+            continue
+        if isinstance(value, dict):
+            if any(_means_activity(item) for item in value.values()):
+                return True
+        elif _means_activity(value):
+            return True
+    return False
+
+
 def persist_progress(state: dict[str, Any]) -> bool:
     """Ghi hồ sơ phiên vào localStorage; im lặng khi không có gì để ghi."""
 
     payload = payload_from_state(state)
-    if payload is None:
+    if payload is None or not _profile_has_content(payload):
         return False
     try:
         _component(mode="save", payload=payload, key="qa_progress_save")
