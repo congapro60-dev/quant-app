@@ -1,8 +1,44 @@
 # HANDOFF — Quant App
 
-**Cập nhật**: 2026-10-23 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+**Cập nhật**: 2026-10-24 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
-## 0. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
+## 0. Bổ sung 24/10/2026 — tự lưu tiến độ vào trình duyệt (Nấc 1) + QA điện thoại/máy tính bảng
+
+- Tiến độ học giờ **tự lưu vào localStorage của trình duyệt** (key
+  `quantapp.progress.v1`): đóng tab, mở lại là điểm bài quay về, kèm banner
+  "🔄 Đã khôi phục tiến độ học trên máy này — N bài đạt". Không email, không
+  đăng nhập, không gửi dữ liệu cá nhân lên máy chủ.
+- File mới: `progress_store.py` (đọc/ghi/khôi phục; ngưỡng đạt PASS_SCORE=70;
+  khôi phục đúng 1 lần/phiên, chỉ khi hồ sơ phiên còn trống, dữ liệu đi qua
+  `progress_profile.import_json` — hỏng là bỏ cả hồ sơ, không cố sửa) và
+  `components/qa_progress_store/index.html` (component ẩn 0px, giao tiếp bằng
+  giao thức postMessage chuẩn của Streamlit Components, apiVersion 1, không
+  thêm gói pip — CDN streamlit-component-lib chỉ có ESM nên không nạp nổi qua
+  thẻ script). `app.py` gọi restore trước sidebar và persist ở cuối file;
+  `learning_ui.py` thêm banner khôi phục + viết lại caption "Sao lưu hồ sơ".
+- **Tệp JSON xuất tay vẫn là sao lưu chính thức** (tab "Nhật ký và tiến độ")
+  vì iOS Safari có thể xoá localStorage sau ~7 ngày không truy cập; đổi máy,
+  đổi trình duyệt hoặc xoá dữ liệu trình duyệt là mất.
+- Nấc 2 (kế hoạch, chưa làm): mã lớp 6 ký tự để ghép lớp + cân nhắc lưu đám
+  mây (Supabase/Neon) khi cần ghép tiến độ giữa các máy.
+- QA hiển thị (giả lập Chrome DevTools trên production): điện thoại
+  390×844×3 (tab Tổng quan + Lộ trình học) và máy tính bảng 768×1024×2 —
+  sidebar tự thu hamburger, tab wrap 2 cột, không tràn ngang
+  (scrollWidth = innerWidth), nút/selectbox/progress bar hiển thị đủ.
+  **Không cần sửa CSS**: `@media 768px` và flex-wrap sẵn có đã đạt.
+- Quirks kiểm thử chrome-devtools (nhớ để lần sau đỡ lost time): `emulate`
+  đổi viewport lần đầu thường ném "Navigation timeout" nhưng áp dụng vẫn
+  thành công — verify bằng `window.innerWidth` rồi làm tiếp; `take_screenshot`
+  có thể timeout ngay sau rerun — evaluate nhẹ 1 nhịp rồi chụp lại; script
+  evaluate trả CHUỖI thì khối json bị bọc ngoặc kép (JSON.parse 2 lần), trả
+  OBJECT literal thì parse 1 lần — nhầm là `Number()` ra NaN lặng lẽ. Mở
+  expander bằng CDP click: lấy uid mới từ `take_snapshot` ngay trước mỗi click
+  (uid đổi sau rerun); check đã mở bằng icon `keyboard_arrow_down` + chiều
+  cao khối, đừng check thuộc tính `open`.
+- Test: **729 passed** (thêm `tests/test_progress_store.py` — 12 test với
+  monkeypatch `_component`; đầy đủ 293s ~ 5 phút).
+
+## 0a. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
 - Người học chọn **lớp 10/11/12** giờ thấy lộ trình chia đúng ba nhóm:
   **lộ trình chính** giữ nguyên nhịp dự án (6 bài tài chính + bài SGK năm nay
@@ -48,7 +84,7 @@
   bên mặc định "AI dùng chung (cấp sẵn của trang)"; (e) bảng tần suất hiển
   thị đủ chữ "Không đổi"/"Số phiên".
 
-## 0a. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
+## 0b. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
 
 - Gói "Trọn bộ ngay": 4 bài học thống kê bám SGK Kết nối tri thức theo
   Chương trình 2018 — s1 Số gần đúng và sai số (Toán 10, Bài 12), s2 Số đặc
@@ -84,9 +120,9 @@
 - Test: **707 passed** (thêm `tests/test_stats_tools.py` 22 test tính tay khớp
   SGK: s²=2.96; An/Bình 1.045/0.045; mẫu 0..9 ghép k=5 mean 4.5, s²=6.48).
   AppTest chạy thật app hai chế độ + từng công cụ, không exception.
-- (Dòng "còn chờ dán secrets" đã gỡ: xem mục 0 ở trên — đã dán xong tối 23/10.)
+- (Dòng "còn chờ dán secrets" đã gỡ: xem mục 0a ở trên — đã dán xong tối 23/10.)
 
-## 0b. Bổ sung 23/10/2026 (sáng) — luồng AI dùng chung (cấp sẵn của trang)
+## 0c. Bổ sung 23/10/2026 (sáng) — luồng AI dùng chung (cấp sẵn của trang)
 
 - Học sinh **không cần API key riêng**: thanh bên mặc định chọn "AI dùng chung
   (cấp sẵn của trang)". Cấu hình đọc từ `[shared_ai]` trong **Secrets của
@@ -117,7 +153,7 @@
   app **chạy lại bình thường** (đã soi lần đầu, khối AI ở sidebar hiện đủ 6
   lựa chọn). Đã revert `showErrorDetails` trong commit sau — đừng bật nếu
   không có sự cố.
-- ✅ Đã dán xong (tối 23/10, xem mục 0): `[shared_ai]` nằm trong Secrets
+- ✅ Đã dán xong (tối 23/10, xem mục 0a): `[shared_ai]` nằm trong Secrets
   dashboard app production. Sidebar giờ tự mặc định "AI dùng chung (cấp sẵn
   của trang)" khi học sinh chưa có key riêng.
 
@@ -159,7 +195,7 @@ trong vài giây thay vì treo hàng chục phút.
 ## 4. Lệnh nghiệm thu
 
 ```powershell
-# 1. Bộ test (707 test, ~1 phút trên máy này)
+# 1. Bộ test (729 test, ~5 phút trên máy này)
 py -3.12 -m pytest -q --ignore=smoke_test.py
 
 # 2. Kiểm tra bộ phụ thuộc cài được bằng wheel trên Python mục tiêu
@@ -186,7 +222,7 @@ Deploy lại (chỉ chủ app làm được):
 - `app.py` — entrypoint Streamlit.
 - `data_loader.py` — chỗ duy nhất gọi `vnstock` (`Quote`), import lazy trong hàm.
 - `.github/workflows/qa.yml` — CI chạy Python 3.11 và 3.12; đây là căn cứ để chọn 3.12 cho Cloud.
-- `tests/` — 707 test, không cần mạng.
+- `tests/` — 729 test, không cần mạng.
 
 ## 6. Lịch sử
 
@@ -243,3 +279,6 @@ Deploy lại (chỉ chủ app làm được):
   được pixel trong harness (thiếu WebGL nên canvas không vẽ, screenshot cần
   cửa sổ desktop visible) — cần ai đó xem bảng hiển thị đủ chữ "Không đổi",
   "Số phiên" trên production bằng browser thật.
+- 2026-10-24: `83af12e` — Nấc 1 tự lưu tiến độ học vào localStorage trình
+  duyệt (`progress_store.py` + `components/qa_progress_store/index.html`);
+  QA điện thoại 390px và máy tính bảng 768px đạt, không đổi CSS; 729 test.
