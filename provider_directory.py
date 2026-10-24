@@ -191,9 +191,13 @@ PROVIDERS: tuple[Provider, ...] = (
             "không có phái sinh. Giấy phép CVS số 29/GPĐC-UBCK ngày 10/05/2024.",
             "⚠️ Có chứng quyền có bảo đảm — sản phẩm đòn bẩy, biến động rất mạnh "
             "và có thể mất toàn bộ vốn. Ứng dụng khóa nhóm này với người dưới 18 tuổi.",
-            "Trang chính chủ KHÔNG nêu điều kiện độ tuổi. Vài nguồn bên thứ ba nói "
-            "phải từ đủ 18 tuổi theo căn cước, nhưng đó không phải nguồn chính chủ "
-            "nên ứng dụng không ghi nhận là đã xác minh.",
+            "Điều kiện tuổi theo pháp luật: từ đủ 18 tuổi tự mở được; từ đủ 15 đến "
+            "chưa đủ 18 tuổi được mở nếu không mất/hạn chế năng lực hành vi dân sự "
+            "và CÓ sự đồng ý của người đại diện theo pháp luật (Thông tư 120/2020/"
+            "TT-BTC). Nhiều nguồn trên mạng nói 'phải đủ 18 tuổi' là thiếu chính xác.",
+            "Trang chính chủ KHÔNG nêu điều kiện tuổi, nên ứng dụng không ghi nhận "
+            "việc CVS nhận hồ sơ người chưa đủ 18 tuổi là đã xác minh — phải hỏi "
+            "trực tiếp CVS trước khi nộp tiền.",
         ),
     ),
     Provider(

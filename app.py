@@ -41,6 +41,7 @@ from workspace_ui import (
     workspace_tabs, render_overview, render_history,
 )
 from muse_brief import render_muse_workshop
+from momo_guide import render_momo_guide
 from learning_ui import (
     render_journal_area,
     render_learning_area,
@@ -607,23 +608,27 @@ _lab_tabs = _open_area(lmode.AREA_MODEL_LAB, area_lab)
 
 
 def _open_invest_area(container):
-    """Khu Đầu tư gồm các chức năng sẵn có cộng hai bảng thuộc về đây.
+    """Khu Đầu tư gồm các chức năng sẵn có cộng ba bảng thuộc về đây.
 
-    Cổng vốn thật và danh bạ nơi mở tài khoản là việc của người đi đầu tư, nên
-    đặt cùng chỗ với bàn đầu tư và danh mục mô phỏng.
+    Cổng vốn thật, danh bạ nơi mở tài khoản và mục tra cứu Chứng khoán trên
+    MoMo là việc của người đi đầu tư, nên đặt cùng chỗ với bàn đầu tư và danh
+    mục mô phỏng.
     """
 
     names = lmode.features_in_area(lmode.AREA_INVEST, _visible_features)
     if container is None:
-        return {}, None, None
+        return {}, None, None, None
     labels = ([lmode.FEATURES[n]["label"] for n in names]
-              + ["Sẵn sàng dùng vốn thật", "Nơi mở tài khoản"])
+              + ["Sẵn sàng dùng vốn thật", "Nơi mở tài khoản",
+                 "Chứng khoán trên MoMo"])
     with container:
         subs = workspace_tabs(labels, f"tools_{lmode.AREA_INVEST}")
-    return dict(zip(names, subs)), subs[len(names)], subs[len(names) + 1]
+    offset = len(names)
+    return (dict(zip(names, subs)), subs[offset], subs[offset + 1],
+            subs[offset + 2])
 
 
-_invest_tabs, _gate_tab, _dir_tab = _open_invest_area(area_invest)
+_invest_tabs, _gate_tab, _dir_tab, _momo_tab = _open_invest_area(area_invest)
 
 if _gate_tab is not None:
     with _gate_tab:
@@ -632,6 +637,10 @@ if _gate_tab is not None:
 if _dir_tab is not None:
     with _dir_tab:
         render_provider_directory()
+
+if _momo_tab is not None:
+    with _momo_tab:
+        render_momo_guide()
 
 # Giữ nguyên tên biến cũ để các khối hiển thị bên dưới không phải viết lại.
 intraday_tab = _data_tabs.get(lmode.FEATURE_INTRADAY)
