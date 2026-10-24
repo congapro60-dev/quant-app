@@ -183,19 +183,38 @@ def test_every_highschool_lesson_has_a_real_practice_action():
     for index, lesson in enumerate(cur.all_lessons()):
         at.selectbox(key="thpt_pick").set_value(index).run()
         assert not at.exception
-        assert at.button(key=expected_keys[lesson.interactive_kind])
+        if lesson.interactive_kind == cur.INTERACTIVE_AI_LINK:
+            # Bài AI dự báo mở link ngoài: link_button không đăng ký như button
+            assert len(at.get("link_button")) == 1
+        else:
+            assert at.button(key=expected_keys[lesson.interactive_kind])
+
+
+def test_render_ai_forecasting_lesson_with_demo_link():
+    """Bài m7 render nhánh riêng: link demo Kronos + disclaimer minh họa."""
+
+    lessons = cur.all_lessons()
+    m7_index = next(i for i, l in enumerate(lessons)
+                    if l.lesson_id == "m7_ai_du_bao")
+    at = _run(lmode.MODE_HIGHSCHOOL)
+    at.selectbox(key="thpt_pick").set_value(m7_index).run()
+    assert not at.exception
+    link_buttons = at.get("link_button")
+    assert len(link_buttons) == 1
+    assert any("BTC/USDT" in c.value for c in at.caption)
 
 
 @pytest.mark.parametrize("grade_key,main_count,xtra_count", [
-    ("lop_10", 8, 2),
-    ("lop_11", 9, 1),
-    ("lop_12", 10, 0),
+    ("lop_10", 9, 2),
+    ("lop_11", 10, 1),
+    ("lop_12", 11, 0),
 ])
 def test_grade_splits_track_into_main_and_ahead(grade_key, main_count, xtra_count):
     """Lộ trình lớp: phần chính giữ nhịp dự án, bài lớp trên gập riêng.
 
     Lớp 12 là lớp cao nhất: s4 là bài năm nay trong phần chính, không còn
-    mục học trước chương trình.
+    mục học trước chương trình. Bài m7 không gắn SGK nên luôn ở phần chính
+    của mọi lớp.
     """
 
     at = _run(learner_profile={

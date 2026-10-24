@@ -148,7 +148,7 @@ def _render_university_track() -> None:
     )
 
     st.markdown("---")
-    with st.expander("📗 Cần ôn lại nền tảng? Mở mười bài học trung học phổ thông"):
+    with st.expander("📗 Cần ôn lại nền tảng? Mở mười một bài học trung học phổ thông"):
         st.caption(
             "Dành cho người muốn xem lại khái niệm gốc: lãi kép, lợi suất, "
             "biến động, tương quan và nhân quả."
@@ -439,6 +439,13 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
              "Chưa đủ: hiệu trung bình bỏ qua phân tán. Giai đoạn trung bình cao hơn nhưng "
              "s_g lớn hơn nhiều vẫn là lựa chọn tồi với người sợ rủi ro."),
         ])
+    elif kind == cur.INTERACTIVE_AI_LINK:
+        st.link_button("Mở demo Kronos (mở tab mới)", url=cur.KRONOS_DEMO_URL)
+        st.caption(
+            "Demo công khai của nhóm nghiên cứu Kronos, minh họa trên dữ liệu "
+            "BTC/USDT — chỉ để đọc hình dạng dải dự báo, không phải khuyến "
+            "nghị giao dịch."
+        )
 
 
 def _learner_grade_number() -> int | None:

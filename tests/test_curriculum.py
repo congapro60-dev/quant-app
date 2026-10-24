@@ -1,4 +1,4 @@
-"""Kiểm thử mười bài học THPT: đủ cấu phần, chấm đúng, không cần API."""
+"""Kiểm thử mười một bài học THPT: đủ cấu phần, chấm đúng, không cần API."""
 
 from __future__ import annotations
 
@@ -18,14 +18,15 @@ EXPECTED_IDS = [
     "m5_bieu_do_nguon_tin",
     "m6_mo_phong_nhat_ky",
     "s4_phan_tan_ghep_nhom",
+    "m7_ai_du_bao",
 ]
 
 
-def test_ten_modules_in_declared_order():
+def test_eleven_modules_in_declared_order():
     lessons = cur.all_lessons()
-    assert len(lessons) == 10
+    assert len(lessons) == 11
     assert [l.lesson_id for l in lessons] == EXPECTED_IDS
-    assert [l.order for l in lessons] == list(range(1, 11))
+    assert [l.order for l in lessons] == list(range(1, 12))
     # Bài thống kê được xen đúng chỗ dự án cần: sai số sau lợi suất, phân tán
     # trước rủi ro, ghép nhóm trước biểu đồ, so giai đoạn sau mô phỏng.
     positions = {l.lesson_id: i for i, l in enumerate(lessons)}
@@ -33,6 +34,11 @@ def test_ten_modules_in_declared_order():
     assert positions["s2_so_dac_trung"] < positions["m4_rui_ro_da_dang_hoa"]
     assert positions["s3_mau_ghep_nhom"] < positions["m5_bieu_do_nguon_tin"]
     assert positions["s4_phan_tan_ghep_nhom"] > positions["m6_mo_phong_nhat_ky"]
+    # Bài mở rộng về AI dự báo nằm cuối lộ trình, dùng chung cho mọi lớp
+    # (không gắn SGK) nên luôn ở phần chính.
+    m7 = lessons[positions["m7_ai_du_bao"]]
+    assert m7.sgk_grade is None
+    assert m7.order > lessons[positions["s4_phan_tan_ghep_nhom"]].order
 
 
 @pytest.mark.parametrize("lesson", list(cur.LESSONS), ids=lambda l: l.lesson_id)
@@ -212,5 +218,7 @@ def test_get_lesson_handles_missing_id():
     assert cur.get_lesson("") is None
 
 
-def test_total_questions_between_eighteen_and_forty():
-    assert 18 <= cur.total_questions() <= 40
+def test_total_questions_between_eighteen_and_forty_four():
+    """Mười bài gốc + bài m7 mở rộng (4 câu): chặn giáo trình phình quá mức."""
+
+    assert 18 <= cur.total_questions() <= 44

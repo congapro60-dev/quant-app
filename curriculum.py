@@ -101,10 +101,15 @@ INTERACTIVE_SAI_SO = "may_tinh_sai_so"
 INTERACTIVE_DAC_TRUNG = "may_tinh_so_dac_trung"
 INTERACTIVE_GHEP_NHOM = "phong_thi_nghiem_ghep_nhom"
 INTERACTIVE_PHAN_TAN = "so_sanh_phan_tan"
+INTERACTIVE_AI_LINK = "link_ai_ngoai"
+
+# Demo công khai của dự án Kronos dùng ở bài AI dự báo; chỉ tham khảo, không
+# chạy model trong ứng dụng.
+KRONOS_DEMO_URL = "https://shiyu-coder.github.io/Kronos-demo/"
 
 
 # ---------------------------------------------------------------------------
-# Nội dung mười bài học
+# Nội dung các bài học
 # ---------------------------------------------------------------------------
 
 LESSONS: tuple[Lesson, ...] = (
@@ -1038,6 +1043,141 @@ LESSONS: tuple[Lesson, ...] = (
              "https://vbpl.vn/bogiaoducdaotao/Pages/vbpq-toanvan.aspx?ItemID=146721"),
         ),
     ),
+    Lesson(
+        lesson_id="m7_ai_du_bao",
+        order=11,
+        title="AI dự báo thị trường: dùng máy, giữ trách nhiệm",
+        objective=(
+            "Đọc hiểu cách một mô hình AI dự báo chuỗi thời gian tài chính làm "
+            "việc: đọc dãy nến giá như 'ngôn ngữ', đưa ra dải dự báo kèm xác "
+            "suất chứ không phải giá chắc chắn; biết giới hạn của mô hình học "
+            "từ quá khứ và trách nhiệm quản trị rủi ro vẫn thuộc về người dùng."
+        ),
+        explanation=(
+            "Máy đọc nến như ngôn ngữ. Dự án nghiên cứu Kronos (giấy phép mở "
+            "MIT, công bố tại AAAI 2026) huấn luyện mô hình trên khoảng 12 tỷ "
+            "nến của khoảng 45 sàn giao dịch: mỗi dãy giá–khối lượng được coi "
+            "như một 'câu văn', và máy học kiểu điền vào chỗ trống để đoán đoạn tiếp "
+            "theo. Máy không biết tin tức, không hiểu kinh tế học; nó chỉ nhận "
+            "ra những 'cách nói' từng xuất hiện trong dữ liệu quá khứ.\n\n"
+            "Dải xác suất không phải lời khẳng định. Trang demo công khai của "
+            "Kronos hiện báo xác suất thị trường đi lên khoảng 66,7% và chỉ số "
+            "khuếch đại biến động 83,3% (số liệu minh họa theo demo, đọc ngày "
+            "04/07/2026). 66,7% nghĩa là: trong nhiều kịch bản giống nhau, "
+            "khoảng 2/3 lần giá đi lên — còn khoảng 1/3 lần thì không. Nếu hai "
+            "phiên độc lập với nhau, xác suất tăng cả hai phiên là "
+            "0,667 × 0,667 ≈ 0,445, tức chỉ khoảng 44,5%. Con số 'chắc chắn hơn "
+            "một nửa' vẫn để lại gần một nửa khả năng ngược lại.\n\n"
+            "Giới hạn của máy và trách nhiệm của người. Mô hình học từ quá khứ "
+            "nên có thể bất lực trước sự kiện chưa từng xuất hiện trong dữ "
+            "liệu. Con số hiệu quả cao (+93% RankIC) trong bài báo là tác giả "
+            "tự báo cáo, chưa được kiểm chứng độc lập. Demo chạy trên dữ liệu "
+            "BTC/USDT chỉ để minh họa, không phải khuyến nghị giao dịch. Kể cả "
+            "khi dùng công cụ tốt, đa dạng hóa, cỡ vị thế và điểm cắt lỗ vẫn "
+            "là việc của người học — máy không gánh hậu quả thay người."
+        ),
+        example=(
+            "Bài tập đọc số demo: trang demo Kronos báo 'Upside Probability "
+            "66,7%'. Bạn Huy định hiểu: 'Vậy mua là chắc chắn lời?' Không — dùng "
+            "lại cách đếm xác suất ở bài phân tán: xác suất một phiên tăng là "
+            "0,667, xác suất hai phiên tăng liên tiếp (giả sử độc lập) là "
+            "0,667² ≈ 0,4449 ≈ 44,5%. Nghĩa là chỉ riêng việc 'nhiều khả năng "
+            "lên' không đủ để đặt cả tài sản vào một cửa: gần 1/2 khả năng hai "
+            "phiên liên tiếp đi khác dự đoán. Huy rút quy tắc: dự báo xác suất "
+            "cao hơn 50% chỉ nghĩa là 'thiên lệch nhẹ', muốn sống sót phải có "
+            "cỡ vị thế nhỏ và điểm cắt lỗ trước khi đặt lệnh."
+        ),
+        interactive=(
+            "Mở trang demo Kronos để quan sát dải dự báo công khai của nhóm "
+            "nghiên cứu: xem dải dự báo nới ra hay thu hẹp khi dữ liệu đầu vào "
+            "đổi. Demo là sản phẩm minh họa chạy trên dữ liệu BTC/USDT — chỉ "
+            "để đọc hình dạng dự báo, không phải khuyến nghị giao dịch."
+        ),
+        interactive_kind=INTERACTIVE_AI_LINK,
+        questions=(
+            Question(
+                qid="m7_q1",
+                prompt="Demo báo xác suất giá tăng 66,7%. Cách đọc nào đúng?",
+                kind=QUESTION_SINGLE,
+                options=(
+                    "Giá chắc chắn tăng, nên mua ngay toàn bộ tiền",
+                    "Trong nhiều kịch bản giống nhau, khoảng 2/3 lần tăng và "
+                    "khoảng 1/3 lần không tăng",
+                    "Máy đã tính sẵn 66,7% số phiên thị trường sẽ tăng trong năm",
+                ),
+                answer_index=1,
+                explanation="66,7% là xác suất, không phải lời bảo đảm: khoảng "
+                            "1/3 kịch bản vẫn đi ngược dự đoán, nên đặt lệnh "
+                            "vẫn phải quản trị rủi ro.",
+            ),
+            Question(
+                qid="m7_q2",
+                prompt="Khi một công cụ dự báo đã được nhiều người dùng phổ biến, lợi thế bền vững của người học đến từ đâu?",
+                kind=QUESTION_SINGLE,
+                options=(
+                    "Giữ kín công thức của công cụ",
+                    "Dữ liệu tốt, hiểu rủi ro và kỷ luật chấp hành kế hoạch",
+                    "Đặt lệnh nhanh hơn người khác vài giây",
+                ),
+                answer_index=1,
+                explanation="Công cụ phổ biến thì ai cũng có; thứ tạo khác biệt "
+                            "là chất lượng dữ liệu, hiểu biết về rủi ro và kỷ "
+                            "luật thực thi — đúng tinh thần toàn khóa học.",
+            ),
+            Question(
+                qid="m7_q3",
+                prompt="Giả sử hai phiên độc lập, mỗi phiên có xác suất tăng 66,7%. Xác suất cả hai phiên cùng tăng (theo %, làm tròn một chữ số thập phân) là bao nhiêu?",
+                kind=QUESTION_NUMBER,
+                answer_value=44.5,
+                tolerance=0.2,
+                explanation="Hai phiên độc lập thì nhân xác suất: 0,667 × 0,667 = "
+                            "0,444889 ≈ 44,5%. 'Nhiều khả năng tăng' ở mỗi "
+                            "phiên vẫn để lại gần một nửa khả năng hai phiên "
+                            "liên tiếp không tăng.",
+            ),
+            Question(
+                qid="m7_q4",
+                prompt="Một sự kiện chưa từng xuất hiện trong dữ liệu huấn luyện xảy ra. Phán đoán hợp lý nhất là gì?",
+                kind=QUESTION_SINGLE,
+                options=(
+                    "Mô hình tự động điều chỉnh kịp thời vì học liên tục",
+                    "Mô hình có thể bất lực vì chưa từng 'đọc' dạng nến này — "
+                    "cần kịch bản phòng ngừa và điểm cắt lỗ sẵn",
+                    "Không sao, demo vẫn hiện đúng xác suất như mọi ngày",
+                ),
+                answer_index=1,
+                explanation="Mô hình học từ quá khứ nên gặp dạng dữ liệu lạ có "
+                            "thể mất phương hướng; người dùng phải có sẵn kế "
+                            "hoạch phòng ngừa thay vì chờ máy tự xử.",
+            ),
+        ),
+        misconceptions=(
+            (
+                "Có AI dự báo thì giá tương lai đã được biết trước",
+                "Không. Mô hình đưa ra dải dự báo kèm xác suất của các kịch "
+                "bản; không ai — kể cả máy — biết chắc phiên tiếp theo đi "
+                "lên hay xuống.",
+            ),
+            (
+                "Con số hiệu quả cao (+93% RankIC) nghĩa là dùng công cụ sẽ lời",
+                "Đó là con số tác giả tự báo cáo trên dữ liệu kiểm định của "
+                "họ, chưa được kiểm chứng độc lập; chỉ báo thống kê trên quá "
+                "khứ không phải lời hứa lợi nhuận tương lai.",
+            ),
+            (
+                "Dùng AI rồi không cần đa dạng hóa hay cắt lỗ",
+                "Máy dự báo, người gánh hậu quả. Đa dạng hóa, cỡ vị thế và "
+                "điểm cắt lỗ vẫn là việc bắt buộc của người học trước khi "
+                "đặt lệnh.",
+            ),
+        ),
+        resources=(
+            ("Repo dự án Kronos (mã nguồn mở, giấy phép MIT) trên GitHub",
+             "https://github.com/shiyu-coder/Kronos"),
+            ("Bài báo nghiên cứu Kronos trên arXiv (công bố AAAI 2026)",
+             "https://arxiv.org/abs/2508.02739"),
+        ),
+    ),
 )
 
 
@@ -1084,7 +1224,7 @@ UNLOCK_REQUIRED_LESSONS = 4
 def should_unlock_advanced(lesson_scores: dict[str, Any] | None) -> bool:
     """Đủ điều kiện mở công cụ nâng cao cho chế độ THPT.
 
-    Cần đạt từ 70 điểm trở lên ở ít nhất bốn trong mười bài học (bất kỳ bài
+    Cần đạt từ 70 điểm trở lên ở ít nhất bốn trong mười một bài học (bất kỳ bài
     nào, kể cả bài thống kê). Ngưỡng này để
     người học chạm tới công cụ định lượng sau khi đã có nền, chứ không phải sau
     khi bấm qua loa.
