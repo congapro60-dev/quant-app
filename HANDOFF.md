@@ -2,6 +2,33 @@
 
 **Cập nhật**: 2026-10-24 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0y. Bổ sung 25/10/2026 — tab "Chứng khoán trên MoMo" trong khu Đầu tư
+
+Mục đích: học sinh hỏi "học xong thì làm thật ở đâu" — câu trả lời ngắn nhất là
+mở tài khoản ngay trên MoMo (sản phẩm **Chứng Khoán** do **CVS** cung cấp).
+
+- File mới `momo_guide.py` (dữ liệu thuần + `render_momo_guide`), tab thứ ba
+  trong khu Đầu tư sau "Sẵn sàng dùng vốn thật" và "Nơi mở tài khoản".
+- **Nguồn duy nhất: https://www.momo.vn/chung-khoan** (đọc 24/10/2026). Phí, sàn,
+  khung giờ, sản phẩm chép nguyên. Không dùng nguồn báo/video thứ ba.
+- **Điểm pháp lý quan trọng, đừng "sửa" thành 18 tuổi**: theo Thông tư
+  120/2020/TT-BTC, người **từ đủ 15 đến chưa đủ 18** tuổi được mở tài khoản nếu
+  không mất/hạn chế năng lực hành vi dân sự và **có sự đồng ý của người đại diện
+  theo pháp luật**. Rất nhiều trang trên mạng ghi "phải đủ 18 tuổi" — sai, và
+  làm vậy là chặn oan đúng nhóm học sinh THPT của dự án. Đã sửa cả ghi chú cũ
+  trong `provider_directory.py` (mục `momo_cvs`) theo hướng này.
+- Vẫn giữ nguyên tắc **không suy diễn chính sách của CVS**: trang chính chủ không
+  nêu điều kiện tuổi, nên phần "được pháp luật cho phép" tách rõ khỏi "CVS có
+  nhận hồ sơ hay không" — cái sau phải hỏi trực tiếp CVS.
+- Cảnh báo nằm ngang tầm, không phải chú thích cuối trang: rủi ro mất vốn, hành
+  vi bị cấm (thao túng, nội gián, tin sai sự thật), cấm cho mượn tài khoản, cấm
+  hứa lãi, cảnh báo KOL nhận hoa hồng, và thứ tự "học → mô phỏng → tiền thật".
+- **Dùng `st.warning`, KHÔNG dùng `st.error`**: `tests/test_app_smoke.py` cấm mọi
+  hộp đỏ ở lần mở đầu (học sinh thấy chữ đỏ tưởng app hỏng). Lần đầu tôi viết
+  `st.error` và đã làm đỏ 2 test smoke — nhớ luật này khi thêm cảnh báo.
+- Test: `tests/test_momo_guide.py` (9 test) khoá hai nhánh tuổi, cảnh báo, phí,
+  thuế, giờ giao dịch và nguồn chính chủ. Tổng **765 passed**, commit `0bd0fe8`.
+
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 
 Bốn việc làm rời, mỗi việc một commit revert được độc lập:
