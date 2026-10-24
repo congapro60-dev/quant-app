@@ -179,3 +179,22 @@ def test_first_tour_never_opens_when_profile_has_progress():
     assert not at.exception
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
     assert at.session_state["progress_profile"]["seen_tour"] is False
+
+
+# ---------------------------------------------------------------------------
+# Onboarding C4: bảng "Tab nào — khi nào" cuối Trang tổng quan
+# ---------------------------------------------------------------------------
+
+def test_tab_map_lists_all_five_areas_with_timing():
+    """Bảng chỉ đường phải đủ 5 khu vực, đúng nhãn thật của thanh tab."""
+
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    assert not at.exception
+
+    tables = [t.value for t in at.dataframe if "Khu vực" in list(t.value.columns)]
+    assert len(tables) == 1
+    table = tables[0]
+    assert list(table.columns) == ["Khu vực", "Dùng để", "Khi nào"]
+    assert table["Khu vực"].tolist() == [lm.AREA_LABELS[a] for a in lm.AREA_ORDER]
+    assert table["Khi nào"].str.len().min() > 0
+    assert table["Dùng để"].str.len().min() > 0

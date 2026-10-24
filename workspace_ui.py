@@ -280,6 +280,35 @@ def render_overview() -> None:
                  "Bắt đầu bằng bản yêu cầu học liệu từ bài học có sẵn trong Quant App, dán vào AI nào lớp bạn vào được.")
         st.button("Soạn yêu cầu học liệu cho AI", on_click=navigate_to,
                   args=(lmode.AREA_LEARNING, MUSE_LABEL), key="overview_muse")
+    render_tab_map()
+
+
+# Bảng "Tab nào — khi nào": mỗi khu vực đúng một dòng, việc cụ thể và mốc
+# thời gian để người mới biết mở tab nào, thay vì đoán.
+TAB_MAP = (
+    (lmode.AREA_LEARNING, "Hiểu khái niệm, làm bài, được tự chấm điểm",
+     "Bắt đầu ngay · mỗi ngày 1 bài"),
+    (lmode.AREA_DATA, "Nạp giá cổ phiếu, so sánh biến động giữa các mã",
+     "Khi cần dữ liệu thật cho bài tập"),
+    (lmode.AREA_MODEL_LAB, "Chạy mô hình định lượng và kiểm định thống kê",
+     "Sau khi học xong phần định lượng"),
+    (lmode.AREA_INVEST, "Đặt lệnh bằng tiền ảo, tính phí và thuế như thật",
+     "Sau bài 1 · trước mọi quyết định thật"),
+    (lmode.AREA_JOURNAL, "Ghi lý do trước khi hành động, xem điểm, tải hồ sơ",
+     "Trước mỗi lệnh · cuối mỗi buổi học"),
+)
+
+
+def render_tab_map() -> None:
+    """Bảng chỉ đường 5 khu vực; luôn hiện, không phụ thuộc tiến độ."""
+
+    st.subheader("Tab nào — khi nào")
+    st.caption("Năm khu vực ở thanh trên cùng. Mở đúng tab để không phải dò.")
+    st.dataframe(
+        [{"Khu vực": lmode.AREA_LABELS[area], "Dùng để": use, "Khi nào": when}
+         for area, use, when in TAB_MAP],
+        width="stretch", hide_index=True,
+    )
 
 
 def history_view(prices: pd.DataFrame, symbols: list[str], *, rebase: bool) -> pd.DataFrame:
