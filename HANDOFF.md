@@ -75,6 +75,11 @@ có nhánh code song song):
 - **Còn nợ, ghi thẳng:** chưa xác minh được hình thức văn bản đồng ý của người đại
   diện; chưa xác minh chính sách CVS ngoài luồng MoMo; chưa loại trừ tuyệt đối mọi
   văn bản pháp lý khác về chứng quyền. Không suy diễn các phần này thành kết luận.
+- **Trạng thái:** `tested` (771 passed) → `deployed` (commit `4fa5600` trên master).
+  **Chưa `verified` trên UI production**: cloud browser không bấm được vào tab
+  Streamlit nên chưa đọc được nội dung tab MoMo bản mới. Đã xác minh được: app
+  production boot sạch, không traceback, danh sách tab có "Chứng khoán trên MoMo".
+  Nếu sau khi Reboot tab vẫn hiện bản cũ, kiểm bằng cách bấm tay vào tab.
 
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 
