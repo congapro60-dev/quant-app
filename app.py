@@ -33,6 +33,7 @@ import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
 import data_status_ui as dstatus
 import learning_modes as lmode
+import progress_store
 import stats_tools
 from feature_guides import render_guide
 from workspace_ui import (
@@ -158,6 +159,11 @@ for k, v in {
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ==================== TIẾN ĐỘ TỰ LƯU (localStorage) ====================
+# Khôi phục điểm bài từ trình duyệt của học sinh (một lần mỗi phiên). Phần ghi
+# xuống chạy ở cuối tập lệnh, sau khi mọi khu vực đã render xong.
+progress_store.restore_progress(st.session_state)
 
 # ==================== SIDEBAR ====================
 with st.sidebar:
@@ -1778,3 +1784,9 @@ if tab5 is not None:
                     else:
                         st.write(res)
                 st.caption("Phép tính là cục bộ; phần diễn giải bằng trí tuệ nhân tạo (AI), nếu bật, vẫn cần được kiểm chứng trước khi nộp bài.")
+
+
+# ==================== GHI TIẾN ĐỘ TỰ LƯU (localStorage) ====================
+# Đặt sau cùng để hồ sơ ghi xuống luôn là phiên bản mới nhất của lần chạy này.
+# Component ẩn 0 px; trình duyệt chỉ ghi đè khi nội dung thực sự thay đổi.
+progress_store.persist_progress(st.session_state)

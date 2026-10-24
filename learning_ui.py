@@ -19,6 +19,7 @@ import learning_modes as lmode
 import policy_audit as audit
 import stats_tools as stt
 import progress_profile as pp
+import progress_store as pstore
 import provider_directory as pdir
 import readiness_gate as rg
 import risk_limits as rlim
@@ -96,6 +97,18 @@ UNIVERSITY_TRACK = (
 )
 
 
+def _render_restore_banner() -> None:
+    """Thông báo khôi phục tiến độ tự lưu trên trình duyệt (hiện một lần)."""
+    passed = st.session_state.pop(pstore.RESTORE_BANNER, None)
+    if passed:
+        st.info(
+            f"🔄 Đã khôi phục tiến độ học trên máy này — {passed} bài đạt. "
+            "Dữ liệu chỉ nằm trong trình duyệt của em: đổi máy hoặc xoá dữ liệu "
+            "trình duyệt sẽ mất, nên hãy giữ tệp JSON sao lưu ở tab "
+            "**Nhật ký và tiến độ** nếu bài nhiều."
+        )
+
+
 def render_learning_area() -> None:
     """Nội dung khác hẳn nhau theo lộ trình.
 
@@ -103,6 +116,7 @@ def render_learning_area() -> None:
     chế độ gần như không thấy khác biệt gì.
     """
 
+    _render_restore_banner()
     if lmode.get_mode(st.session_state) == lmode.MODE_UNIVERSITY:
         _render_university_track()
         return
@@ -791,7 +805,10 @@ def _render_progress(profile: dict[str, Any]) -> None:
 
     st.subheader("Sao lưu hồ sơ")
     st.caption(
-        "Hồ sơ chỉ tồn tại trong phiên trình duyệt. Hãy tải tệp về nếu muốn giữ lại."
+        "Hồ sơ tự lưu vào trình duyệt của em (localStorage) nên khi mở lại "
+        "ứng dụng trên máy này sẽ được khôi phục. Dữ liệu không gửi lên máy "
+        "chủ: đổi máy, đổi trình duyệt hoặc xoá dữ liệu trình duyệt là mất, "
+        "vì vậy bài học nhiều thì hãy tải tệp JSON bên dưới để giữ chắc."
     )
     st.download_button(
         "⬇️ Tải hồ sơ (JSON)",

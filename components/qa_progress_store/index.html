@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Lưu tiến độ học</title>
+  <script>
+    /*
+      Component 2 chiều với Streamlit bằng giao thức postMessage chuẩn của
+      Streamlit Components (apiVersion 1), không cần thư viện đóng gói ngoài:
+        - mode "restore": đọc key khỏi localStorage và gửi lại cho Python qua
+          setComponentValue (Streamlit tự tạo một lần rerun khi giá trị về).
+        - mode "save": nhận hồ sơ qua args.payload và ghi đè key nếu nội dung
+          thực sự thay đổi (so sánh chuỗi để không ghi mỗi rerun).
+      Component chạy ẩn (height 0) — học sinh không thấy gì trên màn hình.
+    */
+    (function () {
+      "use strict";
+      var KEY = "quantapp.progress.v1";
+
+      function sendToHost(type, args) {
+        var msg = Object.assign({ type: type }, args || {});
+        window.parent.postMessage(msg, "*");
+      }
+
+      function onRender(event) {
+        var data = event && event.data;
+        if (!data || data.type !== "streamlit:render") return;
+        var args = data.args || {};
+        var mode = args.mode;
+        if (mode === "restore") {
+          var parsed = null;
+          try {
+            var raw = localStorage.getItem(KEY);
+            if (raw) parsed = JSON.parse(raw);
+          } catch (err) {
+            parsed = null;
+          }
+          sendToHost("streamlit:setComponentValue", { value: parsed, dataType: "json" });
+        } else if (mode === "save") {
+          try {
+            var payload = args.payload;
+            if (payload && typeof payload === "object") {
+              var text = JSON.stringify(payload);
+              if (localStorage.getItem(KEY) !== text) localStorage.setItem(KEY, text);
+            }
+          } catch (err) {
+            /* Trình duyệt chặn hoặc đầy bộ nhớ: bỏ qua. Tệp JSON xuất tay ở
+               tab "Nhật ký và tiến độ" vẫn là lối sao lưu chính thức. */
+          }
+        }
+        sendToHost("streamlit:setFrameHeight", { height: 0 });
+      }
+
+      window.addEventListener("message", onRender);
+      sendToHost("streamlit:componentReady", { apiVersion: 1 });
+    })();
+  </script>
+  <style>
+    html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+  </style>
+</head>
+<body></body>
+</html>
