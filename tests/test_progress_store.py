@@ -119,6 +119,31 @@ def test_restore_ignores_unsafe_or_corrupt_storage(monkeypatch):
     assert progress_store.RESTORE_BANNER not in state
 
 
+def test_restore_waits_for_browser_value_then_hydrates_once(monkeypatch):
+    """Lúc chạy đầu component chưa kịp gửi giá trị; khi giá trị về (rerun sau)
+    phải vẫn còn hydrate được — đúng kịch bản thật trên trình duyệt."""
+
+    stored = pp.empty_profile()
+    pp.record_lesson(stored, "b1", 80)
+    payload = json.loads(pp.export_json(stored))
+    calls: list = []
+
+    def fake_component(**kw):
+        calls.append(kw)
+        return payload if len(calls) >= 2 else None
+
+    monkeypatch.setattr(progress_store, "_component", fake_component)
+
+    state = _state_with_scores({})
+    assert progress_store.restore_progress(state) == 0
+    assert progress_store.restore_progress(state) == 1
+    assert state["progress_profile"]["lesson_scores"]["b1"] == 80
+    assert state[progress_store.RESTORE_BANNER] == 1
+    # Giá trị đã nhận: các lần chạy sau không hydrate nữa.
+    assert progress_store.restore_progress(state) == 0
+    assert len(calls) == 2
+
+
 def test_restore_tolerates_component_returning_none(monkeypatch):
     monkeypatch.setattr(progress_store, "_component", lambda **kw: None)
     state = _state_with_scores({})

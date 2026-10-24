@@ -79,15 +79,18 @@ def restore_progress(state: dict[str, Any]) -> int:
     """Khôi phục hồ sơ từ localStorage, đúng một lần mỗi phiên.
 
     Chỉ nạp khi hồ sơ phiên còn trống, để không đè dữ liệu học sinh vừa làm
-    trong phiên này. Trả về số bài đạt được khôi phục (0 nếu không nạp gì).
+    trong phiên này. Cờ phiên chỉ được áp khi **đã nhận được dữ liệu** từ
+    trình duyệt: lần chạy đầu component chưa kịp gửi giá trị về (Streamlit
+    cần một lần rerun để nhận postMessage), nên phải chờ lần chạy sau.
+    Trả về số bài đạt được khôi phục (0 nếu không nạp gì).
     """
 
     if state.get(RESTORED_FLAG):
         return 0
-    state[RESTORED_FLAG] = True
     data = read_stored_progress()
     if not isinstance(data, dict):
         return 0
+    state[RESTORED_FLAG] = True
     try:
         profile = pp.import_json(json.dumps(data, ensure_ascii=False))
     except Exception:
