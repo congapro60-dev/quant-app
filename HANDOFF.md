@@ -16,6 +16,41 @@
   thêm gói pip — CDN streamlit-component-lib chỉ có ESM nên không nạp nổi qua
   thẻ script). `app.py` gọi restore trước sidebar và persist ở cuối file;
   `learning_ui.py` thêm banner khôi phục + viết lại caption "Sao lưu hồ sơ".
+- **Ba lần fix liên tiếp 24/10, đều do QA sống trên production bắt được**
+  (bài học: xác nhận sau push phải chờ build thật sự lên rồi mới tính — lần
+  xác nhận "thành công" đầu tiên chạy khi Cloud vẫn đang chạy build cũ):
+  `c7da49d` — cờ phiên khôi phục bị áp ngay lần chạy đầu, khi component còn
+  chưa kịp gửi giá trị (Streamlit cần thêm một rerun để nhận postMessage);
+  giờ chỉ áp cờ khi đã nhận được dict. `c3730e7` — **nguyên nhân rễ**: host
+  Streamlit (`ComponentRegistry.ts`) bỏ lặng lẽ mọi postMessage thiếu cờ
+  `isStreamlitMessage: true`, nên component tự viết câm hai chiều
+  (componentReady/render/setComponentValue/setFrameHeight đều không tới nơi);
+  mọi message giờ đóng gói đúng như `component-lib/src/streamlit.ts`, và các
+  lần gửi sau khôi phục được dedupe bằng so sánh chuỗi. `5037501` — lần chạy
+  đầu mỗi phiên từng ghi đè hồ sơ rỗng lên dữ liệu đã lưu ngay khi kênh message
+  sống lại; `persist_progress` giờ từ chối ghi khi `_profile_has_content` trả
+  False (dict/list rỗng + null = chưa có hoạt động; điểm 0.0 thật vẫn tính).
+- Lưu ý thật thà: message commit `c7da49d` mô tả sai mức hại — ghi "chỉ làm
+  banner không hiện" trong khi thực tế khi đó khôi phục KHÔNG hề hoạt động
+  (cả hai lỗi cờ lẫn giao thức) cho tới `c3730e7`. Không có dữ liệu học sinh
+  nào mất: tính năng sống chưa đầy một giờ, chưa ai dùng, JSON xuất tay vẫn
+  là sao lưu chính thức.
+- Trạng thái verify trên production: khôi phục đầu-cuối xác nhận 2 lần độc
+  lập trên 2 trình duyệt (banner DOM thật + "Đã đạt 2/4" + "Điểm gần nhất
+  85/100" hiển thị lại đúng bài; banner chỉ hiện 1 lần render nên dễ thoát
+  khỏi khung ảnh chụp — bằng chứng DOM là đủ). Save-path ghi theo render
+  event: chỉ re-fire khi args đổi hoặc component được mount lại (đọc trong
+  `ComponentInstance.tsx`: deps gồm `jsonArgs` dưới dạng chuỗi) — rerun với
+  payload giống hệt sẽ KHÔNG ghi lại, nên đụng vào localStorage giữa chừng
+  không tự hồi phục; đó là hành vi Streamlit chuẩn, luồng HS thật (điểm bài
+  đổi → args đổi) vẫn ghi bình thường.
+- **Quy tắc QA storage**: phải mở ĐÚNG 1 tab production. Multi-tab cùng
+  origin dùng chung localStorage, và session cũ reconnect (khi Cloud deploy
+  lại) sẽ rerun rồi ghi đè chéo — đã từng có 5 tab lạc làm hỏng cả chuỗi
+  nghiệm. Dấu hiệu
+  nhận biết build cũ chưa lên: hồ sơ trong storage bị thay bằng chuỗi rỗng
+  dạng compact ~299 ký tự (JSON.stringify của payload rỗng) — guard
+  `5037501` nếu sống thì không bao giờ ghi được chuỗi đó.
 - **Tệp JSON xuất tay vẫn là sao lưu chính thức** (tab "Nhật ký và tiến độ")
   vì iOS Safari có thể xoá localStorage sau ~7 ngày không truy cập; đổi máy,
   đổi trình duyệt hoặc xoá dữ liệu trình duyệt là mất.
@@ -35,8 +70,15 @@
   expander bằng CDP click: lấy uid mới từ `take_snapshot` ngay trước mỗi click
   (uid đổi sau rerun); check đã mở bằng icon `keyboard_arrow_down` + chiều
   cao khối, đừng check thuộc tính `open`.
-- Test: **729 passed** (thêm `tests/test_progress_store.py` — 12 test với
-  monkeypatch `_component`; đầy đủ 293s ~ 5 phút).
+- Quirks browser tích hợp (`browser.*`): `evaluate` nhận tham số `script`
+  (không phải `code`) và trả sẵn object `{tab, value}`; `screenshot` bắt buộc
+  cửa sổ desktop visible — khi cửa sổ ẩn thì chụp pixel bằng chrome-devtools
+  thay thế; MCP chrome-devtools có thể chết giữa phiên (timeout — phải
+  reconnect từ /mcps), mọi việc DOM/localStorage làm trọn với browser tích
+  hợp, chỉ riêng chụp ảnh mới cần CDP.
+- Test: **732 passed** (thêm `tests/test_progress_store.py` — 15 test với
+  monkeypatch `_component`, gồm 3 test cho chuỗi fix: chờ giá trị trình duyệt,
+  bỏ qua persist hồ sơ rỗng, persist khi có nhật ký; full suite ~293s).
 
 ## 0a. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
@@ -195,7 +237,7 @@ trong vài giây thay vì treo hàng chục phút.
 ## 4. Lệnh nghiệm thu
 
 ```powershell
-# 1. Bộ test (729 test, ~5 phút trên máy này)
+# 1. Bộ test (732 test, ~5 phút trên máy này)
 py -3.12 -m pytest -q --ignore=smoke_test.py
 
 # 2. Kiểm tra bộ phụ thuộc cài được bằng wheel trên Python mục tiêu
@@ -222,7 +264,7 @@ Deploy lại (chỉ chủ app làm được):
 - `app.py` — entrypoint Streamlit.
 - `data_loader.py` — chỗ duy nhất gọi `vnstock` (`Quote`), import lazy trong hàm.
 - `.github/workflows/qa.yml` — CI chạy Python 3.11 và 3.12; đây là căn cứ để chọn 3.12 cho Cloud.
-- `tests/` — 729 test, không cần mạng.
+- `tests/` — 732 test, không cần mạng.
 
 ## 6. Lịch sử
 
@@ -281,4 +323,7 @@ Deploy lại (chỉ chủ app làm được):
   "Số phiên" trên production bằng browser thật.
 - 2026-10-24: `83af12e` — Nấc 1 tự lưu tiến độ học vào localStorage trình
   duyệt (`progress_store.py` + `components/qa_progress_store/index.html`);
-  QA điện thoại 390px và máy tính bảng 768px đạt, không đổi CSS; 729 test.
+  QA điện thoại 390px và máy tính bảng 768px đạt, không đổi CSS.
+- 2026-10-24: `c7da49d`, `c3730e7`, `5037501` — chuỗi fix Nấc 1 (cờ khôi phục
+  chờ giá trị; cờ `isStreamlitMessage` cho mọi message component; chặn ghi đè
+  hồ sơ rỗng), chi tiết ở mục 0; `1534cd4` — HANDOFF lần 1.
