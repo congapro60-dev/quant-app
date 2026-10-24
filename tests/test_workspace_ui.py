@@ -136,3 +136,46 @@ def test_first_journey_dismiss_button_hides_until_next_session():
     at.button(key="journey_hide").click().run()
     assert _journey_buttons(at) == []
     assert at.session_state[wu.JOURNEY_HIDE_KEY] is True
+
+
+# ---------------------------------------------------------------------------
+# Onboarding C3: Tour chào mừng 4 bước, tự mở một lần với hồ sơ mới
+# ---------------------------------------------------------------------------
+
+def test_first_tour_opens_then_defer_marks_seen_for_good():
+    """Lần đầu: tour mở; bấm 'Để sau' là không bao giờ mở lại."""
+
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    assert not at.exception
+    assert [b.key for b in at.button if b.key in ("tour_defer", "tour_next")]
+    # Bước 1/4: chưa có nút lùi.
+    assert [b for b in at.button if b.key == "tour_back"] == []
+
+    at.button(key="tour_defer").click().run()
+    assert at.session_state["progress_profile"]["seen_tour"] is True
+    assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
+
+
+def test_first_tour_finish_marks_seen_and_navigates():
+    """Xong tour: cờ seen được ghi và người học về đúng khu chẩn đoán."""
+
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    at.button(key="tour_next").click().run()
+    at.button(key="tour_next").click().run()
+    at.button(key="tour_next").click().run()
+    at.button(key="tour_finish").click().run()
+
+    assert at.session_state["progress_profile"]["seen_tour"] is True
+    assert at.session_state[NAV_KEY] == lm.AREA_LABELS[lm.AREA_JOURNAL]
+    assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
+
+
+def test_first_tour_never_opens_when_profile_has_progress():
+    """Hồ sơ đã có hoạt động thì tour không mở, kể cả chưa từng thấy cờ."""
+
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    _fully_done_profile(at)
+    at.run()
+    assert not at.exception
+    assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
+    assert at.session_state["progress_profile"]["seen_tour"] is False

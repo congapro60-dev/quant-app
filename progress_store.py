@@ -116,9 +116,15 @@ def _profile_has_content(payload: dict[str, Any]) -> bool:
     trước khi component khôi phục kịp đọc. Vậy nên chỉ ghi khi có ít nhất
     một hoạt động thật: điểm bài (kể đủ điểm 0), lượt làm, nhật ký, rubric
     hay kiểm tra đầu/cuối; list/dict rỗng chỉ là "chưa có gì".
+
+    Cờ ``seen_tour`` là ngoại lệ: nó chỉ là ghi chú "đã xem hướng dẫn", nên
+    chỉ tính khi bật (True). Nếu tính cả False thì hồ sơ trống nào cũng bị
+    coi là có nội dung và ghi đè dữ liệu đã lưu của lần chạy trước.
     """
 
     def _means_activity(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
         if isinstance(value, (dict, list)):
             return len(value) > 0
         return value is not None

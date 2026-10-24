@@ -153,6 +153,87 @@ def render_first_journey(lessons, scores) -> None:
                   on_click=lambda: st.session_state.update({JOURNEY_HIDE_KEY: True}))
 
 
+# ---------------------------------------------------------------------------
+# Onboarding C3: Tour 4 bước tự mở lần đầu (st.dialog chuẩn, 1 lần/máy)
+# ---------------------------------------------------------------------------
+
+TOUR_STEP_KEY = "_tour_step"
+
+_TOUR_STEPS = (
+    ("Đây là gì?", "Không cần tài khoản, không lệnh thật",
+     "Ứng dụng dạy tài chính cho học sinh: điểm lưu trong trình duyệt của em, "
+     "danh mục dùng tiền ảo, và không bao giờ gửi lệnh đến công ty chứng khoán."),
+    ("Học ở đâu?", "Học ở Lộ trình học",
+     "11 bài xếp theo trình độ lớp của em, mỗi bài có câu hỏi tự chấm. "
+     "Điểm đạt 70 mới mở chương nâng cao."),
+    ("Thực hành ra sao?", "Thực hành ở Đầu tư",
+     "Lấy 500 triệu VND ảo, mua bán như thật. Trước khi đặt lệnh, ghi 1 dòng "
+     '"vì sao" vào Nhật ký quyết định — viết trước để không tự lừa mình sau.'),
+    ("Giữ lại cái gì?", "Giữ bằng chứng học tập",
+     "Nhật ký & tiến độ lưu điểm, hai bài chẩn đoán, và gói nộp cho giáo viên. "
+     "Xong lộ trình thì tải hồ sơ JSON về máy."))
+
+
+def _profile_is_fresh(profile) -> bool:
+    """Hồ sơ còn trống mới đáng xem tour: chưa điểm, chưa bài, chưa nhật ký."""
+
+    pre = (profile.get("pre_test") or {}).get("score")
+    return (pre is None
+            and not (profile.get("lesson_scores") or {})
+            and not (profile.get("journal") or [])
+            and not st.session_state.get("paper_ledger"))
+
+
+def _mark_tour_seen() -> None:
+    state = st.session_state.get("progress_profile")
+    if isinstance(state, dict):
+        state["seen_tour"] = True
+
+
+def _finish_tour() -> None:
+    """Kết thúc tour: đánh dấu đã xem và đưa người học tới bài chẩn đoán."""
+
+    _mark_tour_seen()
+    navigate_to(lmode.AREA_JOURNAL)
+
+
+@st.dialog("Chào mừng đến Quant App", width="large")
+def _tour_dialog() -> None:
+    step = min(int(st.session_state.get(TOUR_STEP_KEY, 0)), len(_TOUR_STEPS) - 1)
+    kicker, title, body = _TOUR_STEPS[step]
+    st.caption(f"BƯỚC {step + 1}/{len(_TOUR_STEPS)} · {kicker.upper()}")
+    st.subheader(title)
+    st.write(body)
+
+    left, right = st.columns([0.4, 0.6])
+    with left:
+        st.button("Để sau", key="tour_defer", on_click=_mark_tour_seen)
+    with right:
+        nav = st.columns(2)
+        if st.session_state.get(TOUR_STEP_KEY, 0) > 0:
+            with nav[0]:
+                st.button("← Trước", key="tour_back",
+                          on_click=lambda: st.session_state.update(
+                              {TOUR_STEP_KEY: step - 1}))
+        with nav[1]:
+            if step == len(_TOUR_STEPS) - 1:
+                st.button("Đi làm bài Đầu vào", key="tour_finish", type="primary",
+                          on_click=_finish_tour)
+            else:
+                st.button("Tiếp →", key="tour_next", type="primary",
+                          on_click=lambda: st.session_state.update(
+                              {TOUR_STEP_KEY: step + 1}))
+
+
+def maybe_open_first_tour() -> None:
+    """Chỉ mở tour đúng khi hồ sơ còn trống và lần đầu dùng trên máy này."""
+
+    profile = st.session_state.get("progress_profile") or {}
+    if isinstance(profile, dict) and _profile_is_fresh(profile) \
+            and not profile.get("seen_tour"):
+        _tour_dialog()
+
+
 def render_overview() -> None:
     mode = lmode.get_mode(st.session_state)
     lessons = uni.all_lessons() if mode == lmode.MODE_UNIVERSITY else cur.all_lessons()
@@ -163,6 +244,7 @@ def render_overview() -> None:
     st.markdown('<div class="qa-eyebrow">KHÔNG GIAN HỌC & NGHIÊN CỨU</div>', unsafe_allow_html=True)
     st.header("Hôm nay, bạn muốn làm gì?")
     st.caption("Chọn một việc để bắt đầu. Công cụ tính toán và bài học không cần khóa AI.")
+    maybe_open_first_tour()
     actions = (
         ("01 · HỌC", "Hiểu trước khi đầu tư", "Bài học ngắn, ví dụ có lời giải, câu hỏi tự kiểm tra.",
          "Tiếp tục học", lmode.AREA_LEARNING, None),

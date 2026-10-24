@@ -46,6 +46,7 @@ TOP_LEVEL_KEYS = {
     "schema_version", "pre_test", "post_test",
     "lesson_scores", "lesson_attempts", "diagnostic_attempts",
     "journal", "rubric_scores", "self_reflection_scores",
+    "seen_tour",
 }
 TEST_KEYS = {"score", "taken_at"}
 ATTEMPT_KEYS = {"score", "taken_at", "correct_qids", "correct"}
@@ -101,6 +102,7 @@ def empty_profile() -> dict[str, Any]:
         "journal": [],
         "rubric_scores": {},
         "self_reflection_scores": {},
+        "seen_tour": False,
     }
 
 
@@ -436,6 +438,7 @@ def export_json(profile: dict[str, Any]) -> str:
         "journal": profile.get("journal") or [],
         "rubric_scores": profile.get("rubric_scores") or {},
         "self_reflection_scores": profile.get("self_reflection_scores") or {},
+        "seen_tour": bool(profile.get("seen_tour", False)),
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -645,4 +648,5 @@ def import_json(text: str | bytes) -> dict[str, Any]:
     if version < 2:
         profile["self_reflection_scores"].update(clean_rubric_scores)
 
+    profile["seen_tour"] = data.get("seen_tour") is True
     return profile

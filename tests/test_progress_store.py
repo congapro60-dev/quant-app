@@ -210,6 +210,23 @@ def test_persist_runs_once_session_has_any_activity(monkeypatch):
     assert len(called) == 1
 
 
+def test_seen_tour_flag_false_does_not_make_profile_look_used(monkeypatch):
+    """seen_tour=False là mặc định của hồ sơ mới, không phải hoạt động."""
+
+    called: list = []
+    monkeypatch.setattr(progress_store, "_component", lambda **kw: called.append(kw))
+
+    state = _state_with_scores({})
+    assert state["progress_profile"]["seen_tour"] is False
+    assert progress_store.persist_progress(state) is False
+    assert called == []
+
+    # Bật cờ (đã xem tour) thì ghi, để lần mở sau không mở lại tour.
+    state["progress_profile"]["seen_tour"] = True
+    assert progress_store.persist_progress(state) is True
+    assert called[0]["payload"]["seen_tour"] is True
+
+
 # ---------------------------------------------------------------------------
 # Ngưỡng đạt
 # ---------------------------------------------------------------------------
