@@ -18,30 +18,58 @@ def _run():
 
 
 def test_two_age_tracks_cover_15_to_17_and_18_plus():
-    """Luật chia hai nhánh: đủ 15–chưa đủ 18 (cần người giám hộ) và đủ 18+."""
+    """Hai nhánh tách rõ: đủ 18 (CVS nhận hồ sơ) và 15–17 (chưa mở được qua MoMo)."""
 
     assert len(mg.AGE_TRACKS) == 2
     adult, minor = mg.AGE_TRACKS
     assert "18 tuổi trở lên" in adult["who"]
+    assert "nhóm duy nhất CVS nhận hồ sơ" in adult["can"]
     assert "năng lực hành vi dân sự" in " ".join(adult["requires"])
     assert "15" in minor["who"] and "18" in minor["who"]
-    assert "người đại diện theo pháp luật" in minor["can"]
+    assert "chưa mở được" in minor["who"]
+
+
+def test_cvs_actually_requires_18_which_overrides_the_law_permission():
+    """Điểm dễ sai nhất: luật cho phép 15–17, nhưng CVS yêu cầu đủ 18.
+
+    Nguồn chính chủ momo.vn ghi rõ điều kiện mở tài khoản tại CVS là từ đủ 18
+    tuổi. Test này khoá lại để sau này không có ai 'sửa' thành 15–17 mở được.
+    """
+
+    minor = mg.AGE_TRACKS[1]
+    joined = minor["can"] + " " + " ".join(minor["requires"])
+    assert "pháp luật cho phép" in joined
+    assert "CVS yêu cầu đủ 18 tuổi" in joined
+    assert "chưa mở được" in joined
+
+    # Nguồn phải là trang chính chủ momo.vn, và con số tuổi nằm trong hằng số.
+    assert mg.MOMO_AGE_SOURCE.startswith("https://www.momo.vn/")
+    assert "18" in mg.CVS_MIN_AGE_NOTE
 
 
 def test_age_caveat_separates_law_from_broker_policy():
     """Được luật cho phép KHÁC với được CVS nhận hồ sơ — phải nói rõ."""
 
     text = mg.AGE_CAVEAT
-    assert "pháp luật cho phép" in text
+    lowered = text.lower()
+    assert "pháp luật cho phép" in lowered
     assert "CVS" in text
-    assert "không nêu điều kiện" in text.lower() or "không nêu" in text
+    assert "nhận hồ sơ" in text
+    # Không được lặp lại câu sai cũ rằng trang chính chủ thiếu thông tin tuổi.
+    assert "không nêu điều kiện" not in lowered
 
 
-def test_minor_checklist_requires_guardian_consent_before_money():
-    steps = mg.age_checklist(1)
-    joined = " ".join(steps).lower()
-    assert "giám hộ" in joined or "cha/mẹ" in joined
-    assert "trước khi nộp tiền" in joined
+def test_minor_checklist_never_tells_them_to_prepare_an_application():
+    """Nhóm 15–17 không được dẫn đi chuẩn bị hồ sơ hay nộp tiền."""
+
+    joined = " ".join(mg.age_checklist(1)).lower()
+
+    assert "không" in joined and "đứng tên hộ" in joined
+    assert "mô phỏng" in joined
+    assert "1900 5454 41" in " ".join(mg.age_checklist(1))
+    # Không được có câu mời đi nộp tiền hay eKYC như thể mở được.
+    assert "trước khi nộp tiền" not in joined
+    assert "ekyc" not in joined
 
 
 def test_momo_render_shows_risk_warning_and_not_a_broker():
@@ -66,6 +94,18 @@ def test_momo_render_lists_fees_tax_and_trading_hours():
     assert "0,27" in joined  # phí lưu ký
     assert "HOSE" in joined and "UPCOM" in joined
     assert "Chứng quyền có bảo đảm" in joined
+
+
+def test_hidden_fees_that_surprise_students_are_listed():
+    """Phí đóng tài khoản và ứng trước tiền bán — loại học sinh hay bị bất ngờ."""
+
+    joined = " ".join(f"{k} {v} {n}" for k, v, n in mg.FEES)
+
+    assert "Đóng tài khoản" in joined
+    assert "100.000" in joined
+    assert "Ứng trước tiền bán" in joined
+    assert "0,033%" in joined
+    assert "đóng tài khoản mất 100.000" in mg.FEE_WARNING.lower()
 
 
 def test_legal_warnings_name_forbidden_acts_and_sources():
@@ -95,4 +135,49 @@ def test_age_track_selection_renders_checklist(index):
 
     assert not at.exception
     body = " ".join(str(m.value) for m in at.markdown)
-    assert "Chuẩn bị trước khi mở" in body
+    assert "Việc cần làm ở nhóm này" in body
+
+
+def test_minor_track_warns_they_cannot_open_yet_on_screen():
+    """Trên màn hình, nhóm 15–17 phải thấy cảnh báo chưa mở được, không phải mời gọi."""
+
+    at = _run()
+    at.radio(key="momo_age_track").set_value(1).run()
+
+    body = " ".join(str(m.value) for m in at.markdown) + " ".join(
+        str(w.value) for w in at.warning)
+
+    assert "chưa mở được" in body
+    assert "đứng tên hộ" in body
+
+
+def test_warrant_note_is_honest_about_what_was_not_found():
+    """Chứng quyền: nói đúng điều tra được, không suy diễn thành 'bị luật cấm'."""
+
+    text = mg.WARRANT_NOTE
+
+    # Phải nói rõ không tìm thấy hạn mức tuổi riêng và CVS không công bố.
+    assert "không" in text and "hạn mức tuổi riêng" in text
+    assert "không công bố" in text
+    # Phải tách quy định của ứng dụng học khỏi quy định pháp luật/CVS.
+    assert "quy định của ứng dụng học" in text
+    assert "không phải quy định của pháp luật hay của CVS" in text
+
+
+def test_legal_docs_name_the_actual_age_and_warrant_documents():
+    """Số thông tư phải đúng: 120/2020 là tuổi, 107/2016 là chứng quyền."""
+
+    docs = " ".join(mg.LEGAL_DOCS)
+
+    assert "Thông tư 120/2020/TT-BTC" in docs
+    assert "Điều 6" in docs
+    assert "Thông tư 107/2016/TT-BTC" in docs
+    # Không được ghi sai 68/2024 là bản sửa đổi về tuổi.
+    assert "68/2024" not in docs
+
+
+def test_source_links_are_official_momo_domains_only():
+    """Mọi liên kết nguồn phải thuộc tên miền chính chủ momo.vn."""
+
+    for url in (mg.MOMO_URL, mg.MOMO_FEE_URL, mg.MOMO_AGE_SOURCE):
+        assert url.startswith("https://www.momo.vn/")

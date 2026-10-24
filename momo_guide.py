@@ -19,15 +19,18 @@ from __future__ import annotations
 import streamlit as st
 
 MOMO_URL = "https://www.momo.vn/chung-khoan"
-MOMO_FEE_URL = "https://www.momo.vn/hoi-dap/bieu-phi-giao-dich-chung-khoan"
-SOURCE_DATE = "24/10/2026"
+MOMO_FEE_URL = "https://www.momo.vn/blog/cach-mo-tai-khoan-chung-khoan-online-c199dt1440"
+MOMO_AGE_SOURCE = "https://www.momo.vn/blog/cach-mo-tai-khoan-chung-khoan-online-c199dt1440"
+MOMO_HOTLINE = "1900 5454 41"
+SOURCE_DATE = "25/10/2026"
 
 # Nguồn pháp lý: Thông tư 120/2020/TT-BTC (sửa đổi bởi Thông tư 68/2024/TT-BTC)
 # hướng dẫn giao dịch chứng khoán trên hệ thống giao dịch. Không dẫn số điều cụ
 # thể vì có thể bị sửa tiếp; chỉ nêu tên văn bản để người đọc tự tra bản mới nhất.
 LEGAL_DOCS = (
     "Luật Chứng khoán 2019 (số 54/2019/QH14), sửa đổi bởi Luật số 56/2024/QH15",
-    "Thông tư 120/2020/TT-BTC và các thông tư sửa đổi của Bộ Tài chính về giao dịch chứng khoán",
+    "Thông tư 120/2020/TT-BTC, khoản 1 Điều 6 — điều kiện tuổi mở tài khoản giao dịch",
+    "Thông tư 107/2016/TT-BTC — chào bán và giao dịch chứng quyền có bảo đảm",
     "Bộ luật Dân sự 2015 về năng lực hành vi dân sự và người đại diện theo pháp luật",
 )
 
@@ -35,42 +38,58 @@ LEGAL_DOCS = (
 # Điều kiện tuổi — hai nhánh tách hẳn, không gộp
 # ---------------------------------------------------------------------------
 
+# CVS yêu cầu đủ 18 tuổi để mở tài khoản qua MoMo. Nguồn CHÍNH CHỦ, không phải
+# suy diễn: https://www.momo.vn/blog/cach-mo-tai-khoan-chung-khoan-online-c199dt1440
+# ghi nguyên văn "Điều kiện mở tài khoản tại CVS trên Ứng dụng MoMo: Khách hàng
+# từ đủ 18 tuổi (theo ngày tháng năm sinh trên CCCD) và có CCCD" (đọc 25/10/2026).
+CVS_MIN_AGE_NOTE = "Đủ 18 tuổi theo ngày sinh trên CCCD, và phải có CCCD."
+
 AGE_TRACKS = (
     {
-        "who": "Từ đủ 18 tuổi trở lên",
-        "can": "Tự mở tài khoản giao dịch bằng chính danh của mình.",
+        "who": "Từ đủ 18 tuổi trở lên — nhóm CVS nhận hồ sơ",
+        "can": (
+            "Tự mở tài khoản giao dịch bằng chính danh của mình ngay trên MoMo. "
+            "Đây **cũng là nhóm duy nhất CVS nhận hồ sơ** theo trang chính chủ "
+            "hiện hành."
+        ),
         "requires": (
-            "Có năng lực hành vi dân sự đầy đủ.",
-            "Không thuộc trường hợp mất hoặc bị hạn chế năng lực hành vi dân sự.",
-            "Có căn cước công dân để định danh điện tử (eKYC) trên ứng dụng.",
+            "Có năng lực hành vi dân sự đầy đủ (không bị mất hoặc hạn chế).",
+            "Đủ 18 tuổi theo ngày tháng năm sinh trên CCCD, và có CCCD còn hiệu lực.",
+            "Số điện thoại chính chủ và một khoản tiền thật sự thuộc về em.",
         ),
         "tone": "ok",
     },
     {
-        "who": "Từ đủ 15 tuổi đến chưa đủ 18 tuổi",
+        "who": "Từ đủ 15 tuổi đến chưa đủ 18 tuổi — chưa mở được qua MoMo",
         "can": (
-            "Được mở tài khoản giao dịch nếu không bị mất hoặc hạn chế năng lực "
-            "hành vi dân sự — nhưng **phải được người đại diện theo pháp luật "
-            "đồng ý** (cha, mẹ hoặc người giám hộ hợp pháp)."
+            "Đọc kỹ: **pháp luật cho phép** người từ đủ 15 đến chưa đủ 18 tuổi mở "
+            "tài khoản giao dịch nếu không bị mất/hạn chế năng lực hành vi dân sự "
+            "và **được người đại diện theo pháp luật đồng ý** (Thông tư 120/2020/"
+            "TT-BTC). Nhưng điều kiện đó là của **pháp luật cho các công ty chứng "
+            "khoán**, không phải cam kết của CVS."
         ),
         "requires": (
-            "Ý kiến đồng ý của người đại diện theo pháp luật — thường bằng giấy "
-            "đồng ý có xác nhận, không chỉ lời nói.",
-            "Tài khoản và tiền trong tài khoản vẫn thuộc về em; nghĩa vụ pháp lý "
-            "gắn với em và người đại diện cùng lúc.",
-            "Tiền dùng để đầu tư phải là tiền của gia đình cho phép, không phải "
-            "tiền vay hoặc tiền đi vay bạn bè.",
+            "**CVS yêu cầu đủ 18 tuổi** để mở tài khoản qua MoMo (nguồn chính chủ "
+            "momo.vn). Nghĩa là nhóm này thực tế **chưa mở được** qua kênh MoMo ở "
+            "thời điểm hiện tại — dù luật không cấm.",
+            "Đừng nộp tiền, đừng nhờ người lớn mở tài khoản 'đứng tên hộ' rồi "
+            "dùng chung: đó là vi phạm quy định và em phải chịu trách nhiệm cho "
+            "mọi lệnh trong tài khoản mang tên mình.",
+            "Cách đúng cho nhóm này: dùng danh mục mô phỏng trong ứng dụng, hỏi "
+            "trực tiếp CVS (hotline 1900 5454 41) về chính sách tuổi hiện hành, "
+            "hoặc chờ tới khi đủ 18.",
         ),
         "tone": "warn",
     },
 )
 
 AGE_CAVEAT = (
-    "Phần trên là những gì **pháp luật cho phép**. Điều kiện thực tế để mở được "
-    "tài khoản còn tuỳ chính sách của CVS (ví dụ quy trình eKYC có nhận người "
-    "chưa đủ 18 tuổi hay không). Trang chính chủ của MoMo **không nêu điều kiện "
-    "tuổi**, nên đừng coi phần này là cam kết của CVS. Muốn chắc: gọi tổng đài "
-    "MoMo 1900 5454 41 hoặc hỏi trực tiếp CVS trước khi nộp bất kỳ khoản tiền nào."
+    "**Pháp luật cho phép khác với nhà cung cấp nhận hồ sơ.** Luật cho phép người "
+    "từ đủ 15 tuổi mở tài khoản khi có người đại diện đồng ý, nhưng CVS — đơn vị "
+    "vận hành Chứng khoán trên MoMo — lại yêu cầu đủ 18 tuổi theo nguồn chính chủ. "
+    "Khi hai điều này khác nhau thì điều kiện **thực tế** phải hỏi trực tiếp CVS "
+    "hoặc tổng đài MoMo 1900 5454 41 trước khi chuẩn bị hồ sơ hay nộp bất kỳ khoản "
+    "tiền nào. Chính sách có thể thay đổi; con số trong tab này chỉ đúng ở ngày đọc."
 )
 
 # ---------------------------------------------------------------------------
@@ -84,22 +103,46 @@ PRODUCTS = (
     ("Trái phiếu niêm yết", "HOSE, HNX", "Thu nhập cố định; rủi ro tổ chức phát hành."),
 )
 
+# Đã tra ngày 25/10/2026 và ghi lại đúng điều tìm được, kể cả phần chưa tìm được.
+# Không suy diễn thành "bị cấm" khi chưa có nguồn nói vậy.
+WARRANT_NOTE = (
+    "**Chứng quyền với người chưa đủ 18 tuổi — điều tra ngày 25/10/2026:** không "
+    "tìm thấy quy định pháp luật nào đặt hạn mức tuổi riêng cho chứng quyền có bảo "
+    "đảm, và **CVS/MoMo không công bố** chính sách riêng cho nhóm dưới 18 tuổi. "
+    "Điều đó **không** có nghĩa là nhóm dưới 18 tuổi được giao dịch chứng quyền: "
+    "vướng mắc nằm ở bước mở tài khoản (CVS yêu cầu đủ 18 tuổi), nên trên thực tế "
+    "em không vào được sản phẩm này qua MoMo. Ứng dụng này vẫn **khoá phần chứng "
+    "quyền trong bài luyện mô phỏng** với người chưa đủ 18 tuổi — nhưng đó là quy "
+    "định của ứng dụng học, không phải quy định của pháp luật hay của CVS. Đừng "
+    "nhầm hai chuyện đó khi em đọc ở nơi khác."
+)
+
 FEES = (
     ("Mở tài khoản giao dịch", "Miễn phí", "Mở online 100% trên MoMo."),
     ("Nạp/rút qua Túi Thần Tài hoặc MoMo", "Miễn phí", "Nạp từ ngân hàng có thể bị phí của ngân hàng."),
     ("Phí giao dịch cổ phiếu, chứng quyền, chứng chỉ quỹ", "0,1% giá trị khớp lệnh",
      "Đã bao gồm 0,027% phí sở giao dịch thu."),
-    ("Phí lưu ký", "0,27 đồng/chứng khoán/tháng", "Tính hằng tháng trên số chứng khoán đang giữ."),
-    ("Thuế thu nhập cá nhân khi bán", "0,1% giá trị khớp lệnh", "Nhà nước thu — áp dụng cho **mỗi lần bán**, kể cả bán lỗ."),
+    ("Phí lưu ký cổ phiếu, chứng quyền, chứng chỉ quỹ", "0,27 đồng/chứng khoán/tháng",
+     "Tính hằng tháng trên số chứng khoán đang giữ."),
+    ("Phí lưu ký trái phiếu doanh nghiệp", "0,18 đồng/trái phiếu/tháng",
+     "Tối đa 2 triệu đồng/tháng cho mỗi mã trái phiếu."),
+    ("**Đóng tài khoản giao dịch**", "100.000 đồng/tài khoản",
+     "⚠️ Mở thì miễn phí nhưng **đóng thì mất phí** — cân nhắc trước khi mở."),
+    ("Ứng trước tiền bán tự động", "0,033%/ngày",
+     "⚠️ Đây là **vay tiền** để dùng trước tiền bán; dùng nhiều ngày thì phí chồng lên."),
+    ("Phí rút chứng khoán về nơi khác", "100.000 đồng/lần", "Chỉ khi em muốn chuyển tài sản đi."),
+    ("Phí sao kê tài khoản", "100.000 đồng/lần", "Yêu cầu sao kê giấy."),
+    ("Thuế thu nhập cá nhân khi bán", "0,1% giá trị khớp lệnh",
+     "Nhà nước thu — áp dụng cho **mỗi lần bán**, kể cả bán lỗ."),
     ("Thuế cổ tức bằng cổ phiếu, cổ phiếu thưởng", "5% mệnh giá", "Nhà nước thu."),
 )
 
 FEE_WARNING = (
-    "Con số dễ bị bỏ qua nhất là **thuế 0,1% mỗi lần bán, kể cả khi bán lỗ**. "
-    "Mua bán 10 lần một tháng với danh mục 10 triệu đồng: riêng thuế và phí "
-    "giao dịch đã ~20.000 đồng, chưa tính lưu ký. Lướt sóng nhỏ liên tục thì "
-    "phí ăn hết phần lãi mỏng — đây là lý do ứng dụng dặn ghi lý do trước khi "
-    "đặt lệnh, chứ không phải để thử cảm giác."
+    "Hai con số dễ bị bỏ qua nhất. Thứ nhất, **thuế 0,1% mỗi lần bán, kể cả khi "
+    "bán lỗ**. Thứ hai, **đóng tài khoản mất 100.000 đồng** dù mở miễn phí — nhiều "
+    "em tưởng mở rồi đóng lại không sao. Mua bán 10 lần một tháng với danh mục 10 "
+    "triệu đồng: riêng thuế và phí giao dịch đã ~20.000 đồng, chưa tính lưu ký. "
+    "Lướt sóng nhỏ liên tục thì phí ăn hết phần lãi mỏng."
 )
 
 TRADING_HOURS = (
@@ -186,25 +229,29 @@ APP_STANCE = (
 
 
 def age_checklist(track_index: int) -> tuple[str, ...]:
-    """Trả về các bước chuẩn bị cho đúng nhóm tuổi đang chọn."""
+    """Việc cần làm theo đúng nhóm tuổi đang chọn.
 
-    common_tail = (
-        "Đọc bảng phí bên trên và tính thử phí cho đúng số lệnh em định đặt.",
-        "Chuẩn bị sẵn câu trả lời cho câu hỏi: nếu khoản này mất 30%, em làm gì?",
-    )
+    Nhóm 15–17 **không** được dẫn đi chuẩn bị hồ sơ: nguồn chính chủ cho thấy
+    CVS yêu cầu đủ 18 tuổi, nên hướng đúng là hỏi lại CVS hoặc chờ đủ tuổi.
+    """
+
     if track_index == 0:
         return (
-            "Căn cước công dân còn hiệu lực để eKYC.",
+            "Căn cước công dân còn hiệu lực để eKYC — CVS đối chiếu ngày sinh trên đó.",
             "Số điện thoại đã đăng ký chính chủ trùng tên trên căn cước.",
             "Đọc mục cảnh báo pháp lý trong tab này trước khi bấm 'Mở tài khoản ngay'.",
-        ) + common_tail
+            "Đọc bảng phí bên trên và tính thử phí cho đúng số lệnh em định đặt.",
+            "Chuẩn bị sẵn câu trả lời cho câu hỏi: nếu khoản này mất 30%, em làm gì?",
+        )
     return (
-        "Trao đổi với cha/mẹ hoặc người giám hộ, và có văn bản đồng ý rõ ràng.",
-        "Người đại diện cùng đọc mục cảnh báo pháp lý trong tab này.",
-        "Xác nhận với CVS (qua MoMo hoặc hotline) rằng hồ sơ của người chưa đủ 18 "
-        "tuổi được chấp nhận, trước khi nộp tiền.",
-        "Căn cước công dân còn hiệu lực để eKYC.",
-    ) + common_tail
+        "**Không** nộp tiền và **không** nhờ người khác mở tài khoản 'đứng tên hộ' — "
+        "làm vậy là vi phạm quy định và em phải chịu trách nhiệm cho lệnh của mình.",
+        "Hỏi trực tiếp CVS (hotline MoMo 1900 5454 41) xem chính sách tuổi hiện hành "
+        "đã đổi chưa; đừng suy ra từ bài viết hay video.",
+        "Trong lúc chờ đủ 18 tuổi: luyện bằng danh mục mô phỏng trong ứng dụng và "
+        "đọc hết mục cảnh báo pháp lý trong tab này.",
+        "Chuẩn bị sẵn câu trả lời cho câu hỏi: nếu khoản này mất 30%, em làm gì?",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +276,8 @@ def render_momo_guide() -> None:
     # 1. Tuổi -------------------------------------------------------------
     st.markdown("### 1. Bao nhiêu tuổi thì được mở tài khoản?")
     st.caption(
-        "Luật chia thành hai nhánh khác nhau hẳn. Chọn đúng nhánh của em — "
-        "nhiều trang trên mạng nói sai chỗ này."
+        "Chỗ này rất nhiều trang trên mạng nói sai. **Luật cho phép** một đằng, "
+        "**CVS có nhận hồ sơ hay không** lại là chuyện khác. Chọn nhóm của em:"
     )
     labels = [f"{t['who']}" for t in AGE_TRACKS]
     chosen = st.radio(
@@ -243,8 +290,8 @@ def render_momo_guide() -> None:
         track = AGE_TRACKS[chosen]
         show = st.success if track["tone"] == "ok" else st.warning
         show(f"**{track['who']}** — {track['can']}",
-             icon="✅" if track["tone"] == "ok" else "👨‍👩‍👧")
-        st.markdown("**Chuẩn bị trước khi mở:**")
+             icon="✅" if track["tone"] == "ok" else "🚧")
+        st.markdown("**Việc cần làm ở nhóm này:**")
         for line in age_checklist(chosen):
             st.markdown(f"- {line}")
 
@@ -259,9 +306,10 @@ def render_momo_guide() -> None:
         hide_index=True, width="stretch",
     )
     st.caption(
-        "Ứng dụng này khoá chứng quyền và phái sinh với người chưa đủ 18 tuổi: "
-        "đòn bẩy làm mất vốn nhanh hơn nhiều so với cổ phiếu thường."
+        "Chứng quyền có bảo đảm là sản phẩm đòn bẩy: biến động mạnh hơn nhiều so "
+        "với cổ phiếu thường và có thể mất toàn bộ số tiền bỏ ra."
     )
+    st.info(WARRANT_NOTE, icon="🔎")
 
     # 3. Phí --------------------------------------------------------------
     st.markdown("### 3. Phí và thuế thật")

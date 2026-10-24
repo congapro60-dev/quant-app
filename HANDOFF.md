@@ -9,25 +9,72 @@ mở tài khoản ngay trên MoMo (sản phẩm **Chứng Khoán** do **CVS** cu
 
 - File mới `momo_guide.py` (dữ liệu thuần + `render_momo_guide`), tab thứ ba
   trong khu Đầu tư sau "Sẵn sàng dùng vốn thật" và "Nơi mở tài khoản".
-- **Nguồn duy nhất: https://www.momo.vn/chung-khoan** (đọc 24/10/2026). Phí, sàn,
-  khung giờ, sản phẩm chép nguyên. Không dùng nguồn báo/video thứ ba.
-- **Điểm pháp lý quan trọng, đừng "sửa" thành 18 tuổi**: theo Thông tư
-  120/2020/TT-BTC, người **từ đủ 15 đến chưa đủ 18** tuổi được mở tài khoản nếu
-  không mất/hạn chế năng lực hành vi dân sự và **có sự đồng ý của người đại diện
-  theo pháp luật**. Rất nhiều trang trên mạng ghi "phải đủ 18 tuổi" — sai, và
-  làm vậy là chặn oan đúng nhóm học sinh THPT của dự án. Đã sửa cả ghi chú cũ
-  trong `provider_directory.py` (mục `momo_cvs`) theo hướng này.
-- Vẫn giữ nguyên tắc **không suy diễn chính sách của CVS**: trang chính chủ không
-  nêu điều kiện tuổi, nên phần "được pháp luật cho phép" tách rõ khỏi "CVS có
-  nhận hồ sơ hay không" — cái sau phải hỏi trực tiếp CVS.
+- **Nguồn duy nhất, toàn bộ thuộc momo.vn** (đọc 25/10/2026): trang sản phẩm
+  `/chung-khoan`, trang blog `/blog/cach-mo-tai-khoan-chung-khoan-online-c199dt1440`
+  (nguồn của điều kiện tuổi và biểu phí đầy đủ), trang hỏi đáp `/hoi-dap/...`.
+  Không dùng nguồn báo/video thứ ba.
+- **Điểm pháp lý then chốt — hai tầng, đừng gộp lại:**
+  1. **Luật cho phép:** khoản 1 Điều 6 Thông tư 120/2020/TT-BTC — người **từ đủ 15
+     đến chưa đủ 18** tuổi, không mất/hạn chế năng lực hành vi dân sự, được mở tài
+     khoản nếu **có sự đồng ý của người đại diện theo pháp luật**. Bản hợp nhất
+     08/VBHN-BTC (2026) và Thông tư 08/2026/TT-BTC **không** sửa điều kiện tuổi này.
+  2. **CVS có nhận hồ sơ hay không — chặt hơn:** trang blog chính chủ momo.vn ghi
+     nguyên văn "Điều kiện mở tài khoản tại CVS trên Ứng dụng MoMo: **Khách hàng
+     từ đủ 18 tuổi** (theo ngày tháng năm sinh trên CCCD) và có CCCD". Nghĩa là
+     nhóm 15–17 **chưa mở được qua MoMo** dù luật không cấm.
+- ⚠️ **Bài học từ một lỗi đã mắc và sửa:** bản đầu của tab ghi "trang chính chủ
+  MoMo không nêu điều kiện tuổi" và hướng dẫn nhóm 15–17 chuẩn bị hồ sơ mở tài
+  khoản. **Sai.** Nguồn chính chủ có nêu, nhưng ở **trang blog** chứ không phải
+  trang sản phẩm — tôi đã suy ra từ việc một trang thiếu thông tin. Hậu quả nếu
+  để nguyên: học sinh 15–17 chuẩn bị giấy tờ rồi bị chặn, hoặc tin vào một quy
+  trình không tồn tại. Đã đảo lại: nhóm 15–17 được dẫn sang mô phỏng và hỏi CVS,
+  không được dẫn đi nộp tiền. Ghi chú `provider_directory.py` (`momo_cvs`) đã sửa
+  theo cùng hướng.
+- **Quy tắc rút ra cho lần sau:** muốn khẳng định "nhà cung cấp không nêu X" thì
+  phải kiểm **cả blog, trang hỏi đáp, và trang sản phẩm**, không chỉ trang sản
+  phẩm. Nếu chưa kiểm hết thì viết "chưa tìm thấy", đừng viết "không có".
+- **Chứng quyền (đã điều tra, kết luận trung thực):** không tìm thấy quy định pháp
+  luật đặt hạn mức tuổi riêng cho chứng quyền có bảo đảm (văn bản điều chỉnh:
+  Thông tư 107/2016/TT-BTC), và **CVS/MoMo không công bố** chính sách cho nhóm
+  dưới 18. Không suy diễn thành "bị cấm". Trên thực tế nhóm 15–17 vẫn không vào
+  được sản phẩm này vì vướng bước mở tài khoản. Ứng dụng **có** khoá chứng quyền
+  trong phần mô phỏng — nhưng tab nói rõ đó là **quy tắc của ứng dụng học**, không
+  phải quy định của pháp luật hay của CVS.
 - Cảnh báo nằm ngang tầm, không phải chú thích cuối trang: rủi ro mất vốn, hành
   vi bị cấm (thao túng, nội gián, tin sai sự thật), cấm cho mượn tài khoản, cấm
   hứa lãi, cảnh báo KOL nhận hoa hồng, và thứ tự "học → mô phỏng → tiền thật".
 - **Dùng `st.warning`, KHÔNG dùng `st.error`**: `tests/test_app_smoke.py` cấm mọi
   hộp đỏ ở lần mở đầu (học sinh thấy chữ đỏ tưởng app hỏng). Lần đầu tôi viết
   `st.error` và đã làm đỏ 2 test smoke — nhớ luật này khi thêm cảnh báo.
-- Test: `tests/test_momo_guide.py` (9 test) khoá hai nhánh tuổi, cảnh báo, phí,
+- Test: `tests/test_momo_guide.py` (15 test) khoá hai nhánh tuổi, điều CVS yêu cầu
+  đủ 18, cảnh báo, phí, thuế, giờ giao dịch, kết luận chứng quyền, số thông tư
+  đúng và nguồn chính chủ.
   thuế, giờ giao dịch và nguồn chính chủ. Tổng **765 passed**, commit `0bd0fe8`.
+- **Sửa lại 25/10/2026 sau khi điều tra thêm** (xem mục `0z2` bên dưới): bản đầu
+  kết luận sai rằng nhóm 15–17 mở được tài khoản qua MoMo. Đã đảo lại theo nguồn
+  chính chủ. Số test module tăng 9 → 15.
+
+## 0z2. Sửa 25/10/2026 — đính chính điều kiện tuổi CVS, dùng điều phối AI để tra cứu
+
+Người dùng yêu cầu giao việc tra cứu CVS cho các AI mạnh chuyên tìm kiếm. Quy trình
+theo skill `dieu-phoi-ai`, ở dạng **kiểu A gọn** (việc nghiên cứu, một tác vụ, không
+có nhánh code song song):
+
+- **Kiểm tra sức khỏe:** `quota.py` — Claude session 98%, ChatGPT Plus 87%/76%,
+  Antigravity 53%; PShareHub đã hết hạn 24/10 nên loại; Gemini CLI chết.
+- **Canary trước khi giao việc:** `cx/gpt-6.1-sol` PASS có web search thật (log
+  hiện `web search:` và trả đúng URL chính chủ). `cc/claude-opus-5-5` qua
+  `codex exec -s read-only` **không có mạng** — trả `UNVERIFIED` trung thực thay vì
+  bịa, ghi `degraded: capability`, không dùng làm nguồn.
+- **Kết quả:** lane tìm kiếm độc lập trả về đúng hai kết luận mà não tự tra được
+  (hội tụ độc lập): Điều 6 khoản 1 TT 120/2020 vẫn còn hiệu lực và không bị Thông
+  tư 08/2026 sửa về tuổi; còn momo.vn công bố điều kiện CVS là **đủ 18 tuổi**.
+- **Giá trị thật của việc điều phối ở đây không phải "AI tìm hộ"** mà là nó buộc
+  não nghi ngờ giả định ban đầu (lane đầu tiên nêu thẳng "the claimed Circular 120
+  age clause is absent"), dẫn tới việc tìm ra trang blog chính chủ mà lần trước bỏ sót.
+- **Còn nợ, ghi thẳng:** chưa xác minh được hình thức văn bản đồng ý của người đại
+  diện; chưa xác minh chính sách CVS ngoài luồng MoMo; chưa loại trừ tuyệt đối mọi
+  văn bản pháp lý khác về chứng quyền. Không suy diễn các phần này thành kết luận.
 
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 

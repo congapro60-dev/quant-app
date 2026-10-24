@@ -192,12 +192,18 @@ PROVIDERS: tuple[Provider, ...] = (
             "⚠️ Có chứng quyền có bảo đảm — sản phẩm đòn bẩy, biến động rất mạnh "
             "và có thể mất toàn bộ vốn. Ứng dụng khóa nhóm này với người dưới 18 tuổi.",
             "Điều kiện tuổi theo pháp luật: từ đủ 18 tuổi tự mở được; từ đủ 15 đến "
-            "chưa đủ 18 tuổi được mở nếu không mất/hạn chế năng lực hành vi dân sự "
-            "và CÓ sự đồng ý của người đại diện theo pháp luật (Thông tư 120/2020/"
-            "TT-BTC). Nhiều nguồn trên mạng nói 'phải đủ 18 tuổi' là thiếu chính xác.",
-            "Trang chính chủ KHÔNG nêu điều kiện tuổi, nên ứng dụng không ghi nhận "
-            "việc CVS nhận hồ sơ người chưa đủ 18 tuổi là đã xác minh — phải hỏi "
-            "trực tiếp CVS trước khi nộp tiền.",
+            "chưa đủ 18 tuổi **được pháp luật cho phép** mở nếu không mất/hạn chế "
+            "năng lực hành vi dân sự và CÓ sự đồng ý của người đại diện theo pháp "
+            "luật (Thông tư 120/2020/TT-BTC).",
+            "Nhưng điều kiện THỰC TẾ của kênh này chặt hơn: trang chính chủ "
+            "https://www.momo.vn/blog/cach-mo-tai-khoan-chung-khoan-online-c199dt1440 "
+            "(đọc 25/10/2026) ghi rõ 'Khách hàng từ đủ 18 tuổi (theo ngày tháng năm "
+            "sinh trên CCCD) và có CCCD'. Nghĩa là nhóm 15–17 chưa mở được qua MoMo "
+            "dù luật không cấm — phải hỏi CVS trước khi nộp bất kỳ khoản tiền nào.",
+            "Bài học ghi lại: ban đầu ứng dụng ghi 'trang chính chủ không nêu điều "
+            "kiện tuổi' và coi nhóm 15–17 mở được. Sai — nguồn chính chủ có nêu, ở "
+            "trang blog chứ không phải trang sản phẩm. Đừng suy ra từ việc trang "
+            "này thiếu thông tin mà trang khác có.",
         ),
     ),
     Provider(
