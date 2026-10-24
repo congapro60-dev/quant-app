@@ -24,6 +24,20 @@ MOMO_AGE_SOURCE = "https://www.momo.vn/blog/cach-mo-tai-khoan-chung-khoan-online
 MOMO_HOTLINE = "1900 5454 41"
 SOURCE_DATE = "25/10/2026"
 
+# Hai trang chính chủ KHÔNG cùng nội dung — đừng coi trang này thay được trang kia:
+# - Trang sản phẩm /chung-khoan: có 5 nhóm phí, 7 bước mở tài khoản (có xác thực
+#   gương mặt), giờ giao dịch và ba khung đặt lệnh. KHÔNG có điều kiện tuổi, KHÔNG
+#   có phí đóng tài khoản, KHÔNG có phí ứng trước tiền bán.
+# - Trang blog: có điều kiện tuổi "từ đủ 18 tuổi" và biểu phí ĐẦY ĐỦ (thêm phí
+#   đóng tài khoản, ứng trước tiền bán, rút chứng khoán, sao kê).
+# Vì vậy mỗi dòng phí dưới đây ghi rõ nguồn để người đọc biết đang đọc trang nào.
+SRC_PRODUCT = "trang sản phẩm"
+SRC_BLOG = "trang blog"
+SRC_PRODUCT_DAYS = (
+    "Thứ Hai đến thứ Sáu, trừ ngày lễ Tết — đặt lệnh trong giờ giao dịch, hoặc "
+    "ngoài giờ theo ba khung bên dưới."
+)
+
 # Nguồn pháp lý: Thông tư 120/2020/TT-BTC (sửa đổi bởi Thông tư 68/2024/TT-BTC)
 # hướng dẫn giao dịch chứng khoán trên hệ thống giao dịch. Không dẫn số điều cụ
 # thể vì có thể bị sửa tiếp; chỉ nêu tên văn bản để người đọc tự tra bản mới nhất.
@@ -43,6 +57,26 @@ LEGAL_DOCS = (
 # ghi nguyên văn "Điều kiện mở tài khoản tại CVS trên Ứng dụng MoMo: Khách hàng
 # từ đủ 18 tuổi (theo ngày tháng năm sinh trên CCCD) và có CCCD" (đọc 25/10/2026).
 CVS_MIN_AGE_NOTE = "Đủ 18 tuổi theo ngày sinh trên CCCD, và phải có CCCD."
+
+# Trình tự mở tài khoản, chép theo trang chính chủ /chung-khoan (đọc 25/10/2026).
+# Bước 4 "Xác thực gương mặt" là chỗ học sinh hay kẹt nhất: ánh sáng kém, dùng
+# máy của người khác, hoặc cầm CCCD sai cách đều làm eKYC thất bại.
+OPEN_ACCOUNT_STEPS = (
+    "Mở dịch vụ **Chứng Khoán** trên MoMo (bấm biểu tượng, hoặc tìm chữ 'Chứng khoán').",
+    "Chọn **'Mở tài khoản ngay'** ở màn hình chính dịch vụ.",
+    "Xác thực tài khoản (số điện thoại / OTP).",
+    "**Xác thực gương mặt** — đây là bước hay thất bại nhất.",
+    "Kiểm tra thông tin cá nhân và bấm 'Tiếp tục'.",
+    "Ký tên và bấm 'Xác nhận'.",
+    "Hoàn tất đăng ký và chờ kết quả duyệt.",
+)
+
+EKYC_TIPS = (
+    "**Xác thực gương mặt thất bại thường do:** ánh sáng ngược hoặc quá tối; đeo "
+    "kính có ánh phản chiếu; mặt không nằm trọn trong khung; CCCD bị mờ, cong góc "
+    "hoặc đã hết hạn; mạng yếu giữa bước. Sửa từng thứ đó trước khi thử lại nhiều "
+    "lần — thử sai liên tục có thể bị tạm khoá. Nếu vẫn không qua: gọi 1900 5454 41."
+)
 
 AGE_TRACKS = (
     {
@@ -118,23 +152,29 @@ WARRANT_NOTE = (
 )
 
 FEES = (
-    ("Mở tài khoản giao dịch", "Miễn phí", "Mở online 100% trên MoMo."),
-    ("Nạp/rút qua Túi Thần Tài hoặc MoMo", "Miễn phí", "Nạp từ ngân hàng có thể bị phí của ngân hàng."),
+    ("Mở tài khoản giao dịch", "Miễn phí", "Mở online 100% trên MoMo.", SRC_PRODUCT),
+    ("Nạp/rút qua Túi Thần Tài hoặc MoMo", "Miễn phí",
+     "Nạp từ ngân hàng có thể bị phí của ngân hàng.", SRC_PRODUCT),
     ("Phí giao dịch cổ phiếu, chứng quyền, chứng chỉ quỹ", "0,1% giá trị khớp lệnh",
-     "Đã bao gồm 0,027% phí sở giao dịch thu."),
+     "Đã bao gồm 0,027% phí sở giao dịch thu.", SRC_PRODUCT),
+    ("Phí giao dịch trái phiếu niêm yết", "0,1% giá trị khớp lệnh",
+     "Cùng mức với cổ phiếu.", SRC_PRODUCT),
     ("Phí lưu ký cổ phiếu, chứng quyền, chứng chỉ quỹ", "0,27 đồng/chứng khoán/tháng",
-     "Tính hằng tháng trên số chứng khoán đang giữ."),
+     "Tính hằng tháng trên số chứng khoán đang giữ.", SRC_PRODUCT),
     ("Phí lưu ký trái phiếu doanh nghiệp", "0,18 đồng/trái phiếu/tháng",
-     "Tối đa 2 triệu đồng/tháng cho mỗi mã trái phiếu."),
-    ("**Đóng tài khoản giao dịch**", "100.000 đồng/tài khoản",
-     "⚠️ Mở thì miễn phí nhưng **đóng thì mất phí** — cân nhắc trước khi mở."),
-    ("Ứng trước tiền bán tự động", "0,033%/ngày",
-     "⚠️ Đây là **vay tiền** để dùng trước tiền bán; dùng nhiều ngày thì phí chồng lên."),
-    ("Phí rút chứng khoán về nơi khác", "100.000 đồng/lần", "Chỉ khi em muốn chuyển tài sản đi."),
-    ("Phí sao kê tài khoản", "100.000 đồng/lần", "Yêu cầu sao kê giấy."),
+     "Tối đa 2 triệu đồng/tháng cho mỗi mã trái phiếu.", SRC_PRODUCT),
     ("Thuế thu nhập cá nhân khi bán", "0,1% giá trị khớp lệnh",
-     "Nhà nước thu — áp dụng cho **mỗi lần bán**, kể cả bán lỗ."),
-    ("Thuế cổ tức bằng cổ phiếu, cổ phiếu thưởng", "5% mệnh giá", "Nhà nước thu."),
+     "Nhà nước thu — áp dụng cho **mỗi lần bán**, kể cả bán lỗ.", SRC_PRODUCT),
+    ("Thuế cổ tức bằng cổ phiếu, cổ phiếu thưởng", "5% mệnh giá",
+     "Nhà nước thu.", SRC_PRODUCT),
+    ("**Đóng tài khoản giao dịch**", "100.000 đồng/tài khoản",
+     "⚠️ Mở thì miễn phí nhưng **đóng thì mất phí** — cân nhắc trước khi mở.", SRC_BLOG),
+    ("Ứng trước tiền bán tự động", "0,033%/ngày",
+     "⚠️ Đây là **vay tiền** để dùng trước tiền bán; dùng nhiều ngày thì phí chồng lên.",
+     SRC_BLOG),
+    ("Phí rút chứng khoán về nơi khác", "100.000 đồng/lần",
+     "Chỉ khi em muốn chuyển tài sản đi.", SRC_BLOG),
+    ("Phí sao kê tài khoản", "100.000 đồng/lần", "Yêu cầu sao kê giấy.", SRC_BLOG),
 )
 
 FEE_WARNING = (
@@ -145,16 +185,39 @@ FEE_WARNING = (
     "Lướt sóng nhỏ liên tục thì phí ăn hết phần lãi mỏng."
 )
 
-TRADING_HOURS = (
-    ("HOSE", "09:00–11:30 và 13:00–14:45"),
-    ("HNX", "09:00–11:30 và 13:00–15:00"),
-    ("UPCOM", "09:00–11:30 và 13:00–15:00"),
+FEE_SOURCE_NOTE = (
+    "Cột **Nguồn** cho biết dòng đó nằm ở trang nào của momo.vn. Trang sản phẩm chỉ "
+    "liệt kê 5 nhóm phí (mở tài khoản, giao dịch tiền, giao dịch chứng khoán, lưu "
+    "ký, thuế). Các phí còn lại — kể cả **phí đóng tài khoản** và **ứng trước tiền "
+    "bán** — chỉ có ở trang blog chính chủ. Nếu em chỉ đọc trang sản phẩm, em sẽ "
+    "không biết mình phải trả mấy khoản này."
 )
 
-HOURS_NOTE = (
-    "Thứ Hai đến thứ Sáu, trừ ngày lễ Tết. Lệnh đặt trong giờ nghỉ trưa được "
-    "gửi lên sàn lúc 13:00; lệnh đặt sau 18:00 được gửi lúc 09:00 ngày giao "
-    "dịch kế tiếp."
+TRADING_HOURS = (
+    ("HOSE", "09:00–11:30", "13:00–14:45"),
+    ("HNX", "09:00–11:30", "13:00–15:00"),
+    ("UPCOM", "09:00–11:30", "13:00–15:00"),
+)
+
+HOURS_NOTE = SRC_PRODUCT_DAYS
+
+# Ba khung đặt lệnh — chép nguyên cách trang chính chủ chia, không gộp lại.
+ORDER_WINDOWS = (
+    ("Trong giờ giao dịch",
+     "Đặt trong các khung giờ của từng sàn, ngày giao dịch (thứ Hai–thứ Sáu, trừ lễ Tết).",
+     "Lệnh gửi lên sàn ngay và chờ khớp."),
+    ("Giờ nghỉ trưa · 11:30–13:00",
+     "Đặt vào khung nghỉ trưa của ngày giao dịch.",
+     "Lệnh được giữ lại và gửi lên sàn lúc 13:00 cùng ngày."),
+    ("Trước phiên kế tiếp · từ 18:00 mỗi ngày",
+     "Đặt từ 18:00 trở đi, kể cả ngày nghỉ.",
+     "Lệnh được ghi nhận và gửi lên sàn lúc 09:00 sáng ngày giao dịch kế tiếp."),
+)
+
+HOURS_CAVEAT = (
+    "Đặt lệnh ngoài giờ **không** có nghĩa là lệnh chạy giá tốt hơn — lệnh chỉ chờ "
+    "đến phiên kế tiếp rồi khớp theo giá thị trường lúc đó. Giá em thấy lúc đặt có "
+    "thể khác giá khớp."
 )
 
 # ---------------------------------------------------------------------------
@@ -314,27 +377,43 @@ def render_momo_guide() -> None:
     # 3. Phí --------------------------------------------------------------
     st.markdown("### 3. Phí và thuế thật")
     st.dataframe(
-        [{"Khoản": k, "Mức": v, "Ghi chú": n} for k, v, n in FEES],
+        [{"Khoản": k, "Mức": v, "Ghi chú": n, "Nguồn": s} for k, v, n, s in FEES],
         hide_index=True, width="stretch",
     )
     st.info(FEE_WARNING, icon="🧾")
+    st.caption(FEE_SOURCE_NOTE)
     st.caption(
         f"Biểu phí áp dụng theo từng thời kỳ công bố — đối chiếu lại tại "
-        f"[trang phí chính chủ]({MOMO_FEE_URL}) trước khi giao dịch."
+        f"[trang biểu phí chính chủ]({MOMO_FEE_URL}) trước khi giao dịch."
     )
 
     # 4. Giờ giao dịch ----------------------------------------------------
     st.markdown("### 4. Giờ đặt lệnh")
     st.dataframe(
-        [{"Sàn": s, "Giờ trong phiên": h} for s, h in TRADING_HOURS],
+        [{"Sàn": s, "Phiên sáng": m, "Phiên chiều": a} for s, m, a in TRADING_HOURS],
         hide_index=True, width="stretch",
     )
     st.caption(HOURS_NOTE)
+    st.dataframe(
+        [{"Khung": k, "Khi nào": w, "Lệnh đi thế nào": r} for k, w, r in ORDER_WINDOWS],
+        hide_index=True, width="stretch",
+    )
+    st.caption(HOURS_CAVEAT)
+
+    # 5. Trình tự mở tài khoản -------------------------------------------
+    st.markdown("### 5. Mở tài khoản gồm những bước nào?")
+    st.caption(
+        "Bảy bước theo hướng dẫn trên trang chính chủ. Đọc trước để biết mình cần "
+        "chuẩn bị gì, nhất là bước xác thực gương mặt."
+    )
+    for i, step in enumerate(OPEN_ACCOUNT_STEPS, start=1):
+        st.markdown(f"{i}. {step}")
+    st.info(EKYC_TIPS, icon="📸")
 
     st.markdown("---")
 
-    # 5. Cảnh báo pháp lý -------------------------------------------------
-    st.markdown("### 5. Quy định pháp luật và cảnh báo — đọc hết trước khi nộp tiền")
+    # 6. Cảnh báo pháp lý -------------------------------------------------
+    st.markdown("### 6. Quy định pháp luật và cảnh báo — đọc hết trước khi nộp tiền")
     for item in LEGAL_WARNINGS:
         with st.container(border=True):
             st.markdown(f"**{item['title']}**")
@@ -350,6 +429,8 @@ def render_momo_guide() -> None:
         icon="🚫",
     )
     st.caption(
-        f"[Trang chính thức Chứng khoán trên MoMo]({MOMO_URL}) · Hotline MoMo "
-        "1900 5454 41. Toàn bộ số liệu trong tab này lấy từ đó, không có nguồn thứ ba."
+        f"[Trang sản phẩm Chứng khoán trên MoMo]({MOMO_URL}) · "
+        f"[Trang blog có điều kiện tuổi và biểu phí đầy đủ]({MOMO_AGE_SOURCE}) · "
+        f"Hotline MoMo {MOMO_HOTLINE}. Không dùng nguồn báo hay video thứ ba. "
+        f"Đọc ngày {SOURCE_DATE} — chính sách có thể đổi, hãy đối chiếu lại."
     )

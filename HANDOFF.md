@@ -75,11 +75,43 @@ có nhánh code song song):
 - **Còn nợ, ghi thẳng:** chưa xác minh được hình thức văn bản đồng ý của người đại
   diện; chưa xác minh chính sách CVS ngoài luồng MoMo; chưa loại trừ tuyệt đối mọi
   văn bản pháp lý khác về chứng quyền. Không suy diễn các phần này thành kết luận.
-- **Trạng thái:** `tested` (771 passed) → `deployed` (commit `4fa5600` trên master).
+- **Trạng thái:** `tested` (775 passed) → `deployed` (commit trên master).
   **Chưa `verified` trên UI production**: cloud browser không bấm được vào tab
   Streamlit nên chưa đọc được nội dung tab MoMo bản mới. Đã xác minh được: app
   production boot sạch, không traceback, danh sách tab có "Chứng khoán trên MoMo".
   Nếu sau khi Reboot tab vẫn hiện bản cũ, kiểm bằng cách bấm tay vào tab.
+
+## 0z3. Bổ sung 25/10/2026 — đối chiếu lại trang chính chủ, hai trang KHÔNG cùng nội dung
+
+Người dùng mở sẵn https://www.momo.vn/chung-khoan trong trình duyệt và yêu cầu tự
+xem. Đọc trực tiếp DOM (không qua fetch) và phát hiện ba chỗ sai, một chỗ thiếu:
+
+- **Phát hiện lớn nhất — hai trang chính chủ khác nhau về biểu phí:**
+  - Trang sản phẩm `/chung-khoan`: chỉ có **5 nhóm phí** (mở tài khoản, giao dịch
+    tiền, giao dịch chứng khoán, lưu ký, thuế). **Không** có phí đóng tài khoản,
+    **không** có ứng trước tiền bán, **không** có điều kiện tuổi.
+  - Trang blog: có điều kiện tuổi "từ đủ 18 tuổi" **và** biểu phí đầy đủ (thêm phí
+    đóng tài khoản 100.000đ, ứng trước 0,033%/ngày, rút chứng khoán, sao kê).
+  - Vì vậy `FEES` nay là **tuple 4 phần tử**, phần tử thứ 4 là nguồn
+    (`SRC_PRODUCT` / `SRC_BLOG`), và bảng hiển thị thêm cột **Nguồn**. Test
+    `test_each_fee_row_names_which_momo_page_it_came_from` khoá cấu trúc này.
+- **Sửa giờ giao dịch:** tách phiên sáng/chiều (`09:00–11:30` | `13:00–14:45` cho
+  HOSE, `15:00` cho HNX/UPCOM) thay vì gộp một chuỗi.
+- **Sửa khung đặt lệnh:** trang ghi **"từ 18:00 mỗi ngày"** (không phải "sau
+  18:00" như bản cũ), và tách riêng khung nghỉ trưa **11:30–13:00**. Nay là
+  `ORDER_WINDOWS` ba dòng, kèm `HOURS_CAVEAT` nhắc đặt ngoài giờ không có nghĩa
+  là khớp giá tốt hơn.
+- **Thiếu, nay đã thêm:** trình tự **7 bước** mở tài khoản (`OPEN_ACCOUNT_STEPS`),
+  trong đó **bước 4 là xác thực gương mặt** — chỗ học sinh hay kẹt nhất. Kèm
+  `EKYC_TIPS` liệt kê nguyên nhân thất bại thường gặp (ánh sáng ngược, kính phản
+  chiếu, CCCD mờ/hết hạn, mạng yếu) và cảnh báo thử sai liên tục có thể bị tạm khoá.
+- Trang sản phẩm cũng xác nhận **chứng quyền là sản phẩm CVS thực bán** (có phí
+  giao dịch và lưu ký riêng), củng cố kết luận: nhóm 15–17 vướng ở bước mở tài
+  khoản, không phải ở sản phẩm.
+- **Bài học lặp lại lần hai:** lần trước tôi kết luận "trang chính chủ không nêu
+  điều kiện tuổi" vì đọc trang sản phẩm. Lần này đọc đủ vẫn thấy đúng là trang sản
+  phẩm không nêu — nhưng nó cũng **không có** ba mục phí mà tôi đang hiển thị như
+  thể cùng một nguồn. Quy tắc: **mỗi con số phải chỉ ra được nó nằm ở trang nào.**
 
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 

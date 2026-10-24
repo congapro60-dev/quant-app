@@ -99,13 +99,63 @@ def test_momo_render_lists_fees_tax_and_trading_hours():
 def test_hidden_fees_that_surprise_students_are_listed():
     """Phí đóng tài khoản và ứng trước tiền bán — loại học sinh hay bị bất ngờ."""
 
-    joined = " ".join(f"{k} {v} {n}" for k, v, n in mg.FEES)
+    joined = " ".join(f"{k} {v} {n}" for k, v, n, _ in mg.FEES)
 
     assert "Đóng tài khoản" in joined
     assert "100.000" in joined
     assert "Ứng trước tiền bán" in joined
     assert "0,033%" in joined
     assert "đóng tài khoản mất 100.000" in mg.FEE_WARNING.lower()
+
+
+def test_each_fee_row_names_which_momo_page_it_came_from():
+    """Trang sản phẩm và trang blog KHÔNG cùng biểu phí — phải ghi rõ nguồn từng dòng.
+
+    Phí đóng tài khoản và ứng trước tiền bán chỉ có ở trang blog. Nếu để chung một
+    bảng không ghi nguồn, người đọc sẽ tưởng tất cả nằm trên trang sản phẩm.
+    """
+
+    for row in mg.FEES:
+        assert len(row) == 4, f"thiếu cột nguồn: {row}"
+        assert row[3] in (mg.SRC_PRODUCT, mg.SRC_BLOG)
+
+    by_name = {row[0]: row[3] for row in mg.FEES}
+    assert by_name["**Đóng tài khoản giao dịch**"] == mg.SRC_BLOG
+    assert by_name["Ứng trước tiền bán tự động"] == mg.SRC_BLOG
+    assert by_name["Phí lưu ký cổ phiếu, chứng quyền, chứng chỉ quỹ"] == mg.SRC_PRODUCT
+
+
+def test_trading_hours_split_morning_and_afternoon_sessions():
+    """HOSE chiều đóng 14:45, HNX/UPCOM 15:00 — không gộp một chuỗi."""
+
+    hours = {s: (m, a) for s, m, a in mg.TRADING_HOURS}
+
+    assert hours["HOSE"] == ("09:00–11:30", "13:00–14:45")
+    assert hours["HNX"] == ("09:00–11:30", "13:00–15:00")
+    assert hours["UPCOM"] == ("09:00–11:30", "13:00–15:00")
+
+
+def test_three_order_windows_match_the_official_page():
+    """Ba khung: trong giờ, nghỉ trưa 11:30–13:00, và từ 18:00 mỗi ngày."""
+
+    names = " ".join(k for k, _, _ in mg.ORDER_WINDOWS)
+    bodies = " ".join(w + " " + r for _, w, r in mg.ORDER_WINDOWS)
+
+    assert len(mg.ORDER_WINDOWS) == 3
+    assert "11:30–13:00" in names
+    assert "từ 18:00 mỗi ngày" in names
+    assert "13:00" in bodies
+    assert "09:00" in bodies
+
+
+def test_account_opening_lists_face_verification_step():
+    """Bài học thực tế: bước xác thực gương mặt là chỗ hay thất bại nhất."""
+
+    steps = " ".join(mg.OPEN_ACCOUNT_STEPS)
+
+    assert len(mg.OPEN_ACCOUNT_STEPS) == 7
+    assert "Xác thực gương mặt" in steps
+    assert "1900 5454 41" in mg.EKYC_TIPS
 
 
 def test_legal_warnings_name_forbidden_acts_and_sources():
