@@ -146,6 +146,24 @@
   Streamlit selectbox trên production mở qua evaluate chỉ thấy 1 option
   (portal ảo hóa) và tắt giữa hai nhịp evaluate — điều hướng dùng nút
   "Bài tiếp theo" ổn định hơn.
+- ✅ Verify responsive m7 bằng **iframe rig** (kỹ thuật mới, dùng lại được
+  khi không có tool viewport và chrome-devtools MCP chết): tiêm vào 1 tab
+  popup `<iframe style="width:390px;height:844px;border:0" src="<app-url>/
+  ~/+/">`; media query trong iframe phản ứng theo width thật của iframe
+  (same-origin nên `contentDocument` đọc được trực tiếp). Nhắc: popup
+  `window.open(..., 'width=390')` BỊ OS bỏ width (thành 1000px) — đừng dùng
+  để emulate. Kết quả cả hai bề ngang, KHÔNG sửa CSS:
+  - **390×844** (điện thoại): `matchMedia('(max-width: 768px)')` và
+    `(max-width: 480px)` cùng matches, `scrollWidth - clientWidth == 0`
+    qua mọi nhịp điều hướng Bài 1→11; Bài 11/11 render đủ title +
+    disclaimer; link button 202×40px tại x=16, right=218 (tap target chuẩn
+    40px, nằm gọn trong 390).
+  - **768×844** (máy tính bảng, giá trị biên): `media768` vẫn matches đúng
+    (max-width: 768px gồm đúng 768), `media480` tắt đúng, `overflowX == 0`
+    tại Bài 11/11, link button 202×40px visible. Lưu ý: đây là render
+    Chromium chuẩn media query, không phải chạm thật trên iOS/Android.
+  - Sau QA: storage tab production chính vẫn 299 bytes (không zeros); tab
+    rig đã đóng, khôi phục quy tắc 1 tab production.
 
 ## 0b. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
