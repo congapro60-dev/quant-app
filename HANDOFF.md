@@ -171,13 +171,14 @@
   `quant_app_paper_YYYYMMDD_HHMMSS.json`. Có AppTest
   `test_paper_portfolio_without_ledger_explains_backup_source` (assert info
   + uploader + nút init) — **743 passed (~5m25s)**, commit `55297b7`.
-  **CHƯA verify production**: container Cloud vẫn chạy code cũ sau ~30 phút
-  (đo 3 lần: 2 lần điều hướng + 1 lần reload phiên mới, `infoCount == 0`);
-  dashboard share.streamlit.io mất phiên GitHub OAuth (đang ở trang login,
-  chờ user đăng nhập để Reboot xem logs); chrome-devtools MCP báo "browser
-  already running". Việc còn nợ: đăng nhập dashboard → Reboot (an toàn,
-  điểm số nằm localStorage) → vào Đầu tư → Danh mục mô phỏng → thấy khối
-  info "Chưa từng tạo danh mục?" là xong.
+  **ĐÃ verify production (24/10 tối)**: container cũ treo ~35 phút; sau đó
+  user đăng nhập dashboard thành công → bấm ⋮ (data-testid=app-menu) →
+  Reboot → xác nhận dialog → app sống lại ~2–5 phút sau. Đo tab production:
+  vào Đầu tư → Danh mục mô phỏng thấy đúng nội dung info (so khớp nguyên
+  văn "Chưa từng tạo danh mục? Bỏ qua ô tải file bên dưới..."). Nợ này
+  ĐÃ XONG. Lưu ý thao tác: kebab menu share.streamlit.io chỉ bấm được bằng
+  driver click (browser.click với ref từ browser.snapshot), JS click giả
+  không mở menu.
 
 ## 0b. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
