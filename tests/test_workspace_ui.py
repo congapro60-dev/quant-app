@@ -6,7 +6,10 @@ import pandas as pd
 import pytest
 from streamlit.testing.v1 import AppTest
 
+import curriculum as cur
 import learning_modes as lm
+import progress_profile as pp
+import workspace_ui as wu
 from workspace_ui import HISTORY_LABEL, MUSE_LABEL, NAV_KEY, history_view
 
 APP = str(Path(__file__).resolve().parents[1] / "app.py")
@@ -84,3 +87,52 @@ def test_history_raw_prices_separate_market_index():
     for chart in at.get("plotly_chart"):
         assert json.loads(chart.proto.spec)["layout"]["xaxis"]["title"]["text"] == "Phiên"
     assert at.dataframe[0].value["Đơn vị"].tolist() == ["Nghìn VND/cổ phiếu", "Điểm"]
+
+
+# ---------------------------------------------------------------------------
+# Onboarding C2: Hành trình lần đầu 5 bước trên Trang tổng quan
+# ---------------------------------------------------------------------------
+
+def _journey_buttons(at):
+    return sorted(b.key for b in at.button if b.key and b.key.startswith("journey_"))
+
+
+def test_first_journey_visible_and_navigates_for_newcomer():
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    assert not at.exception
+
+    # Người mới: 5 bước chưa làm gì, mỗi bước một nút nhảy sang khu của nó.
+    assert _journey_buttons(at) == [f"journey_{i}" for i in range(5)] + ["journey_hide"]
+
+    at.button(key="journey_0").click().run()
+    assert at.session_state[NAV_KEY] == lm.AREA_LABELS[lm.AREA_JOURNAL]
+
+    at.button(key="journey_2").click().run()
+    assert at.session_state[f"tools_{lm.AREA_INVEST}"] == lm.FEATURES[lm.FEATURE_PAPER]["label"]
+
+
+def _fully_done_profile(at):
+    profile = pp.empty_profile()
+    first = cur.all_lessons()[0].lesson_id
+    profile["pre_test"] = {"score": 40.0, "taken_at": "2026-10-24 20:12"}
+    profile["lesson_scores"] = {first: 85.0}
+    pp.add_journal_entry(profile, title="Thử", decision="Mua 1 mã.")
+    at.session_state["progress_profile"] = profile
+    at.session_state["paper_ledger"] = {"fills": [{"qty": 100}]}
+    at.session_state[wu.BACKUP_FLAG_KEY] = True
+
+
+def test_first_journey_hides_when_all_five_steps_done():
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    _fully_done_profile(at)
+    at.run()
+
+    assert not at.exception
+    assert _journey_buttons(at) == []
+
+
+def test_first_journey_dismiss_button_hides_until_next_session():
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    at.button(key="journey_hide").click().run()
+    assert _journey_buttons(at) == []
+    assert at.session_state[wu.JOURNEY_HIDE_KEY] is True

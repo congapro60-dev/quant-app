@@ -23,6 +23,7 @@ import progress_store as pstore
 import provider_directory as pdir
 import readiness_gate as rg
 import risk_limits as rlim
+import workspace_ui as wu
 import classroom_packages as cp
 from workspace_ui import navigate_to
 
@@ -838,6 +839,7 @@ def _render_progress(profile: dict[str, Any]) -> None:
         pp.export_json(profile).encode("utf-8"),
         file_name="ho_so_tien_do.json",
         mime="application/json",
+        on_click=lambda: st.session_state.update({wu.BACKUP_FLAG_KEY: True}),
     )
     uploaded = st.file_uploader("Nạp lại hồ sơ đã lưu:", type=["json"], key="profile_up")
     if uploaded is not None and st.button("Nạp hồ sơ"):

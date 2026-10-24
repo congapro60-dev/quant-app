@@ -37,6 +37,122 @@ def workspace_tabs(labels: list[str], key: str):
     return st.tabs(labels, key=key, on_change="rerun")
 
 
+# ---------------------------------------------------------------------------
+# Hành trình lần đầu (onboarding C2): checklist 5 bước cho người mới
+# ---------------------------------------------------------------------------
+
+JOURNEY_HIDE_KEY = "qa_first_journey_hidden"
+BACKUP_FLAG_KEY = "qa_backup_downloaded"
+
+
+def _journey_steps(lessons, scores) -> list[dict]:
+    """Trả về 5 bước hành trình; trạng thái done đọc từ dữ liệu thật."""
+
+    profile = st.session_state.get("progress_profile", {})
+
+    pre = profile.get("pre_test") or {}
+    pre_score = pre.get("score")
+    pre_done = pre_score is not None
+
+    passed = [
+        (getattr(lesson, "title", "") or lesson.lesson_id, scores.get(lesson.lesson_id))
+        for lesson in lessons
+        if scores.get(lesson.lesson_id, 0) >= cur.UNLOCK_THRESHOLD
+    ]
+    lesson_done = bool(passed)
+
+    ledger = st.session_state.get("paper_ledger") or {}
+    journal = profile.get("journal") or []
+
+    steps = [
+        {
+            "done": pre_done,
+            "evidence": (f"{pre_score:.0f}/100 · {pre.get('taken_at', '')}"
+                         if pre_done else ""),
+            "title": "Làm bài chẩn đoán Đầu vào",
+            "detail": "2 phút · đo điểm gốc trước khi học — sau này so bằng chính đề đó",
+            "action": "Làm ngay",
+            "target": (lmode.AREA_JOURNAL, None),
+        },
+        {
+            "done": lesson_done,
+            "evidence": (f"{passed[0][0]} — {passed[0][1]:.0f}/100"
+                         if lesson_done else ""),
+            "title": "Học xong bài 1",
+            "detail": "ở Lộ trình học — hệ thống tự chấm",
+            "action": "Đến lộ trình",
+            "target": (lmode.AREA_LEARNING, None),
+        },
+        {
+            "done": bool(ledger),
+            "evidence": (f"{len(ledger.get('fills', []))} lệnh mô phỏng"
+                         if ledger else ""),
+            "title": "Tạo danh mục mô phỏng",
+            "detail": "500 triệu VND ảo ở tab Đầu tư — tiền thật không dính vào đây",
+            "action": "Đến Đầu tư",
+            "target": (lmode.AREA_INVEST, lmode.FEATURE_PAPER),
+        },
+        {
+            "done": bool(journal),
+            "evidence": (f"{len(journal)} mục nhật ký" if journal else ""),
+            "title": "Ghi 1 mục nhật ký quyết định",
+            "detail": "viết lý do TRƯỚC khi đặt lệnh mô phỏng đầu tiên",
+            "action": "Mở nhật ký",
+            "target": (lmode.AREA_JOURNAL, None),
+        },
+        {
+            "done": bool(st.session_state.get(BACKUP_FLAG_KEY)),
+            "evidence": "Đã tải tệp JSON" if st.session_state.get(BACKUP_FLAG_KEY) else "",
+            "title": "Tải hồ sơ (JSON) về máy",
+            "detail": "điểm nằm trong trình duyệt — tải 1 lần để không mất",
+            "action": "Tải hồ sơ",
+            "target": (lmode.AREA_JOURNAL, None),
+        },
+    ]
+    return steps
+
+
+def render_first_journey(lessons, scores) -> None:
+    """Checklist 5 bước đầu tiên — đọc tiến độ thật, tự ẩn khi đủ 5/5.
+
+    Chỉ thêm vào Trang tổng quan, không dời khối nào. Nút bấm bên phải mỗi
+    bước nhảy đúng khu chứa việc đó bằng cơ chế điều hướng sẵn có.
+    """
+
+    steps = _journey_steps(lessons, scores)
+    if st.session_state.get(JOURNEY_HIDE_KEY) or all(s["done"] for s in steps):
+        return
+
+    done_n = sum(s["done"] for s in steps)
+    with st.container(border=True):
+        st.caption(f"HÀNH TRÌNH LẦN ĐẦU · {done_n}/5")
+        for index, step in enumerate(steps):
+            if step["done"]:
+                title = f"✅ ~~{step['title']}~~"
+                caption = step["evidence"] or "Hoàn thành"
+                button_col = None
+            else:
+                title = f"⬜ **{step['title']}**"
+                caption = step["detail"]
+                button_col = step["action"]
+            label_col, caption_col, action_col = st.columns(
+                [0.62, 0.38, 0.24], vertical_alignment="center",
+            )
+            with label_col:
+                st.markdown(title)
+            with caption_col:
+                st.caption(caption)
+            with action_col:
+                if button_col:
+                    st.button(
+                        button_col, key=f"journey_{index}",
+                        on_click=navigate_to,
+                        args=step["target"], width="stretch",
+                    )
+        st.button("Ẩn danh sách này", key="journey_hide",
+                  on_click=lambda: st.session_state.update({JOURNEY_HIDE_KEY: True}))
+
+
 def render_overview() -> None:
     mode = lmode.get_mode(st.session_state)
     lessons = uni.all_lessons() if mode == lmode.MODE_UNIVERSITY else cur.all_lessons()
@@ -63,6 +179,7 @@ def render_overview() -> None:
             st.button(action, key=f"start_{area}", on_click=navigate_to,
                       args=(area, feature), width="stretch", type="primary")
     st.subheader("Công việc của bạn")
+    render_first_journey(lessons, scores)
     progress, market, journal = st.columns(3)
     progress.metric("Bài học đạt yêu cầu", f"{done}/{len(lessons)}")
     market.metric("Dữ liệu thị trường", "Đã nạp" if ready else "Chưa sẵn sàng")
