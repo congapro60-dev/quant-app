@@ -18,7 +18,11 @@
       var KEY = "quantapp.progress.v1";
 
       function sendToHost(type, args) {
-        var msg = Object.assign({ type: type }, args || {});
+        // Mọi message đi lên BẮT BUỘC mang cờ isStreamlitMessage - không có
+        // cờ này host của Streamlit bỏ qua lặng lẽ (xem ComponentRegistry.ts
+        // trong mã nguồn Streamlit: kiểm tra Object.hasOwn(payload,
+        // "isStreamlitMessage") trước khi phân phối message cho widget).
+        var msg = Object.assign({ isStreamlitMessage: true, type: type }, args || {});
         window.parent.postMessage(msg, "*");
       }
 
@@ -35,13 +39,19 @@
           } catch (err) {
             parsed = null;
           }
-          sendToHost("streamlit:setComponentValue", { value: parsed, dataType: "json" });
+          // Chỉ gửi khi giá trị khác lần gửi trước để không kích hoạt rerun
+          // lặp vô ích (host sẽ rerun mỗi lần setComponentValue).
+          var text = JSON.stringify(parsed);
+          if (text !== lastPosted) {
+            lastPosted = text;
+            sendToHost("streamlit:setComponentValue", { value: parsed, dataType: "json" });
+          }
         } else if (mode === "save") {
           try {
             var payload = args.payload;
             if (payload && typeof payload === "object") {
-              var text = JSON.stringify(payload);
-              if (localStorage.getItem(KEY) !== text) localStorage.setItem(KEY, text);
+              var text2 = JSON.stringify(payload);
+              if (localStorage.getItem(KEY) !== text2) localStorage.setItem(KEY, text2);
             }
           } catch (err) {
             /* Trình duyệt chặn hoặc đầy bộ nhớ: bỏ qua. Tệp JSON xuất tay ở
@@ -51,6 +61,7 @@
         sendToHost("streamlit:setFrameHeight", { height: 0 });
       }
 
+      var lastPosted = null;
       window.addEventListener("message", onRender);
       sendToHost("streamlit:componentReady", { apiVersion: 1 });
     })();

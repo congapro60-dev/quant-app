@@ -33,6 +33,8 @@ def test_component_index_html_exists_and_uses_expected_key():
     assert path.exists()
     text = path.read_text(encoding="utf-8")
     assert progress_store.STORAGE_KEY in text
+    # Mọi message đi lên phải mang cờ này, nếu không host Streamlit bỏ qua.
+    assert "isStreamlitMessage" in text
     assert "streamlit:setComponentValue" in text
     assert "streamlit:componentReady" in text
     assert "streamlit:setFrameHeight" in text
