@@ -369,7 +369,8 @@ GUIDES: dict[str, FeatureGuide] = {
         ),
         steps=(
             "Làm bài ở **Lộ trình học**, điểm tự chuyển về đây.",
-            "Nhập điểm kiểm tra đầu vào và đầu ra nếu có.",
+            "Làm bài chẩn đoán Đầu vào ngay khi bắt đầu, và Đầu ra sau khi xong "
+            "lộ trình — hai bài dùng chung một đề để đo được mức tiến bộ.",
             "Tải hồ sơ về dạng JSON để giữ lại.",
         ),
         read_result=(

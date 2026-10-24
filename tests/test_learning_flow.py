@@ -5,6 +5,7 @@ from streamlit.testing.v1 import AppTest
 
 import curriculum as cur
 import curriculum_university as uni
+import feature_guides as fg
 import university_teen as unyte
 import learning_modes as lmode
 import progress_profile as pp
@@ -365,3 +366,46 @@ def test_user_editing_reflection_input_records_and_persists(monkeypatch):
     assert progress_store.persist_progress(state) is True
     assert called[0]["mode"] == "save"
     assert called[0]["payload"]["self_reflection_scores"] == {"lap_luan": 45.0}
+
+
+# ---------------------------------------------------------------------------
+# Onboarding C1: chữ dẫn đường tại chỗ hay gây hiểu lầm (sổ tay duyệt kỹ thuật)
+# ---------------------------------------------------------------------------
+
+def test_progress_area_explains_why_pre_and_post_are_identical():
+    """Caption phải nói rõ hai bài giống nhau là có chủ đích, không phải lỗi."""
+
+    at = AppTest.from_string(
+        "import progress_profile as pp\n"
+        "from learning_ui import _render_progress\n"
+        "_render_progress(pp.empty_profile())",
+        default_timeout=30,
+    ).run()
+    assert not at.exception
+
+    captions = "\n".join(str(c.value) for c in at.caption)
+    assert "Giống nhau là cố ý" in captions
+    assert "tiến bộ" in captions
+
+
+def test_progress_guide_no_longer_asks_to_type_scores():
+    """Guide cũ bảo 'Nhập điểm...' — lạc hậu vì nay là form làm bài tự chấm."""
+
+    guide_steps = fg.GUIDES[fg.PANEL_PROGRESS].steps
+    joined = " ".join(guide_steps)
+    assert "Nhập điểm" not in joined
+    assert "Đầu vào" in joined and "Đầu ra" in joined
+
+
+def test_readiness_area_points_to_paper_portfolio_when_locked():
+    """Học sinh ở cổng vốn thật phải được chỉ tới sân chơi của mình."""
+
+    at = AppTest.from_string(
+        "from learning_ui import render_readiness_gate\nrender_readiness_gate()",
+        default_timeout=30,
+    ).run()
+    assert not at.exception
+
+    captions = "\n".join(str(c.value) for c in at.caption)
+    assert "Danh mục mô phỏng" in captions
+    assert "Tiền ảo" in captions

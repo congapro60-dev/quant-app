@@ -779,7 +779,8 @@ def _render_progress(profile: dict[str, Any]) -> None:
     guides.render_guide(guides.PANEL_PROGRESS)
     st.subheader("Chẩn đoán đầu vào và đầu ra")
     st.caption(
-        "Hai bài dùng cùng bộ câu hỏi cục bộ trong chương trình học. Điểm được "
+        "Hai bài dùng cùng bộ câu hỏi cục bộ trong chương trình học. Giống nhau "
+        "là cố ý — chênh lệch hai bài cho biết bạn tiến bộ bao nhiêu. Điểm được "
         "tính từ câu trả lời, không nhập tay và không phải điểm rubric chính thức."
     )
     c1, c2 = st.columns(2)
@@ -994,6 +995,10 @@ def render_readiness_gate() -> None:
     st.caption(
         "Ứng dụng chỉ hỏi **nhóm tuổi**. Không nhập căn cước, giấy khai sinh hay "
         "bất kỳ giấy tờ định danh nào — ứng dụng không lưu các dữ liệu đó."
+    )
+    st.caption(
+        "Sân chơi thực hành của bạn bây giờ là **Danh mục mô phỏng** — cùng khu "
+        "Đầu tư, bên cạnh. Tiền ảo, đầy đủ phí và thuế thật."
     )
 
     bands = list(rg.AGE_BANDS)
