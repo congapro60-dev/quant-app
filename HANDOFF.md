@@ -76,7 +76,16 @@
   hiệu lực; tái hiện 100% mỗi phiên mới trước fix. Lưu ý race còn tồn tại:
   component khôi phục đọc storage lúc mount và gửi postMessage, restore dùng
   giá trị widget (không re-read storage) — dữ liệu "tự hồi phục" nhờ read-early
-  thắng race persist; đến khi fix #4 deploy, race window vẫn là rủi ro nền.
+  thắng race persist; sau khi fix #4 deploy, writer tự động không còn: race chỉ
+  còn nếu học sinh nộp bài trước rerun đầu tiên kịp nhận giá trị component.
+- ✅ **Đã verify sau deploy (tối 24/10)**: auto-deploy từng kẹt 3 lần canary
+  (gen 10–12) — vào share.streamlit.io → menu app → **Reboot** (nút trong
+  dialog xác nhận) kích lại container; sau reboot: canary `qa_postreboot_r1`
+  SỐNG SÓT qua reload (286 bytes, không zeros), e2e restore đạt ("Đã đạt 2/4"
+  + "Điểm gần nhất 85/100"), storage giữ scores và `self_reflection_scores`
+  rỗng sạch. Lưu ý UI Cloud: menu row app (Reboot/Delete/Analytics/Settings)
+  ẩn trong nút kebab cuối bảng app; click link tên app thì mở app URL bản
+  mới, không phải trang quản lý.
 - **Tệp JSON xuất tay vẫn là sao lưu chính thức** (tab "Nhật ký và tiến độ")
   vì iOS Safari có thể xoá localStorage sau ~7 ngày không truy cập; đổi máy,
   đổi trình duyệt hoặc xoá dữ liệu trình duyệt là mất.
