@@ -182,6 +182,22 @@ def test_first_tour_finish_marks_seen_and_navigates(monkeypatch):
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
 
 
+def test_first_tour_defer_reruns_to_close_dialog(monkeypatch):
+    """"Để sau" phải rerun toàn app, nếu không dialog vẫn nằm trên màn hình."""
+
+    import workspace_ui as wu
+
+    reruns: list[int] = []
+    monkeypatch.setattr(wu.st, "rerun", lambda *a, **k: reruns.append(1))
+
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    at.button(key="tour_defer").click().run()
+
+    assert reruns == [1]
+    assert at.session_state["progress_profile"]["seen_tour"] is True
+    assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
+
+
 def test_mark_tour_seen_is_pure_and_does_not_rerun(monkeypatch):
     """Cờ seen chỉ ghi state; không rerun để tránh vòng lặp khi mở tour."""
 

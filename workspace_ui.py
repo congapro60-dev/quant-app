@@ -203,6 +203,17 @@ def _finish_tour() -> None:
     st.rerun()
 
 
+def _defer_tour() -> None:
+    """"Để sau": ghi cờ rồi rerun toàn app để dialog đóng hẳn.
+
+    Cùng lý do như _finish_tour: không rerun thì dialog vẫn nằm trên màn hình
+    dù cờ đã bật, người dùng tưởng ứng dụng bị treo.
+    """
+
+    _mark_tour_seen()
+    st.rerun()
+
+
 @st.dialog("Chào mừng đến Quant App", width="large")
 def _tour_dialog() -> None:
     step = min(int(st.session_state.get(TOUR_STEP_KEY, 0)), len(_TOUR_STEPS) - 1)
@@ -213,7 +224,7 @@ def _tour_dialog() -> None:
 
     left, right = st.columns([0.4, 0.6])
     with left:
-        st.button("Để sau", key="tour_defer", on_click=_mark_tour_seen)
+        st.button("Để sau", key="tour_defer", on_click=_defer_tour)
     with right:
         nav = st.columns(2)
         if st.session_state.get(TOUR_STEP_KEY, 0) > 0:
