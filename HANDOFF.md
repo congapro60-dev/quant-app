@@ -2,6 +2,38 @@
 
 **Cập nhật**: 2026-10-24 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
+
+Bốn việc làm rời, mỗi việc một commit revert được độc lập:
+
+| Commit | Nội dung | Test |
+|---|---|---|
+| `01b164f` | Microcopy thật thà: guide bỏ "Nhập điểm…", caption nói rõ pre/post giống nhau là cố ý, cổng vốn thật chỉ sang Danh mục mô phỏng | +3 (746) |
+| `f4acb8c` | Checklist "Hành trình lần đầu · 0/5" trên Tổng quan, đọc tiến độ thật, tự ẩn khi đủ 5/5 | +3 (749) |
+| `e86b4c4` | Tour 4 bước `@st.dialog`, tự mở khi hồ sơ còn trống, cờ `seen_tour` lưu trong hồ sơ | +3 +1 (753) |
+| `cab3821` | Bảng "Tab nào — khi nào" cuối Tổng quan, đủ 5 khu vực, lấy nhãn từ `lmode.AREA_LABELS` | +1 (754) |
+
+- **Backup về bản cũ**: tag `pre-onboarding` (= `7fe9717`, đã push lên origin) và zip
+  `C:\Users\ADMIN\quant-app-backups\quant-app-pre-onboarding-20261024_1927.zip`.
+  Về lại một nửa: `git revert e86b4c4` / `cab3821` tuỳ ý.
+- **Bẫy đã dính — đọc trước khi thêm khoá vào hồ sơ**: `seen_tour` là bool và
+  `_profile_has_content` (progress_store.py) coi `False is not None` là hoạt động, nên
+  hồ sơ mới tinh bị tưởng là "đã có dữ liệu" và **ghi đè tiến độ đã lưu**. Đã sửa:
+  `_means_activity` xử lý `bool` riêng (chỉ `True` mới tính). Thêm khoá kiểu bool
+  khác vào schema phải theo đúng mẫu này.
+- **Schema vẫn là 2**: `seen_tour` thêm vào `TOP_LEVEL_KEYS`, `empty_profile`,
+  `export_json`, `import_json` (`.get("seen_tour") is True`) — file JSON cũ vẫn nạp
+  được, file mới để lạc cũng vẫn đọc được.
+- **Không có test hồi quy cho UI thật**: AppTest kiểm được sự tồn tại + điều hướng của
+  nút trong tour, nhưng bấm nút cuối tour trên trình duyệt thật chưa kiểm được bằng
+  cloud browser (synthetic event không tới Streamlit, CDP bị chiếm profile). Production
+  đã xác minh phần mở tour, đủ 4 bước, đóng tour, và **không mở lại** sau reload.
+- **Deploy 24/10 khuya phải Reboot tay**: log báo "Updated app!" nhưng nội dung vẫn
+  bản cũ; Reboot app trong menu ⋮ rồi mở tab mới thì đúng bản mới. Gặp lại thì làm
+  đúng thế, đừng revert code.
+- **Đóng bớt tab khi verify**: mở 6–7 tab app cùng lúc làm cloud browser treo
+  (`browser.evaluate` timeout 60s). Giữ 1–2 tab là đủ.
+
 ## 0. Bổ sung 24/10/2026 — tự lưu tiến độ vào trình duyệt (Nấc 1) + QA điện thoại/máy tính bảng
 
 - Tiến độ học giờ **tự lưu vào localStorage của trình duyệt** (key
