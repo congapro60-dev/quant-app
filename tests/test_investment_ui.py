@@ -404,3 +404,26 @@ def test_paper_ledger_backup_normalizes_malformed_payload_errors(override):
 
     with pytest.raises(PortfolioValidationError, match="Backup|backup|Cấu trúc"):
         _ledger_from_backup_bytes(json.dumps(payload).encode("utf-8"))
+
+
+def test_paper_portfolio_without_ledger_explains_backup_source():
+    """First-time users see where a backup file comes from before any upload slot."""
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_string(
+        "import pandas as pd\n"
+        "from investment_ui import render_paper_portfolio\n"
+        "render_paper_portfolio(pd.DataFrame())",
+        default_timeout=30,
+    ).run()
+    assert not at.exception
+
+    assert len(at.info) == 1
+    guidance = str(at.info[0].value)
+    assert "Chưa từng tạo danh mục" in guidance
+    assert "Tải bản sao lưu" in guidance
+    assert "quant_app_paper_" in guidance
+
+    # The restore uploader and the init button stay present on this screen.
+    assert len(at.get("file_uploader")) == 1
+    assert at.button(key="init_ledger")

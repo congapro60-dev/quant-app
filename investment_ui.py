@@ -684,6 +684,15 @@ def render_paper_portfolio(prices: pd.DataFrame) -> None:
     )
     ledger = _restore_ledger()
     if ledger is None:
+        st.info(
+            "**Chưa từng tạo danh mục?** Bỏ qua ô tải file bên dưới — cuộn tới nút "
+            "**Khởi tạo danh mục mô phỏng (paper portfolio)** để bắt đầu mới.\n\n"
+            "**File để khôi phục lấy từ đâu?** Là tệp JSON do chính Quant App xuất ra khi bạn "
+            "bấm nút *💾 Tải bản sao lưu (backup)...* ở mục này trong phiên trước "
+            "(tên dạng `quant_app_paper_YYYYMMDD_HHMMSS.json`, thường nằm trong thư mục "
+            "Tải về của máy bạn). Nút tải chỉ hiện khi phiên còn danh mục, nên sau khi "
+            "khởi tạo xong hãy tải backup trước khi đóng tab để lần sau khôi phục được."
+        )
         backup_file = st.file_uploader(
             "Khôi phục danh mục mô phỏng (paper portfolio) từ bản sao lưu (backup) — tệp cấu trúc (JSON)",
             type=["json"],
