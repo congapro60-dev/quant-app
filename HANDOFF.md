@@ -164,6 +164,20 @@
     Chromium chuẩn media query, không phải chạm thật trên iOS/Android.
   - Sau QA: storage tab production chính vẫn 299 bytes (không zeros); tab
     rig đã đóng, khôi phục quy tắc 1 tab production.
+- Bổ sung 24/10 (khuya): `st.info` hướng dẫn nguồn file backup ngay trên ô
+  upload Danh mục mô phỏng (nhánh `ledger is None` trong
+  `render_paper_portfolio`): người mới thấy "Chưa từng tạo danh mục? Bỏ qua
+  ô tải file..." + giải thích file JSON do nút 💾 xuất, tên
+  `quant_app_paper_YYYYMMDD_HHMMSS.json`. Có AppTest
+  `test_paper_portfolio_without_ledger_explains_backup_source` (assert info
+  + uploader + nút init) — **743 passed (~5m25s)**, commit `55297b7`.
+  **CHƯA verify production**: container Cloud vẫn chạy code cũ sau ~30 phút
+  (đo 3 lần: 2 lần điều hướng + 1 lần reload phiên mới, `infoCount == 0`);
+  dashboard share.streamlit.io mất phiên GitHub OAuth (đang ở trang login,
+  chờ user đăng nhập để Reboot xem logs); chrome-devtools MCP báo "browser
+  already running". Việc còn nợ: đăng nhập dashboard → Reboot (an toàn,
+  điểm số nằm localStorage) → vào Đầu tư → Danh mục mô phỏng → thấy khối
+  info "Chưa từng tạo danh mục?" là xong.
 
 ## 0b. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
