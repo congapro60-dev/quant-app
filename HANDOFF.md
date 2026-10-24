@@ -111,12 +111,43 @@
   thay thế; MCP chrome-devtools có thể chết giữa phiên (timeout — phải
   reconnect từ /mcps), mọi việc DOM/localStorage làm trọn với browser tích
   hợp, chỉ riêng chụp ảnh mới cần CDP.
-- Test: **734 passed** (thêm `tests/test_progress_store.py` — 15 test với
-  monkeypatch `_component`, gồm 3 test cho chuỗi fix: chờ giá trị trình duyệt,
-  bỏ qua persist hồ sơ rỗng, persist khi có nhật ký; thêm 2 test AppTest
-  zero-fill bug #4 trong `tests/test_learning_flow.py`; full suite ~137s).
+- Test: **742 passed** (734 + 8 khi thêm bài m7_AI dự báo — chi tiết ở mục
+  0a; full suite ~93s).
 
-## 0a. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
+## 0a. Bổ sung 24/10/2026 (đêm) — bài học m7 "AI dự báo thị trường" (Kronos)
+
+- Thêm `m7_ai_du_bao` (order 11, bài cuối LESSONS, không gắn SGK nên là
+  "current" cho mọi lớp 10/11/12 và cả sinh viên): mức học liệu thuần,
+  KHÔNG chạy model trong app. Mạch nội dung: máy đọc nến như ngôn ngữ
+  (12 tỷ nến/45 sàn), dải xác suất ≠ chắc chắn (66,7% → hai phiên độc lập
+  0,667² ≈ 44,5%), giới hạn model học từ quá khứ, trách nhiệm người dùng.
+  Disclaimer ghi rõ trong bài: +93% RankIC là con số tác giả tự báo cáo
+  (chưa kiểm chứng độc lập), demo chạy BTC/USDT chỉ minh họa.
+- Nhánh tương tác mới `INTERACTIVE_AI_LINK` = `"link_ai_ngoai"` + constant
+  `KRONOS_DEMO_URL` trong curriculum.py; render bằng `st.link_button` tới
+  demo GitHub Pages + caption disclaimer trong `_render_thpt_practice`
+  (learning_ui.py). Quirks đã verify: `st.link_button` KHÔNG có tham số
+  `key`; AppTest không có getter riêng — đọc qua `at.get("link_button")`
+  (trả `[UnknownElement()]`, đếm len được).
+- Test đổi theo 11 bài: EXPECTED_IDS + m7, orders `range(1, 12)`, test đếm
+  bài đổi tên `test_eleven_modules_in_declared_order` (+assert m7 `sgk_grade
+  is None` nằm cuối), tổng câu chặn 18–44 (38+4) đổi tên test tương ứng,
+  split lớp: lop_10 9/2, lop_11 10/1, lop_12 11/0 (thêm 1 bài chính mọi lớp);
+  test practice-action có nhánh riêng AI_LINK; thêm `test_render_ai_
+  forecasting_lesson_with_demo_link`. Copy expander đại học "mười bài" →
+  "mười một bài". **742 passed (~93s)**.
+- ✅ Verify production auto-deploy (`03b1dd7`, KHÔNG cần Reboot lần này):
+  caption lộ trình "Bài 1/11" xác nhận 11 bài; bấm "Bài tiếp theo" 10 nhịp
+  tới "Bài 11/11": title "AI dự báo thị trường" render, link button
+  `Mở demo Kronos (mở tab mới)` đúng href demo GitHub Pages + `target="_blank"`,
+  caption disclaimer BTC/USDT + "+93% RankIC" + "khuyến nghị giao dịch" hiện
+  đủ; storage sau chuỗi 10 rerun vẫn 299 bytes (scores m1 85 / s1 90,
+  `self_reflection_scores` `[]`) — fix #4 vẫn giữ. Quirk QA: dropdown
+  Streamlit selectbox trên production mở qua evaluate chỉ thấy 1 option
+  (portal ảo hóa) và tắt giữa hai nhịp evaluate — điều hướng dùng nút
+  "Bài tiếp theo" ổn định hơn.
+
+## 0b. Bổ sung 23/10/2026 (tối) — nhịp lộ trình theo lớp + đọc trước đại học
 
 - Người học chọn **lớp 10/11/12** giờ thấy lộ trình chia đúng ba nhóm:
   **lộ trình chính** giữ nguyên nhịp dự án (6 bài tài chính + bài SGK năm nay
@@ -162,7 +193,7 @@
   bên mặc định "AI dùng chung (cấp sẵn của trang)"; (e) bảng tần suất hiển
   thị đủ chữ "Không đổi"/"Số phiên".
 
-## 0b. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
+## 0c. Bổ sung 23/10/2026 (chiều) — trọn bộ thống kê phổ thông (Toán 10–12)
 
 - Gói "Trọn bộ ngay": 4 bài học thống kê bám SGK Kết nối tri thức theo
   Chương trình 2018 — s1 Số gần đúng và sai số (Toán 10, Bài 12), s2 Số đặc
@@ -200,7 +231,7 @@
   AppTest chạy thật app hai chế độ + từng công cụ, không exception.
 - (Dòng "còn chờ dán secrets" đã gỡ: xem mục 0a ở trên — đã dán xong tối 23/10.)
 
-## 0c. Bổ sung 23/10/2026 (sáng) — luồng AI dùng chung (cấp sẵn của trang)
+## 0d. Bổ sung 23/10/2026 (sáng) — luồng AI dùng chung (cấp sẵn của trang)
 
 - Học sinh **không cần API key riêng**: thanh bên mặc định chọn "AI dùng chung
   (cấp sẵn của trang)". Cấu hình đọc từ `[shared_ai]` trong **Secrets của
@@ -300,7 +331,7 @@ Deploy lại (chỉ chủ app làm được):
 - `app.py` — entrypoint Streamlit.
 - `data_loader.py` — chỗ duy nhất gọi `vnstock` (`Quote`), import lazy trong hàm.
 - `.github/workflows/qa.yml` — CI chạy Python 3.11 và 3.12; đây là căn cứ để chọn 3.12 cho Cloud.
-- `tests/` — 732 test, không cần mạng.
+- `tests/` — 742 test, không cần mạng.
 
 ## 6. Lịch sử
 
@@ -362,4 +393,11 @@ Deploy lại (chỉ chủ app làm được):
   QA điện thoại 390px và máy tính bảng 768px đạt, không đổi CSS.
 - 2026-10-24: `c7da49d`, `c3730e7`, `5037501` — chuỗi fix Nấc 1 (cờ khôi phục
   chờ giá trị; cờ `isStreamlitMessage` cho mọi message component; chặn ghi đè
-  hồ sơ rỗng), chi tiết ở mục 0; `1534cd4` — HANDOFF lần 1.
+  hồ sơ rỗng), chi tiết ở mục 0; `1534cd4` — HANDOFF lần 1; `3444f3b`,
+  `ab0a4d1` — kích deploy + HANDOFF lần 2/3; `3f4e834` — fix bug #4
+  zero-fill (bỏ side effect render, chuyển sang callback on_change; 734 test);
+  verify production sau Reboot: canary `qa_postreboot_r1` sống sót, e2e
+  restore 2/4 mô-đun + 85/100 đạt; `5e7051c` — HANDOFF ghi kết quả verify.
+- 2026-10-24: `03b1dd7` — bài học m7 "AI dự báo thị trường: dùng máy, giữ
+  trách nhiệm" (Kronos, mức học liệu, order 11, link demo ngoài); 742 test
+  pass; chi tiết ở mục 0a.
