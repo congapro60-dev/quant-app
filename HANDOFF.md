@@ -28,6 +28,14 @@ Bốn việc làm rời, mỗi việc một commit revert được độc lập:
   nút trong tour, nhưng bấm nút cuối tour trên trình duyệt thật chưa kiểm được bằng
   cloud browser (synthetic event không tới Streamlit, CDP bị chiếm profile). Production
   đã xác minh phần mở tour, đủ 4 bước, đóng tour, và **không mở lại** sau reload.
+- **Lỗi thật đã sửa ở `2cbe4e5` — đọc kỹ, rất dễ tái phát**: `st.dialog` chạy như
+  **fragment**, bấm nút bên trong dialog chỉ rerun riêng dialog đó, thanh tab phía sau
+  không dựng lại. Bản tour đầu gọi `navigate_to()` mà quên `st.rerun()`, nên bấm "Đi
+  làm bài Đầu vào" thì `seen_tour` và `NAV_KEY` đổi đúng trong state mà màn hình vẫn
+  đứng ở Tổng quan. **AppTest không bắt được lỗi này** vì nó luôn rerun cả app — test
+  cũ vẫn xanh. Test mới khoá hợp đồng bằng cách monkeypatch `st.rerun` và đòi đúng 1
+  lần gọi; đã kiểm chứng bằng cách bỏ `st.rerun()` thì test đỏ. Mọi nút trong
+  `st.dialog` mà cần đổi thứ ngoài dialog (đổi tab, đổi trang) đều phải `st.rerun()`.
 - **Deploy 24/10 khuya phải Reboot tay**: log báo "Updated app!" nhưng nội dung vẫn
   bản cũ; Reboot app trong menu ⋮ rồi mở tab mới thì đúng bản mới. Gặp lại thì làm
   đúng thế, đừng revert code.
