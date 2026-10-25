@@ -188,6 +188,56 @@ def test_age_track_selection_renders_checklist(index):
     assert "Việc cần làm ở nhóm này" in body
 
 
+def test_warnings_come_before_the_detailed_reference_block():
+    """M3: cảnh báo phải đứng TRƯỚC phần phí/giờ/7 bước, để không bị bỏ qua."""
+
+    at = _run()
+    body = " ".join(str(m.value) for m in at.markdown)
+
+    pos_warning = body.find("Trước khi nghĩ tới tiền thật")
+    pos_age = body.find("Bao nhiêu tuổi")
+
+    assert pos_age >= 0, "mục tuổi phải có"
+    assert pos_warning >= 0, "mục cảnh báo phải có"
+    assert pos_age < pos_warning
+
+    # Phần chi tiết nằm trong expander đóng sẵn, tức nằm sau cảnh báo trong trang.
+    assert len(at.expander) >= 1
+    assert "Sản phẩm" in at.expander[0].label
+
+
+def test_minor_track_gets_a_shorter_page_and_a_note_that_detail_is_not_needed():
+    """M3: nhóm 15–17 chỉ cần biết chưa mở được + cảnh báo, không cần chuẩn bị hồ sơ."""
+
+    at = _run()
+    at.radio(key="momo_age_track").set_value(1).run()
+
+    body = " ".join(str(m.value) for m in at.markdown)
+    infos = " ".join(str(i.value) for i in at.info)
+
+    assert "chỉ cần khi nào em mở được tài khoản" in body
+    assert "chưa dùng tới" in infos
+    # Vẫn phải có cảnh báo pháp luật — đó là phần không được cắt.
+    assert "Những việc bị pháp luật nghiêm cấm" in body
+
+
+def test_adult_track_does_not_show_the_minor_only_note():
+    at = _run()
+    at.radio(key="momo_age_track").set_value(0).run()
+
+    body = " ".join(str(m.value) for m in at.markdown)
+    assert "chỉ cần khi nào em mở được tài khoản" not in body
+
+
+def test_detailed_sections_are_collapsed_by_default():
+    """Phần chi tiết nằm trong expander đóng sẵn, không đẩy cảnh báo xuống dưới."""
+
+    at = _run()
+    assert len(at.expander) >= 1
+    labels = " ".join(e.label for e in at.expander)
+    assert "Sản phẩm" in labels and "7 bước" in labels
+
+
 def test_minor_track_warns_they_cannot_open_yet_on_screen():
     """Trên màn hình, nhóm 15–17 phải thấy cảnh báo chưa mở được, không phải mời gọi."""
 

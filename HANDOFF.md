@@ -174,6 +174,43 @@ QA đọc code thật và tra nguồn chính chủ, tìm ra hai lỗi tôi tự 
   mô tả cơ chế rủi ro. Nếu cần số cụ thể phải đọc trang thông báo của MoMo/CVS và
   ghi ngày đọc.
 
+## 0z5. Sửa 25/10/2026 — M3 (rút gọn, đảo thứ tự) và M7 (luật Reboot)
+
+**M3 — cấu trúc tab đảo lại, phần chi tiết gấp vào expander.** Lý do: QA và người
+dùng đều chỉ ra 6 mục / ~5.400 ký tự / 4 bảng là quá dài cho học sinh THPT, và
+cảnh báo pháp lý nằm ở mục 6 nên gần như chắc chắn bị bỏ qua.
+
+Thứ tự mới:
+1. **Tuổi** (giữ nguyên vị trí đầu — câu hỏi thật của học sinh)
+2. **Cảnh báo pháp luật** — đưa lên ngay sau tuổi
+3. **Phần tham khảo gấp** trong `st.expander` đóng sẵn: sản phẩm, ký quyền, phí,
+   phí ít ai nói trước, giờ giao dịch, 7 bước mở tài khoản
+4. Ghi chú "vì sao có mục này" + cảnh báo "không phải công ty chứng khoán" xuống cuối
+
+**Nhánh 15–17 có trang ngắn hơn hẳn.** Khi chọn nhóm chưa đủ 18, tab hiện thêm một
+mục *"Phần còn lại của tab — chỉ cần khi nào em mở được tài khoản"* kèm ghi chú
+rằng phí/giờ/7 bước **chưa dùng tới**, để các em không tưởng phải chuẩn bị hồ sơ.
+Điều kiện: `track["tone"] != "ok"` → `minor_waiting`. Nhóm đủ 18 không thấy mục này.
+**Cảnh báo pháp luật KHÔNG bị cắt ở cả hai nhánh** — đó là phần không được rút gọn.
+
+Test: 25 → 29 test (thêm test thứ tự tuổi < cảnh báo < phần chi tiết, test nhánh
+15–17 có ghi chú và vẫn có cảnh báo, test nhóm đủ 18 không thấy ghi chú đó, test
+expander đóng sẵn). **Tổng 785 passed.**
+
+**M7 — luật Reboot đã thành quy định trong repo.** Tạo `AGENTS.md` (repo trước đây
+không có), trong đó mục "Production là của người dùng thật" quy định:
+
+- Reboot **phải xin phép trước** và nói rõ sẽ ngắt người đang dùng; đồng ý một lần
+  không áp dụng cho lần sau. Ngoại lệ: chưa ai dùng app.
+- `git push` xong chỉ là `deployed`; phải Reboot **và đọc được nội dung mới trên UI
+  production** mới là `verified`.
+- Kèm luật về nội dung pháp lý (mỗi số phải chỉ ra trang nào; không suy từ trang
+  thiếu thông tin; không khẳng định tính năng khi chưa đọc code), luật `st.error`,
+  luật test, luật commit, và toàn bộ bẫy khi kiểm UI production bằng browser.
+
+Lỗi của tôi ở phiên trước: đã Reboot khi app đang có người dùng thật, không xin phép.
+Luật trong `AGENTS.md` là để việc đó không lặp lại.
+
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 
 Bốn việc làm rời, mỗi việc một commit revert được độc lập:

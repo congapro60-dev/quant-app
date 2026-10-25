@@ -366,11 +366,8 @@ def render_momo_guide() -> None:
     )
     st.warning(RISK_STATEMENT, icon="⚠️")
 
-    st.markdown(f"**Vì sao có mục này trong ứng dụng học?** {APP_STANCE}")
-
-    st.markdown("---")
-
-    # 1. Tuổi -------------------------------------------------------------
+    # 1. TUỔI — đặt đầu tiên vì đây là câu hỏi thật của học sinh, và vì câu trả
+    # lời quyết định em có cần đọc phần còn lại hay không.
     st.markdown("### 1. Bao nhiêu tuổi thì được mở tài khoản?")
     st.caption(
         "Chỗ này rất nhiều trang trên mạng nói sai. **Luật cho phép** một đằng, "
@@ -381,10 +378,12 @@ def render_momo_guide() -> None:
         "Nhóm tuổi của em:", range(len(AGE_TRACKS)), index=None,
         format_func=lambda i: labels[i], key="momo_age_track",
     )
+    minor_waiting = False
     if chosen is None:
         st.info("Chọn nhóm tuổi để xem điều kiện áp dụng cho em.")
     else:
         track = AGE_TRACKS[chosen]
+        minor_waiting = track["tone"] != "ok"
         show = st.success if track["tone"] == "ok" else st.warning
         show(f"**{track['who']}** — {track['can']}",
              icon="✅" if track["tone"] == "ok" else "🚧")
@@ -394,68 +393,11 @@ def render_momo_guide() -> None:
 
     st.caption(AGE_CAVEAT)
 
+    # Nhóm 15–17: dừng ngay đây. Cảnh báo pháp luật là phần PHẢI đọc, phần còn lại
+    # (phí, giờ, 7 bước mở tài khoản) là thứ em chưa dùng tới vì chưa mở được tài
+    # khoản — nhét hết vào chỉ làm em bỏ qua cả cảnh báo.
     st.markdown("---")
-
-    # 2. Sản phẩm ---------------------------------------------------------
-    st.markdown("### 2. Mua được gì trên đó?")
-    st.dataframe(
-        [{"Sản phẩm": p, "Sàn": s, "Ghi chú": n} for p, s, n in PRODUCTS],
-        hide_index=True, width="stretch",
-    )
-    st.caption(
-        "Chứng quyền có bảo đảm là sản phẩm đòn bẩy: biến động mạnh hơn nhiều so "
-        "với cổ phiếu thường và có thể mất toàn bộ số tiền bỏ ra."
-    )
-    st.warning(MARGIN_WARNING, icon="🩸")
-    st.caption(WARRANT_NOTE)
-
-    # 3. Phí --------------------------------------------------------------
-    st.markdown("### 3. Phí và thuế thật")
-    st.dataframe(
-        [{"Khoản": k, "Mức": v, "Ghi chú": n, "Nguồn": s} for k, v, n, s in FEES],
-        hide_index=True, width="stretch",
-    )
-    st.info(FEE_WARNING, icon="🧾")
-
-    with st.container(border=True):
-        st.markdown("**Phí ít ai nói trước khi em mở tài khoản**")
-        for name, amount, why in HIDDEN_FEES:
-            st.markdown(f"- **{name} — {amount}.** {why}")
-        st.caption(HIDDEN_FEES_NOTE)
-
-    st.caption(FEE_SOURCE_NOTE)
-    st.caption(
-        f"Biểu phí áp dụng theo từng thời kỳ công bố — đối chiếu lại tại "
-        f"[trang biểu phí chính chủ]({MOMO_FEE_URL}) trước khi giao dịch."
-    )
-
-    # 4. Giờ giao dịch ----------------------------------------------------
-    st.markdown("### 4. Giờ đặt lệnh")
-    st.dataframe(
-        [{"Sàn": s, "Phiên sáng": m, "Phiên chiều": a} for s, m, a in TRADING_HOURS],
-        hide_index=True, width="stretch",
-    )
-    st.caption(HOURS_NOTE)
-    st.dataframe(
-        [{"Khung": k, "Khi nào": w, "Lệnh đi thế nào": r} for k, w, r in ORDER_WINDOWS],
-        hide_index=True, width="stretch",
-    )
-    st.caption(HOURS_CAVEAT)
-
-    # 5. Trình tự mở tài khoản -------------------------------------------
-    st.markdown("### 5. Mở tài khoản gồm những bước nào?")
-    st.caption(
-        "Bảy bước theo hướng dẫn trên trang chính chủ. Đọc trước để biết mình cần "
-        "chuẩn bị gì, nhất là bước xác thực gương mặt."
-    )
-    for i, step in enumerate(OPEN_ACCOUNT_STEPS, start=1):
-        st.markdown(f"{i}. {step}")
-    st.info(EKYC_TIPS, icon="📸")
-
-    st.markdown("---")
-
-    # 6. Cảnh báo pháp lý -------------------------------------------------
-    st.markdown("### 6. Quy định pháp luật và cảnh báo — đọc hết trước khi nộp tiền")
+    st.markdown("### 2. Trước khi nghĩ tới tiền thật — những điều phải biết")
     for item in LEGAL_WARNINGS:
         with st.container(border=True):
             st.markdown(f"**{item['title']}**")
@@ -464,6 +406,74 @@ def render_momo_guide() -> None:
     st.markdown("**Văn bản gốc nên đọc cùng người lớn:**")
     for doc in LEGAL_DOCS:
         st.markdown(f"- {doc}")
+
+    if minor_waiting:
+        st.markdown("---")
+        st.markdown("### 3. Phần còn lại của tab — chỉ cần khi nào em mở được tài khoản")
+        st.info(
+            "Ở nhóm tuổi của em, CVS chưa nhận hồ sơ qua MoMo, nên phí, giờ giao "
+            "dịch và các bước mở tài khoản **chưa dùng tới**. Chúng vẫn để ở đây "
+            "để em hoặc người lớn xem trước khi quyết định — không phải để em chuẩn "
+            "bị hồ sơ."
+        )
+
+    # Phần tham khảo chi tiết — gấp lại để học sinh chỉ mở khi cần.
+    with st.expander("Sản phẩm, phí thật, giờ giao dịch và 7 bước mở tài khoản", expanded=False):
+        st.markdown("#### Mua được gì trên đó?")
+        st.dataframe(
+            [{"Sản phẩm": p, "Sàn": s, "Ghi chú": n} for p, s, n in PRODUCTS],
+            hide_index=True, width="stretch",
+        )
+        st.caption(
+            "Chứng quyền có bảo đảm là sản phẩm đòn bẩy: biến động mạnh hơn nhiều so "
+            "với cổ phiếu thường và có thể mất toàn bộ số tiền bỏ ra."
+        )
+        st.warning(MARGIN_WARNING, icon="🩸")
+        st.caption(WARRANT_NOTE)
+
+        st.markdown("#### Phí và thuế thật")
+        st.dataframe(
+            [{"Khoản": k, "Mức": v, "Ghi chú": n, "Nguồn": s} for k, v, n, s in FEES],
+            hide_index=True, width="stretch",
+        )
+        st.info(FEE_WARNING, icon="🧾")
+
+        with st.container(border=True):
+            st.markdown("**Phí ít ai nói trước khi em mở tài khoản**")
+            for name, amount, why in HIDDEN_FEES:
+                st.markdown(f"- **{name} — {amount}.** {why}")
+            st.caption(HIDDEN_FEES_NOTE)
+
+        st.caption(FEE_SOURCE_NOTE)
+        st.caption(
+            f"Biểu phí áp dụng theo từng thời kỳ công bố — đối chiếu lại tại "
+            f"[trang biểu phí chính chủ]({MOMO_FEE_URL}) trước khi giao dịch."
+        )
+
+        st.markdown("#### Giờ đặt lệnh")
+        st.dataframe(
+            [{"Sàn": s, "Phiên sáng": m, "Phiên chiều": a} for s, m, a in TRADING_HOURS],
+            hide_index=True, width="stretch",
+        )
+        st.caption(HOURS_NOTE)
+        st.dataframe(
+            [{"Khung": k, "Khi nào": w, "Lệnh đi thế nào": r} for k, w, r in ORDER_WINDOWS],
+            hide_index=True, width="stretch",
+        )
+        st.caption(HOURS_CAVEAT)
+
+        st.markdown("#### Mở tài khoản gồm những bước nào?")
+        st.caption(
+            "Bảy bước theo hướng dẫn trên trang chính chủ. Đọc trước để biết mình cần "
+            "chuẩn bị gì, nhất là bước xác thực gương mặt."
+        )
+        for i, step in enumerate(OPEN_ACCOUNT_STEPS, start=1):
+            st.markdown(f"{i}. {step}")
+        st.info(EKYC_TIPS, icon="📸")
+
+    st.markdown("---")
+
+    st.markdown(f"**Vì sao có mục này trong ứng dụng học?** {APP_STANCE}")
 
     st.warning(
         "Ứng dụng không phải công ty chứng khoán, không nhận tiền, không đặt lệnh "
