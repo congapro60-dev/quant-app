@@ -43,6 +43,26 @@ def test_covered_warrant_is_flagged_as_leveraged_in_notes():
     assert "đòn bẩy" in joined
 
 
+def test_momo_notes_do_not_claim_a_warrant_lock():
+    """QA 25/10/2026: code không khoá chứng quyền, nên ghi chú không được nói vậy."""
+
+    momo = pd_.get_provider("momo_cvs")
+    joined = " ".join(momo.notes)
+
+    assert "khóa nhóm này với người dưới 18" not in joined
+    assert "khoá nhóm này với người dưới 18" not in joined
+
+
+def test_momo_notes_mention_margin_risk():
+    """Ký quỹ là rủi ro thật với nhóm đủ 18 — phải có trong ghi chú."""
+
+    momo = pd_.get_provider("momo_cvs")
+    joined = " ".join(momo.notes).lower()
+
+    assert "ký quỹ" in joined
+    assert "giải chấp" in joined
+
+
 def test_hotline_shows_when_it_has_its_own_source():
     """Tổng đài và chính sách tuổi là hai dữ kiện độc lập."""
 

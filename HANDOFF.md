@@ -132,6 +132,38 @@ xem. Đọc trực tiếp DOM (không qua fetch) và phát hiện ba chỗ sai, 
   phẩm không nêu — nhưng nó cũng **không có** ba mục phí mà tôi đang hiển thị như
   thể cùng một nguồn. Quy tắc: **mỗi con số phải chỉ ra được nó nằm ở trang nào.**
 
+## 0z4. Sửa 25/10/2026 sau QA độc lập — một câu bịa và một mảng thiếu
+
+QA đọc code thật và tra nguồn chính chủ, tìm ra hai lỗi tôi tự báo cáo đã bỏ sót:
+
+- **LỖI NGHIÊM TRỌNG — câu khẳng định một tính năng không tồn tại.** `WARRANT_NOTE`
+  nói "ứng dụng khoá phần chứng quyền trong bài luyện mô phỏng". **Sai.**
+  `readiness_gate.py` không có sản phẩm chứng quyền (`PRODUCT_*` chỉ có cổ phiếu,
+  quỹ, phái sinh, ký quỹ, bán khống, CFD, crypto) và sổ mô phỏng không phân biệt
+  loại sản phẩm. Câu sai tương tự cũng ở `provider_directory.py` mục `momo_cvs`.
+  → Đã xoá cả hai. **Đừng viết lại câu này** trừ khi thực sự thêm chứng quyền vào cổng.
+- **MẢNG THIẾU — ký quỹ (margin).** CVS cho **vay tiền mua chứng khoán** ngay trong
+  MoMo (`cvs.vn` có mục "Chứng khoán ký quỹ"). Đây là rủi ro lớn hơn chứng quyền
+  với nhóm vừa đủ 18: gọi ký quỹ + bán giải chấp, có thể mất hơn vốn ban đầu. Tab
+  trước đây không có dòng nào. → Đã thêm `MARGIN_WARNING`, một dòng trong `PRODUCTS`,
+  và ghi chú ở `provider_directory.py`.
+- **Câu không nguồn đã bỏ:** "thử eKYC sai liên tục có thể bị tạm khoá" — blog CVS
+  không nhắc gì. `EKYC_TIPS` nay ghi rõ "kinh nghiệm chung, không phải quy định của CVS".
+- **Câu khẳng định tuyệt đối đã hạ mức:** "CVS yêu cầu đủ 18 tuổi" → "**Theo MoMo
+  công bố**, CVS yêu cầu đủ 18 tuổi". Blog là nguồn chính chủ duy nhất nói về tuổi,
+  và **không có ngày đăng**; chưa tìm được hợp đồng/điều khoản nào quy định tuổi.
+- **Khối riêng "Phí ít ai nói trước"** (`HIDDEN_FEES`): đóng tài khoản 100.000đ,
+  ứng trước tiền bán 0,033%/ngày, rút chứng khoán/sao kê. Lý do: học sinh lớp 10
+  không đọc cột "Nguồn" trong bảng 12 dòng.
+- **Sửa ghi chú mâu thuẫn** ở đầu tệp ("không dẫn số điều cụ thể" nhưng vẫn dẫn
+  "khoản 1 Điều 6").
+- Test: 19 → 25 test cho `test_momo_guide.py` (+2 cho `test_provider_directory.py`).
+  **Tổng 781 passed.** Đã kiểm chứng test chống tái phát bằng cách chèn lại câu sai
+  và xác nhận test đỏ.
+- **Còn nợ:** ký quỹ chưa có số liệu chính chủ (lãi suất, hạn mức) trong tab — chỉ
+  mô tả cơ chế rủi ro. Nếu cần số cụ thể phải đọc trang thông báo của MoMo/CVS và
+  ghi ngày đọc.
+
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 
 Bốn việc làm rời, mỗi việc một commit revert được độc lập:

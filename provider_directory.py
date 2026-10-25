@@ -190,7 +190,11 @@ PROVIDERS: tuple[Provider, ...] = (
             "chứng quyền có bảo đảm, chứng chỉ quỹ và trái phiếu niêm yết; "
             "không có phái sinh. Giấy phép CVS số 29/GPĐC-UBCK ngày 10/05/2024.",
             "⚠️ Có chứng quyền có bảo đảm — sản phẩm đòn bẩy, biến động rất mạnh "
-            "và có thể mất toàn bộ vốn. Ứng dụng khóa nhóm này với người dưới 18 tuổi.",
+            "và có thể mất toàn bộ vốn.",
+            "⚠️ Có giao dịch ký quỹ: CVS cho vay tiền để mua chứng khoán. Rủi ro "
+            "gọi ký quỹ và bán giải chấp, có thể mất nhiều hơn vốn ban đầu. "
+            "Ứng dụng khoá ký quỹ với người chưa đủ 18 tuổi "
+            "(readiness_gate.MINOR_HARD_BLOCKED có PRODUCT_MARGIN).",
             "Điều kiện tuổi theo pháp luật: từ đủ 18 tuổi tự mở được; từ đủ 15 đến "
             "chưa đủ 18 tuổi **được pháp luật cho phép** mở nếu không mất/hạn chế "
             "năng lực hành vi dân sự và CÓ sự đồng ý của người đại diện theo pháp "

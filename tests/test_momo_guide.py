@@ -201,17 +201,62 @@ def test_minor_track_warns_they_cannot_open_yet_on_screen():
     assert "đứng tên hộ" in body
 
 
-def test_warrant_note_is_honest_about_what_was_not_found():
-    """Chứng quyền: nói đúng điều tra được, không suy diễn thành 'bị luật cấm'."""
+def test_warrant_note_does_not_claim_a_lock_that_does_not_exist():
+    """QA 25/10/2026: câu "ứng dụng khoá chứng quyền trong mô phỏng" là bịa.
+
+    readiness_gate.py không có sản phẩm chứng quyền. Test này chặn câu đó quay lại.
+    """
 
     text = mg.WARRANT_NOTE
 
-    # Phải nói rõ không tìm thấy hạn mức tuổi riêng và CVS không công bố.
-    assert "không" in text and "hạn mức tuổi riêng" in text
+    assert "khoá phần chứng quyền" not in text
+    assert "khoá chứng quyền" not in text
+    # Vẫn phải nói rõ điều tra được gì.
     assert "không công bố" in text
-    # Phải tách quy định của ứng dụng học khỏi quy định pháp luật/CVS.
-    assert "quy định của ứng dụng học" in text
-    assert "không phải quy định của pháp luật hay của CVS" in text
+    assert "hạn mức tuổi riêng" in text
+
+
+def test_margin_warning_matches_what_readiness_gate_actually_blocks():
+    """Ký quỹ là rủi ro thật với nhóm đủ 18, và ứng dụng CÓ khoá với dưới 18.
+
+    Đối chiếu với code thật: MINOR_HARD_BLOCKED phải chứa PRODUCT_MARGIN.
+    """
+
+    import readiness_gate as rg
+
+    assert rg.PRODUCT_MARGIN in rg.MINOR_HARD_BLOCKED
+
+    text = mg.MARGIN_WARNING
+    assert "gọi ký quỹ" in text
+    assert "bán giải chấp" in text
+    assert "vay" in text
+    # Không được khẳng định khoá chứng quyền khi code không làm vậy.
+    assert "chứng quyền" not in text or "khoá" not in text.split("chứng quyền")[0][-20:]
+
+
+def test_margin_appears_in_the_product_table():
+    joined = " ".join(f"{p} {n}" for p, _, n in mg.PRODUCTS)
+
+    assert "Ký quỹ" in joined
+    assert "margin" in joined.lower()
+
+
+def test_ekyc_tips_do_not_invent_a_lockout_policy():
+    """QA: blog không nói gì về việc tạm khoá khi eKYC sai nhiều lần."""
+
+    text = mg.EKYC_TIPS
+
+    assert "tạm khoá" not in text and "tạm khóa" not in text
+    assert "không phải quy định của CVS" in text
+
+
+def test_hidden_fees_block_lists_the_three_surprise_costs():
+    joined = " ".join(f"{n} {a}" for n, a, _ in mg.HIDDEN_FEES)
+
+    assert len(mg.HIDDEN_FEES) == 3
+    assert "Đóng tài khoản" in joined
+    assert "Ứng trước tiền bán" in joined
+    assert "100.000" in joined
 
 
 def test_legal_docs_name_the_actual_age_and_warrant_documents():

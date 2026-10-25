@@ -38,9 +38,8 @@ SRC_PRODUCT_DAYS = (
     "ngoài giờ theo ba khung bên dưới."
 )
 
-# Nguồn pháp lý: Thông tư 120/2020/TT-BTC (sửa đổi bởi Thông tư 68/2024/TT-BTC)
-# hướng dẫn giao dịch chứng khoán trên hệ thống giao dịch. Không dẫn số điều cụ
-# thể vì có thể bị sửa tiếp; chỉ nêu tên văn bản để người đọc tự tra bản mới nhất.
+# Nguồn pháp lý: chép tên và số văn bản kèm số điều để người đọc tra lại được.
+# Số điều có thể bị sửa tiếp, nên khi trích cần ghi ngày đọc và đối chiếu bản mới.
 LEGAL_DOCS = (
     "Luật Chứng khoán 2019 (số 54/2019/QH14), sửa đổi bởi Luật số 56/2024/QH15",
     "Thông tư 120/2020/TT-BTC, khoản 1 Điều 6 — điều kiện tuổi mở tài khoản giao dịch",
@@ -72,10 +71,11 @@ OPEN_ACCOUNT_STEPS = (
 )
 
 EKYC_TIPS = (
-    "**Xác thực gương mặt thất bại thường do:** ánh sáng ngược hoặc quá tối; đeo "
-    "kính có ánh phản chiếu; mặt không nằm trọn trong khung; CCCD bị mờ, cong góc "
-    "hoặc đã hết hạn; mạng yếu giữa bước. Sửa từng thứ đó trước khi thử lại nhiều "
-    "lần — thử sai liên tục có thể bị tạm khoá. Nếu vẫn không qua: gọi 1900 5454 41."
+    "**Kinh nghiệm chung, không phải quy định của CVS:** xác thực gương mặt thất "
+    "bại thường do ánh sáng ngược hoặc quá tối; đeo kính có ánh phản chiếu; mặt "
+    "không nằm trọn trong khung; CCCD bị mờ, cong góc hoặc đã hết hạn; mạng yếu "
+    "giữa bước. Sửa từng thứ đó rồi thử lại, thay vì bấm lại nhiều lần. Nếu vẫn "
+    "không qua: gọi 1900 5454 41 để được hướng dẫn."
 )
 
 AGE_TRACKS = (
@@ -83,8 +83,7 @@ AGE_TRACKS = (
         "who": "Từ đủ 18 tuổi trở lên — nhóm CVS nhận hồ sơ",
         "can": (
             "Tự mở tài khoản giao dịch bằng chính danh của mình ngay trên MoMo. "
-            "Đây **cũng là nhóm duy nhất CVS nhận hồ sơ** theo trang chính chủ "
-            "hiện hành."
+            "Theo MoMo công bố, đây **cũng là nhóm duy nhất CVS nhận hồ sơ**."
         ),
         "requires": (
             "Có năng lực hành vi dân sự đầy đủ (không bị mất hoặc hạn chế).",
@@ -103,9 +102,9 @@ AGE_TRACKS = (
             "khoán**, không phải cam kết của CVS."
         ),
         "requires": (
-            "**CVS yêu cầu đủ 18 tuổi** để mở tài khoản qua MoMo (nguồn chính chủ "
-            "momo.vn). Nghĩa là nhóm này thực tế **chưa mở được** qua kênh MoMo ở "
-            "thời điểm hiện tại — dù luật không cấm.",
+            "**Theo MoMo công bố, CVS yêu cầu đủ 18 tuổi** để mở tài khoản qua MoMo "
+            "(nguồn chính chủ momo.vn). Nghĩa là nhóm này thực tế **chưa mở được** "
+            "qua kênh MoMo ở thời điểm hiện tại — dù luật không cấm.",
             "Đừng nộp tiền, đừng nhờ người lớn mở tài khoản 'đứng tên hộ' rồi "
             "dùng chung: đó là vi phạm quy định và em phải chịu trách nhiệm cho "
             "mọi lệnh trong tài khoản mang tên mình.",
@@ -135,20 +134,38 @@ PRODUCTS = (
     ("Chứng quyền có bảo đảm", "HOSE", "⚠️ Có đòn bẩy, biến động rất mạnh, có thể mất toàn bộ vốn."),
     ("Chứng chỉ quỹ", "HOSE, HNX, UPCOM", "Rổ nhiều mã; biến động êm hơn cổ phiếu lẻ."),
     ("Trái phiếu niêm yết", "HOSE, HNX", "Thu nhập cố định; rủi ro tổ chức phát hành."),
+    ("**Ký quỹ (margin)**", "HOSE, HNX, UPCOM",
+     "⚠️ **Vay tiền để mua** — rủi ro gọi ký quỹ, bán giải chấp, có thể mất hơn vốn ban đầu."),
 )
 
 # Đã tra ngày 25/10/2026 và ghi lại đúng điều tìm được, kể cả phần chưa tìm được.
 # Không suy diễn thành "bị cấm" khi chưa có nguồn nói vậy.
+#
+# SỬA 25/10/2026 (QA phát hiện): bản trước có câu "Ứng dụng này vẫn khoá phần chứng
+# quyền trong bài luyện mô phỏng". SAI — readiness_gate.py không có sản phẩm chứng
+# quyền (PRODUCT_* chỉ gồm cổ phiếu, quỹ, phái sinh, ký quỹ, bán khống, CFD, crypto)
+# và sổ mô phỏng không phân biệt loại sản phẩm. Câu đó đã bị xoá; đừng viết lại.
 WARRANT_NOTE = (
     "**Chứng quyền với người chưa đủ 18 tuổi — điều tra ngày 25/10/2026:** không "
     "tìm thấy quy định pháp luật nào đặt hạn mức tuổi riêng cho chứng quyền có bảo "
     "đảm, và **CVS/MoMo không công bố** chính sách riêng cho nhóm dưới 18 tuổi. "
-    "Điều đó **không** có nghĩa là nhóm dưới 18 tuổi được giao dịch chứng quyền: "
-    "vướng mắc nằm ở bước mở tài khoản (CVS yêu cầu đủ 18 tuổi), nên trên thực tế "
-    "em không vào được sản phẩm này qua MoMo. Ứng dụng này vẫn **khoá phần chứng "
-    "quyền trong bài luyện mô phỏng** với người chưa đủ 18 tuổi — nhưng đó là quy "
-    "định của ứng dụng học, không phải quy định của pháp luật hay của CVS. Đừng "
-    "nhầm hai chuyện đó khi em đọc ở nơi khác."
+    "Vướng mắc thực tế nằm ở bước mở tài khoản: CVS yêu cầu đủ 18 tuổi, nên nhóm "
+    "15–17 không vào được sản phẩm này qua MoMo."
+)
+
+# Ký quỹ là rủi ro lớn hơn chứng quyền với nhóm vừa đủ 18 tuổi: CVS cho vay tiền
+# để mua chứng khoán ngay trong MoMo. Ứng dụng ĐÃ khoá sản phẩm này với người chưa
+# đủ 18 (readiness_gate.MINOR_HARD_BLOCKED có PRODUCT_MARGIN) — câu dưới đây nói
+# đúng việc code đang làm, không phải lời hứa.
+MARGIN_WARNING = (
+    "**Ký quỹ (margin) — rủi ro lớn nhất mà ít em để ý.** CVS có cho **vay tiền để "
+    "mua chứng khoán** ngay trong MoMo (trang cvs.vn có mục Chứng khoán ký quỹ). "
+    "Khi em vay, em không chỉ mất tiền mình có: **em còn nợ**. Nếu giá giảm tới mức "
+    "tài sản không đủ bảo đảm khoản vay, công ty chứng khoán sẽ **gọi ký quỹ** (bắt "
+    "em nộp thêm tiền ngay) hoặc **bán giải chấp** cổ phiếu của em ở mức giá bất "
+    "lợi để thu hồi nợ — em không quyết định được thời điểm bán. Đây là cách tài "
+    "khoản bị âm, tức mất nhiều hơn số tiền ban đầu. Ứng dụng này **khoá ký quỹ với "
+    "mọi người dưới 18 tuổi** để em không chạm vào nó khi chưa hiểu rõ."
 )
 
 FEES = (
@@ -187,10 +204,27 @@ FEE_WARNING = (
 
 FEE_SOURCE_NOTE = (
     "Cột **Nguồn** cho biết dòng đó nằm ở trang nào của momo.vn. Trang sản phẩm chỉ "
-    "liệt kê 5 nhóm phí (mở tài khoản, giao dịch tiền, giao dịch chứng khoán, lưu "
-    "ký, thuế). Các phí còn lại — kể cả **phí đóng tài khoản** và **ứng trước tiền "
-    "bán** — chỉ có ở trang blog chính chủ. Nếu em chỉ đọc trang sản phẩm, em sẽ "
-    "không biết mình phải trả mấy khoản này."
+    "liệt kê 5 nhóm phí. Các phí còn lại — kể cả **phí đóng tài khoản** và **ứng "
+    "trước tiền bán** — chỉ có ở trang blog chính chủ. Nếu em chỉ đọc trang sản "
+    "phẩm, em sẽ không biết mình phải trả mấy khoản này."
+)
+
+# Nhóm phí mà tài liệu quảng bá hay bỏ qua. Tách khối riêng để học sinh nhìn thấy
+# ngay, thay vì bắt các em tự lọc cột "Nguồn" trong một bảng 12 dòng.
+HIDDEN_FEES = (
+    ("Đóng tài khoản giao dịch", "100.000 đồng/tài khoản",
+     "Mở thì miễn phí, nhưng **đóng thì mất phí**. Nhiều em tưởng mở ra xem thử "
+     "rồi đóng lại không sao."),
+    ("Ứng trước tiền bán", "0,033%/ngày",
+     "Bán xong tiền chưa về, ứng trước là **vay** tiền của chính khoản sắp thu. "
+     "Để càng nhiều ngày, phí cộng càng nhiều."),
+    ("Phí rút chứng khoán, sao kê", "100.000 đồng/lần",
+     "Chỉ phát sinh khi em chuyển tài sản sang nơi khác hoặc yêu cầu sao kê."),
+)
+
+HIDDEN_FEES_NOTE = (
+    "Ba khoản này **không có** trên trang sản phẩm của MoMo, chỉ có ở trang blog. "
+    "Đó là lý do nhiều người mở tài khoản rồi mới biết."
 )
 
 TRADING_HOURS = (
@@ -372,7 +406,8 @@ def render_momo_guide() -> None:
         "Chứng quyền có bảo đảm là sản phẩm đòn bẩy: biến động mạnh hơn nhiều so "
         "với cổ phiếu thường và có thể mất toàn bộ số tiền bỏ ra."
     )
-    st.info(WARRANT_NOTE, icon="🔎")
+    st.warning(MARGIN_WARNING, icon="🩸")
+    st.caption(WARRANT_NOTE)
 
     # 3. Phí --------------------------------------------------------------
     st.markdown("### 3. Phí và thuế thật")
@@ -381,6 +416,13 @@ def render_momo_guide() -> None:
         hide_index=True, width="stretch",
     )
     st.info(FEE_WARNING, icon="🧾")
+
+    with st.container(border=True):
+        st.markdown("**Phí ít ai nói trước khi em mở tài khoản**")
+        for name, amount, why in HIDDEN_FEES:
+            st.markdown(f"- **{name} — {amount}.** {why}")
+        st.caption(HIDDEN_FEES_NOTE)
+
     st.caption(FEE_SOURCE_NOTE)
     st.caption(
         f"Biểu phí áp dụng theo từng thời kỳ công bố — đối chiếu lại tại "
