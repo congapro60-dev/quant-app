@@ -211,6 +211,18 @@ không có), trong đó mục "Production là của người dùng thật" quy �
 Lỗi của tôi ở phiên trước: đã Reboot khi app đang có người dùng thật, không xin phép.
 Luật trong `AGENTS.md` là để việc đó không lặp lại.
 
+**Đã xin phép rồi mới Reboot, và verify production (commit `bcc3993`)**, theo đúng
+luật M7 vừa viết:
+- Thứ tự đúng: mục tuổi ở offset ~1503, mục cảnh báo ở ~2309 → tuổi trước, cảnh báo sau.
+- Expander `detailsOpen: false`, thân cao 3163px nhưng expander chỉ 39px → phần chi
+  tiết **thực sự bị gấp**, không chiếm chỗ trên trang.
+- Nhánh 15–17: hiện dòng "chỉ cần khi nào em mở được tài khoản", radio giữ lựa chọn,
+  mục cảnh báo pháp luật vẫn còn nguyên.
+- "Phí ít ai nói trước" không còn nằm ngoài expander (`textOutsideExpander: false`).
+- **Bẫy mới:** `element.click()` (gọi thẳng) ăn được với tab Streamlit, trong khi
+  chuỗi `pointerdown/mousedown/...` đôi khi không — dùng cả hai cách, kiểm
+  `aria-selected` trước khi kết luận.
+
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 
 Bốn việc làm rời, mỗi việc một commit revert được độc lập:
