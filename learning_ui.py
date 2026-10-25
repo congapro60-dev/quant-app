@@ -713,7 +713,7 @@ def render_journal_area() -> None:
     # "Sẵn sàng dùng vốn thật" và "Nơi mở tài khoản" đã chuyển sang khu Đầu tư,
     # nơi chúng thuộc về. Trước đây chúng nằm ở đây chỉ vì tiện lúc viết mã.
     tab_progress, tab_journal, tab_classroom, tab_settings = st.tabs(
-        ["Tiến độ và tiêu chí đánh giá (rubric)", "Nhật ký quyết định",
+        [wu.PROGRESS_TAB_LABEL, "Nhật ký quyết định",
          "Gói lớp học", "Lịch sử thiết lập"]
     )
 

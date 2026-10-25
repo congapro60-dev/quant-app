@@ -185,13 +185,35 @@ def _profile_is_fresh(profile) -> bool:
 
 
 def _mark_tour_seen() -> None:
+    """Ghi cờ đã xem tour, theo cách Streamlit thật sự lưu.
+
+    Sửa dict trong ``st.session_state`` tại chỗ (``state["seen_tour"] = True``)
+    KHÔNG đánh dấu thay đổi, nên cờ có thể mất khi rerun và tour mở lại — đúng
+    triệu chứng "bấm Đi làm bài Đầu vào mà dialog vẫn ở bước 4/4". Phải tạo bản
+    sao rồi gán lại key để Streamlit ghi nhận.
+    """
+
     state = st.session_state.get("progress_profile")
     if isinstance(state, dict):
-        state["seen_tour"] = True
+        updated = dict(state)
+        updated["seen_tour"] = True
+        st.session_state["progress_profile"] = updated
+
+
+# Tab con trong khu Nhật ký chứa hai bài chẩn đoán. Đặt tên ở đây để nút trong
+# tour và tiêu đề tab không lệch nhau khi ai đó sửa nhãn.
+PROGRESS_TAB_LABEL = "Tiến độ và tiêu chí đánh giá (rubric)"
 
 
 def _finish_tour() -> None:
-    """Kết thúc tour: đánh dấu đã xem, chuyển khu, rồi buộc rerun toàn app.
+    """Kết thúc tour: đánh dấu đã xem, mở đúng tab bài chẩn đoán, rerun toàn app.
+
+    Hai lỗi từng làm nút này "kẹt":
+    1. Cờ ``seen_tour`` sửa tại chỗ nên không lưu → dialog mở lại. Đã sửa trong
+       ``_mark_tour_seen``.
+    2. ``navigate_to`` chỉ tự chọn tab con cho khu Lộ trình học. Khu Nhật ký thì
+       không, nên người dùng rơi vào tab mặc định và không thấy form chẩn đoán.
+       Vì vậy phải truyền feature chỉ đúng tab.
 
     st.dialog chạy như fragment: bấm nút trong dialog chỉ rerun riêng dialog,
     thanh tab phía sau không được dựng lại. Thiếu st.rerun() thì cờ và
@@ -199,7 +221,8 @@ def _finish_tour() -> None:
     """
 
     _mark_tour_seen()
-    navigate_to(lmode.AREA_JOURNAL)
+    # Chỉ thẳng vào tab có form chẩn đoán, không thả vào tab mặc định.
+    navigate_to(lmode.AREA_JOURNAL, PROGRESS_TAB_LABEL)
     st.rerun()
 
 

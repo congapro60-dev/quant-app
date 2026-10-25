@@ -179,7 +179,41 @@ def test_first_tour_finish_marks_seen_and_navigates(monkeypatch):
     assert reruns == [1], "Nút cuối tour phải gọi st.rerun để dựng lại thanh tab."
     assert at.session_state["progress_profile"]["seen_tour"] is True
     assert at.session_state[NAV_KEY] == lm.AREA_LABELS[lm.AREA_JOURNAL]
+    # Phải chỉ đúng tab có form chẩn đoán, không thả vào tab mặc định.
+    assert at.session_state[f"tools_{lm.AREA_JOURNAL}"] == wu.PROGRESS_TAB_LABEL
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
+
+
+def test_tour_finish_lands_on_the_tab_that_has_the_diagnostic_form():
+    """Triệu chứng thật trên production: bấm xong không thấy chỗ làm bài.
+
+    Nguyên nhân: navigate_to chỉ tự chọn tab con cho khu Lộ trình học. Khu
+    Nhật ký không có, nên người dùng rơi vào tab đầu tiên và không thấy form.
+    Test này khoá việc nút cuối tour phải chỉ đúng tab chứa bài chẩn đoán.
+    """
+
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    at.button(key="tour_next").click().run()
+    at.button(key="tour_next").click().run()
+    at.button(key="tour_next").click().run()
+    at.button(key="tour_finish").click().run()
+
+    label = at.session_state[f"tools_{lm.AREA_JOURNAL}"]
+    assert label == wu.PROGRESS_TAB_LABEL
+
+    # Form chẩn đoán thật sự nằm ở tab đó, không phải tab khác.
+    body = " ".join(str(m.value) for m in at.markdown)
+    assert "Đầu vào (pre-test)" in body
+
+
+def test_progress_tab_label_matches_the_real_tab_title():
+    """Nhãn dùng để điều hướng phải trùng tiêu đề tab thật trong learning_ui."""
+
+    import workspace_ui as wu
+
+    assert wu.PROGRESS_TAB_LABEL == "Tiến độ và tiêu chí đánh giá (rubric)"
+    # Và phải KHÔNG phải một feature id, để navigate_to giữ nguyên chuỗi nhãn.
+    assert wu.PROGRESS_TAB_LABEL not in lm.FEATURES
 
 
 def test_first_tour_defer_reruns_to_close_dialog(monkeypatch):
