@@ -223,6 +223,40 @@ luật M7 vừa viết:
   chuỗi `pointerdown/mousedown/...` đôi khi không — dùng cả hai cách, kiểm
   `aria-selected` trước khi kết luận.
 
+## 0z6. Sửa 25/10/2026 — nút "Đi làm bài Đầu vào" bị kẹt (hai lỗi chồng nhau)
+
+Người dùng báo nút cuối tour bấm không chạy tiếp. Tái hiện được trên production:
+dialog vẫn ở **bước 4/4** sau hai lần bấm, tab vẫn ở **Tổng quan**.
+
+- **Lỗi 1 — cờ không lưu.** `_mark_tour_seen()` sửa dict tại chỗ
+  (`state["seen_tour"] = True`). Streamlit không đánh dấu thay đổi nên cờ mất khi
+  rerun → `maybe_open_first_tour` mở lại tour. Sửa: tạo bản sao rồi **gán lại key**
+  `st.session_state["progress_profile"] = updated`.
+- **Lỗi 2 — đích đến không tồn tại.** `_finish_tour` gọi `navigate_to(AREA_JOURNAL)`
+  không kèm feature. `navigate_to` chỉ tự chọn tab con cho `AREA_LEARNING`, nên khu
+  Nhật ký rơi vào tab mặc định và người dùng không thấy form chẩn đoán. Sửa: thêm
+  hằng `PROGRESS_TAB_LABEL` và truyền vào; `learning_ui.render_journal_area` dùng
+  cùng hằng đó để nhãn không lệch.
+- **Test cũ đã để lọt lỗi 2:** `test_first_tour_finish_marks_seen_and_navigates`
+  chỉ kiểm khu (NAV_KEY), không kiểm tab con. Đã thêm assertion
+  `tools_nhat_ky_tien_do == PROGRESS_TAB_LABEL`, cộng 2 test mới: một kiểm form
+  "Đầu vào (pre-test)" thật sự hiện sau khi bấm, một kiểm nhãn khớp tiêu đề tab và
+  không phải feature id.
+- **Đã kiểm chứng test bắt được lỗi:** gỡ fix điều hướng → đúng 2 test đỏ
+  (`test_first_tour_finish_marks_seen_and_navigates`,
+  `test_tour_finish_lands_on_the_tab_that_has_the_diagnostic_form`); khôi phục → xanh.
+- 787 passed. Commit `1480f6b`.
+- **Bẫy đã gặp:** dòng `tools_<area>` trong `st.session_state` là **nhãn tab**, không
+  phải feature id. `navigate_to` nhận label trực tiếp vì
+  `lmode.FEATURES.get(feature, {}).get("label", feature)` giữ nguyên chuỗi lạ.
+
+**Còn nợ (người dùng hoãn):** hệ thống nộp bài bằng Firebase. Cần chốt 4 điều trước
+khi code: (1) project Firebase đã có chưa, (2) định danh học sinh bằng gì — hiện app
+cố ý không hỏi họ tên/ngày sinh, (3) ai được đọc dữ liệu để viết Security Rules,
+(4) đã có đồng ý của phụ huynh chưa (Nghị định 13/2023/NĐ-CP về dữ liệu cá nhân,
+đặc biệt với người chưa thành niên). **Không tự dựng hạ tầng lưu dữ liệu học sinh
+khi chưa có 4 câu trả lời này.**
+
 ## 0z. Bổ sung 24/10/2026 (khuya) — lớp dẫn đường onboarding, 4 commit, đã lên production
 
 Bốn việc làm rời, mỗi việc một commit revert được độc lập:
