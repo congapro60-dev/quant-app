@@ -160,6 +160,16 @@ QA đọc code thật và tra nguồn chính chủ, tìm ra hai lỗi tôi tự 
 - Test: 19 → 25 test cho `test_momo_guide.py` (+2 cho `test_provider_directory.py`).
   **Tổng 781 passed.** Đã kiểm chứng test chống tái phát bằng cách chèn lại câu sai
   và xác nhận test đỏ.
+- **Đã Reboot và verify production** (commit `6431df7`): 4 bảng, khối ký quỹ hiện,
+  khối "Phí ít ai nói trước" hiện đủ 3 khoản, không còn câu "khoá chứng quyền",
+  không còn "tạm khoá", mục 7 bước còn nguyên, ghi chú eKYC đúng.
+- **Bẫy mới khi bấm tab bằng remote:** phần tử tại toạ độ tab có thể là
+  `stMarkdown` đè lên (nội dung trang chồng lên thanh tab) → `elementFromPoint`
+  trả về markdown, cú bấm mất. Phải bắn sự kiện **trực tiếp lên chính element tab**,
+  không qua `elementFromPoint`.
+- **Bẫy khác:** bấm radio trong tab làm app rerun và **quay về Tổng quan**; muốn đọc
+  nội dung phụ thuộc radio thì phải bấm lại tab Đầu tư → MoMo. Phần logic radio đã
+  được test tự động phủ, không cần verify bằng mắt.
 - **Còn nợ:** ký quỹ chưa có số liệu chính chủ (lãi suất, hạn mức) trong tab — chỉ
   mô tả cơ chế rủi ro. Nếu cần số cụ thể phải đọc trang thông báo của MoMo/CVS và
   ghi ngày đọc.
