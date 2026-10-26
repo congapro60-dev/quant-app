@@ -1,6 +1,49 @@
 # HANDOFF — Quant App
 
-**Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+**Cập nhật**: 2026-10-27 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+
+## 0z13. 27/10/2026 — công thức SGK LaTeX + hướng dẫn bấm máy Casio cho Phòng học thống kê
+
+- Feature: `684934a` (Phòng học thống kê 3 phòng Toán 10/11/12) + `9dc0492`
+  (LaTeX + Casio). `StepSpec` thêm `latex_note` (caption dưới `st.latex`) và
+  `casio` (expander "Bấm máy Casio fx-580VN X / fx-880BTG"); 14/14 bước có
+  đủ latex bám SGK + note + casio; 2 test khóa mới. Full pytest **914 passed,
+  1 skipped** (2,5 phút).
+- Quy ước latex trong repo: số thập phân `{,}` (`1{,}5`), chữ Việt trong
+  `\text{}`, `\%` escape, chuỗi latex là raw-string KHÔNG f-string; inline
+  `$...$` chỉ dùng trong chuỗi hint/question thuần (st.markdown tự render).
+- Casio xác thực từ PDF manual chính thức (fx-580VNX_VI.pdf, fx-880BTG_VI.pdf):
+  fx-580VN X đọc kết quả `OPTN` → `1-Variable Calc`; fx-880BTG `TOOLS` →
+  `1-Var Results`, bật tần số `TOOLS` → `Frequency` → `On` (fx-580VN X:
+  `SHIFT` → `MENU` (SETUP) → `Statistics` → `On`). Bảng ký hiệu SGK ↔ máy:
+  x̄=`x̄`; s² (chia n)=`σ²x`; s′² (chia n−1)=`s²x`; Me=`Med`; Q₁/Q₃=`Q1`/`Q3`;
+  Mo=không có; x_max/minX=`maxX`/`minX`.
+- Hai cảnh báo dạy đúng SGK: (1) máy chia `σ²x` cho n (khớp SGK Toán 10),
+  dòng `s²x` chia n−1 là phương sai hiệu chỉnh Toán 12 — đừng nhầm;
+  (2) mẫu ghép nhóm máy chỉ tính được x̄g, s_g từ trung điểm + tần số; `Med`/
+  `Q1`/`Q3` trên màn hình khi có Freq là số từ dãy trung điểm lặp, KHÔNG phải
+  nội suy theo biên nhóm — bước Me/Mo/Q làm tay; quy tắc tứ phân vị nội suy
+  của Casio không công bố trong tài liệu → số máy chỉ tham khảo.
+- Verify production `9dc0492` đã live: phòng 10 `.katex`=7, bảng ký hiệu bước 1
+  đủ; phòng 11 `.katex`=9, Me/Q₁Q₃/s²g gathered + cảnh báo "không nội suy";
+  phòng 12 `.katex`=5, bước 4 latex quy đổi tiền. Seed localStorage đã dọn
+  (removeItem `quantapp.progress.v1`).
+- Kỹ thuật browser mới (dùng lại được): browser tích hợp lỗi
+  `ERR_TUNNEL_CONNECTION_FAILED` → dùng chrome-devtools; nếu kêu
+  "browser is already running" thì kill các tiến trình chrome.exe có
+  CommandLine chứa `chrome-devtools-mcp` rồi `list_pages` lại (cookie phiên
+  đăng nhập share.streamlit.io còn trên đĩa profile). App nằm trong iframe
+  `title="streamlitApp"` — mọi thao tác qua `f.contentDocument`; nav chính là
+  `st.tabs` key `workspace_tabs` (tab = `div[data-testid="stTab"]`), tab con
+  "Phòng học thống kê" tương tự; selectbox mở bằng click con trực tiếp của
+  `div[data-baseweb="select"]`, option là `li[role="option"]`; Code Mode
+  runtime không có setTimeout — dùng `new Promise(res => setTimeout(...))`
+  trong `evaluate_script`; chi tiết tool là `evaluate_script` (không phải
+  `evaluate`), tra catalog bằng `search()` trước khi gọi.
+- Kỹ thuật đọc manual Casio (tái sử dụng): `Invoke-WebRequest` tải PDF chính
+  thức của Casio → pypdf (đã cài trong `~/.venv`) extract text từng trang →
+  grep "phân vị/Freq/1-Var". File text tạm: `$TEMP\opencode\fx580_stat.txt`,
+  `fx880_stat.txt` (có thể xóa).
 
 ## 0z12. 26/10/2026 — verify browser E2E luồng học sinh trên production (phần Codex bỏ ngỏ)
 
