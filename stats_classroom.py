@@ -234,7 +234,11 @@ class PredictField:
 
 @dataclass(frozen=True)
 class StepSpec:
-    """Một bước của chu trình dạy; ``reveal`` dựng phần chốt từ số đã tính."""
+    """Một bước của chu trình dạy; ``reveal`` dựng phần chốt từ số đã tính.
+
+    ``latex``/``latex_note`` là công thức bám SGK kèm chú giải ký hiệu;
+    ``casio`` là hướng dẫn bấm máy fx-580VN X / fx-880BTG cho bước đó.
+    """
 
     step_id: str
     title: str
@@ -243,6 +247,8 @@ class StepSpec:
     fields: tuple[PredictField, ...]
     reveal: Callable[[dict, dict], str]
     latex: str = ""
+    latex_note: str = ""
+    casio: str = ""
 
 
 def field_answer(field: PredictField, sa: dict, sb: dict) -> float:
@@ -303,6 +309,63 @@ def _r10_reveal_step5(sa: dict, sb: dict) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Hướng dẫn bấm máy Casio fx-580VN X / fx-880BTG (theo hướng dẫn chính thức
+# của Casio: fx-580VN X qua OPTN → 1-Variable Calc; fx-880BTG qua TOOLS →
+# 1-Var Results; bật cột tần số qua SETUP/TOOLS → Frequency On)
+# ---------------------------------------------------------------------------
+
+_CASIO_R10_STEP1 = (
+    "**Bấm máy với dãy thô 10 số** (fx-580VN X và fx-880BTG thao tác giống nhau):\n\n"
+    "1. Vào ứng dụng **Statistics**: fx-580VN X bấm `MENU` → chọn Statistics; "
+    "fx-880BTG bấm `Home` → chọn Statistics. Chọn **1-Variable**.\n"
+    "2. Nhập lần lượt 10 lợi suất của A vào cột `x`, mỗi số xong nhấn `=`. "
+    "Số âm bấm phím `(-)` trước số; thập phân dùng dấu chấm, ví dụ `0.2`.\n"
+    "3. Nhấn `AC`, rồi `OPTN` → `1-Variable Calc` (fx-880BTG: `TOOLS` → "
+    "`1-Var Results`). Cuộn bằng `↓` để đọc hết danh sách số đặc trưng.\n"
+    "4. Kiểm tra dòng `n` phải bằng 10 — thiếu là nhập thiếu phiên.\n\n"
+    "**Ký hiệu SGK và ký hiệu trên máy** (dùng cho mọi bước sau):\n\n"
+    "| SGK | Trên máy | Lưu ý |\n"
+    "|---|---|---|\n"
+    "| x̄ | `x̄` | giống nhau |\n"
+    "| s² (chia n) | `σ²x` | máy chia n — đúng công thức SGK |\n"
+    "| s | `σx` | |\n"
+    "| s′² (chia n − 1) | `s²x` | phương sai hiệu chỉnh (Toán 12) — đừng nhầm |\n"
+    "| Me | `Med` | máy viết tắt |\n"
+    "| Q₁, Q₃ | `Q1`, `Q3` | máy không in chỉ số dưới |\n"
+    "| Mo | — | máy không có mốt: tự đếm giá trị lặp lại |\n"
+    "| x_max, x_min | `maxX`, `minX` | dùng tính R |\n\n"
+    "**Đọc ở bước này:** dòng `x̄` là số trung bình của A. Sang bộ B: `OPTN` → "
+    "`Data` (fx-880BTG: quay về Bộ soạn thảo), chọn ô → `DEL` → nhập số mới."
+)
+
+_CASIO_R11_STEP1 = (
+    "**Cảnh báo quan trọng:** với mẫu ghép nhóm, máy chỉ tính được x̄g và s_g "
+    "(bước 1 và bước 5). Máy **không** nội suy được Me, Mo, Q₁, Q₃ theo công "
+    "thức SGK — các bước 2, 3, 4 phải làm tay. Trên màn hình vẫn hiện `Med`, "
+    "`Q1`, `Q3`, nhưng đó là số tính từ dãy trung điểm lặp theo tần số, không "
+    "phải nội suy theo biên nhóm — lấy vào bài là sai.\n\n"
+    "**Ký hiệu SGK và ký hiệu trên máy** (mẫu ghép nhóm):\n\n"
+    "| SGK | Trên máy | Lưu ý |\n"
+    "|---|---|---|\n"
+    "| x̄g | `x̄` | nhập trung điểm + tần số, máy chia N |\n"
+    "| s²g (chia N) | `σ²x` | đúng công thức SGK |\n"
+    "| s_g | `σx` | |\n"
+    "| s′² (chia N − 1) | `s²x` | phương sai hiệu chỉnh — đừng dùng |\n"
+    "| Me, Mo, Q₁, Q₃ nội suy | — | máy không tính được: làm tay |\n\n"
+    "**Bấm máy cho bộ A:**\n\n"
+    "1. Bật cột tần số: fx-580VN X bấm `SHIFT` → `MENU` (SETUP) → `Statistics` "
+    "→ `On`; fx-880BTG bấm `TOOLS` → `Frequency` → `On`.\n"
+    "2. Vào **Statistics** → **1-Variable**; nhập 6 trung điểm `−2.5, −1.5, "
+    "−0.5, 0.5, 1.5, 2.5` vào cột `x` (số âm bấm `(-)`).\n"
+    "3. Nhập `5, 10, 25, 35, 20, 5` vào cột `Freq`.\n"
+    "4. `AC` → `OPTN` → `1-Variable Calc` (fx-880BTG: `AC` → `TOOLS` → "
+    "`1-Var Results`); kiểm tra `n` = 100.\n\n"
+    "**Đọc ở bước này:** dòng `x̄` là x̄g của A. Sang bộ B: quay về bảng dữ "
+    "liệu, sửa cột `Freq` thành `5, 10, 40, 10, 25, 10`."
+)
+
+
 def room10_steps() -> tuple[StepSpec, ...]:
     """Năm bước dạy Toán 10 (B13–B14), bổ sung mạch sâu từ kịch bản Toán 11."""
 
@@ -319,6 +382,8 @@ def room10_steps() -> tuple[StepSpec, ...]:
                     PredictField("x̄ của B", "mean", "b")),
             reveal=_r10_reveal_step1,
             latex=r"\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i",
+            latex_note="x̄ đọc là “x gạch”; n là cỡ mẫu — ở đây n = 10 phiên.",
+            casio=_CASIO_R10_STEP1,
         ),
         StepSpec(
             step_id="center",
@@ -333,6 +398,19 @@ def room10_steps() -> tuple[StepSpec, ...]:
                     PredictField("Mo của A", "mode", "a"),
                     PredictField("Mo của B", "mode", "b")),
             reveal=_r10_reveal_step2,
+            latex=(r"\text{Me} = \frac{x_{(n/2)} + x_{(n/2+1)}}{2}"
+                   r" \qquad \text{Mo} = \text{giá trị xuất hiện nhiều nhất}"),
+            latex_note=(
+                "Với n chẵn, Me là trung bình cộng của số thứ n/2 và n/2 + 1 "
+                "trong dãy đã xếp thứ tự; Mo là giá trị có tần số xuất hiện lớn nhất."
+            ),
+            casio=(
+                "**Đọc ở bước này:** dòng `Med` trên máy chính là Me — dùng kiểm "
+                "tra kết quả làm trên giấy.\n\n"
+                "Máy **không có mốt (Mo)**: với dãy 10 số, tự đếm giá trị nào "
+                "lặp lại nhiều nhất trên dãy đã xếp thứ tự (với bộ kịch bản A: "
+                "0,2 lặp 4 lần → Mo = 0,2)."
+            ),
         ),
         StepSpec(
             step_id="spread",
@@ -348,6 +426,17 @@ def room10_steps() -> tuple[StepSpec, ...]:
                     PredictField("ΔQ của B", "iqr", "b")),
             reveal=_r10_reveal_step3,
             latex=r"R = x_{\max} - x_{\min} \qquad \Delta_Q = Q_3 - Q_1",
+            latex_note="Q₁, Q₃ là tứ phân vị thứ nhất và thứ ba; ΔQ đọc là “đề-ta-Q”.",
+            casio=(
+                "**Đọc ở bước này:** R = `maxX` − `minX` — hai dòng cuối màn "
+                "hình kết quả, trừ trực tiếp trên máy.\n\n"
+                "**Chú ý với `Q1`, `Q3`:** máy tính tứ phân vị theo quy tắc "
+                "riêng của Casio (tài liệu máy không công bố chi tiết), còn "
+                "SGK tính bằng cách lấy trung vị của nửa trái và nửa phải. "
+                "Hai cách có thể cho số khác nhau với một số mẫu. Bài theo "
+                "SGK — nhất là bước 5 dưới đây — hãy lấy kết quả làm trên "
+                "giấy theo SGK làm chuẩn; số trên máy chỉ để tham khảo nhanh."
+            ),
         ),
         StepSpec(
             step_id="std",
@@ -356,13 +445,22 @@ def room10_steps() -> tuple[StepSpec, ...]:
                 "Tính s² và s cho từng bộ. Cặp số này nói gì mà R và ΔQ chưa "
                 "nói được?"
             ),
-            hint="s² = (1/n)·Σ(xᵢ − x̄)²; s = √s². Nhớ chia cho n chứ không phải n − 1.",
+            hint=(r"Dùng $s^2 = \frac{1}{n}\sum(x_i - \bar{x})^2$ rồi "
+                  r"$s = \sqrt{s^2}$. Nhớ chia cho n chứ không phải n − 1."),
             fields=(PredictField("s² của A", "variance", "a"),
                     PredictField("s² của B", "variance", "b"),
                     PredictField("s của A", "std", "a"),
                     PredictField("s của B", "std", "b")),
             reveal=_r10_reveal_step4,
             latex=r"s^2 = \frac{1}{n}\sum_{i=1}^{n}(x_i - \bar{x})^2 \qquad s = \sqrt{s^2}",
+            latex_note="Công thức SGK chia cho n (không phải n − 1).",
+            casio=(
+                "**Đọc ở bước này:** `σ²x` chính là s² của SGK, `σx` là s "
+                "(máy chia cho n — trùng công thức SGK).\n\n"
+                "**Đừng nhầm:** dòng `s²x`, `sx` chia cho n − 1 — đó là phương "
+                "sai/độ lệch chuẩn hiệu chỉnh (học ở Toán 12). Lấy nhầm dòng "
+                "này là đáp án lệch ngay."
+            ),
         ),
         StepSpec(
             step_id="outlier",
@@ -376,6 +474,14 @@ def room10_steps() -> tuple[StepSpec, ...]:
                     PredictField("biên trên của A", "fence_high", "a")),
             reveal=_r10_reveal_step5,
             latex=r"\text{ngoài khoảng } [Q_1 - 1{,}5\,\Delta_Q;\; Q_3 + 1{,}5\,\Delta_Q]",
+            latex_note="Giá trị nằm ngoài hai biên gọi là giá trị bất thường.",
+            casio=(
+                "Máy không có hàm tính ngưỡng. Đã có Q₁, Q₃, ΔQ thì bấm như "
+                "phép tính thường:\n"
+                "- Biên dưới: `Q1 − 1.5 × (Q3 − Q1)` rồi `=`.\n"
+                "- Biên trên: `Q3 + 1.5 × (Q3 − Q1)` rồi `=`.\n\n"
+                "So từng phiên với hai biên: nằm ngoài biên là giá trị bất thường."
+            ),
         ),
     )
 
@@ -442,18 +548,39 @@ def room11_steps() -> tuple[StepSpec, ...]:
             fields=(PredictField("x̄g của A", "mean", "a"),
                     PredictField("x̄g của B", "mean", "b")),
             reveal=_r11_reveal_mean,
+            latex=(r"\bar{x}_g = \frac{n_1 c_1 + n_2 c_2 + \dots + n_k c_k}{N}"
+                   r" = \frac{1}{N}\sum_{i=1}^{k} n_i c_i"),
+            latex_note=(
+                "cᵢ là trung điểm nhóm i; nᵢ là tần số nhóm i; N = n₁ + … + nₖ "
+                "là tổng tần số. Chỉ số g ghi nhớ “ghép nhóm”."
+            ),
+            casio=_CASIO_R11_STEP1,
         ),
         StepSpec(
             step_id="median",
             title="Bước 2 — Trung vị Me nội suy trong nhóm chứa vị trí N/2",
             question=(
                 "Tìm nhóm chứa vị trí N/2 = 50 (đọc tần số tích lũy), rồi nội "
-                "suy Me = u + ((N/2 − cf)/n)·w cho A và B."
+                r"suy theo $\text{Me} = u + \frac{\frac{N}{2} - c_f}{n}\cdot w$ "
+                "cho A và B."
             ),
             hint="A: tần số tích lũy trước nhóm [0;1) là 40, nhóm đó có n = 35.",
             fields=(PredictField("Me của A", "median", "a"),
                     PredictField("Me của B", "median", "b")),
             reveal=_r11_reveal_median,
+            latex=r"\text{Me} = u + \frac{\frac{N}{2} - c_f}{n}\cdot w",
+            latex_note=(
+                "u: biên dưới nhóm chứa vị trí N/2; c_f: tần số tích lũy của "
+                "nhóm liền trước; n: tần số của nhóm chứa N/2; w: độ rộng nhóm "
+                "(ở đây w = 1)."
+            ),
+            casio=(
+                "Máy không tính được Me nội suy của mẫu ghép nhóm (dòng `Med` "
+                "trên màn hình chỉ dành cho dãy thô). Làm tay: cộng dồn tần số "
+                "tích lũy để tìm nhóm chứa vị trí N/2 = 50, rồi thay u, c_f, "
+                "n, w vào công thức. Máy giúp phần số học sau khi đã xác định "
+                "đủ các số."
+            ),
         ),
         StepSpec(
             step_id="mode",
@@ -462,10 +589,22 @@ def room11_steps() -> tuple[StepSpec, ...]:
                 "Nhóm có tần số lớn nhất của A là [0;1) (n=35), của B là [−1;0) "
                 "(n=40). Nội suy mốt theo công thức SGK cho từng bộ."
             ),
-            hint="Mo = u + w·(n_j − n_{j−1}) / ((n_j − n_{j−1}) + (n_j − n_{j+1})).",
+            hint=(r"Thay số vào $\text{Mo} = u + w \cdot "
+                  r"\frac{n - n_-}{(n - n_-) + (n - n_+)}$ với nhóm có tần số lớn nhất."),
             fields=(PredictField("Mo của A", "mode", "a"),
                     PredictField("Mo của B", "mode", "b")),
             reveal=_r11_reveal_mode,
+            latex=r"\text{Mo} = u + w \cdot \frac{n - n_-}{(n - n_-) + (n - n_+)}",
+            latex_note=(
+                "n: tần số nhóm chứa mốt; n₋ / n₊: tần số nhóm liền trước / "
+                "liền sau; u: biên dưới nhóm chứa mốt. Áp dụng khi nhóm chứa "
+                "mốt có cả hai nhóm kề."
+            ),
+            casio=(
+                "Máy không có mốt. Tìm nhóm có tần số lớn nhất trên bảng (bộ "
+                "A: nhóm [0;1) với n = 35), rồi nội suy theo công thức SGK; "
+                "dùng máy cho phép nhân/chia sau khi thay số."
+            ),
         ),
         StepSpec(
             step_id="iqr",
@@ -478,13 +617,27 @@ def room11_steps() -> tuple[StepSpec, ...]:
             fields=(PredictField("ΔQ của A", "iqr", "a"),
                     PredictField("ΔQ của B", "iqr", "b")),
             reveal=_r11_reveal_iqr,
+            latex=(r"\begin{gathered}"
+                   r"Q_1 = u + \frac{\frac{N}{4} - c_f}{n}\cdot w \qquad "
+                   r"Q_3 = u + \frac{\frac{3N}{4} - c_f}{n}\cdot w \\"
+                   r"\Delta_Q = Q_3 - Q_1"
+                   r"\end{gathered}"),
+            latex_note=(
+                "Cùng công thức nội suy với Me, thay N/2 bằng N/4 (Q₁) hoặc "
+                "3N/4 (Q₃); u, c_f, n tính theo nhóm chứa vị trí tương ứng."
+            ),
+            casio=(
+                "Như Me: máy không nội suy được Q₁, Q₃ của mẫu ghép nhóm. Đọc "
+                "tần số tích lũy để tìm nhóm chứa N/4 = 25 và 3N/4 = 75 rồi "
+                "thay số vào công thức."
+            ),
         ),
         StepSpec(
             step_id="std",
             title="Bước 5 — Phương sai và độ lệch chuẩn của mẫu ghép nhóm",
             question=(
-                "Tính s²g = (1/N)·Σ nᵢ(cᵢ − x̄g)² và s_g = √s²g cho A và B. "
-                "Bộ nào phân tán mạnh hơn?"
+                r"Tính $s_g^2 = \frac{1}{N}\sum n_i (c_i - \bar{x}_g)^2$ rồi "
+                r"$s_g = \sqrt{s_g^2}$ cho A và B. Bộ nào phân tán mạnh hơn?"
             ),
             hint="Dùng trung điểm c và tần số n của từng nhóm; chia cho N = 100.",
             fields=(PredictField("s²g của A", "variance", "a"),
@@ -492,6 +645,20 @@ def room11_steps() -> tuple[StepSpec, ...]:
                     PredictField("s_g của A", "std", "a"),
                     PredictField("s_g của B", "std", "b")),
             reveal=_r11_reveal_std,
+            latex=(r"\begin{gathered}"
+                   r"s_g^2 = \frac{1}{N}\sum_{i=1}^{k} n_i \left(c_i - \bar{x}_g\right)^2 \\"
+                   r"s_g = \sqrt{s_g^2}"
+                   r"\end{gathered}"),
+            latex_note=(
+                "Thay xᵢ bằng trung điểm cᵢ, thêm trọng số tần số nᵢ và chia "
+                "cho N. s²g mất đơn vị % (bị bình phương); s_g giữ lại đơn vị %."
+            ),
+            casio=(
+                "**Đọc ở bước này** (đã nhập trung điểm + tần số như bước 1): "
+                "`σ²x` là s²g và `σx` là s_g; kiểm tra `n` = 100.\n\n"
+                "**Đừng nhầm:** dòng `s²x`, `sx` chia cho N − 1 (phương sai "
+                "hiệu chỉnh, Toán 12) — không phải công thức SGK."
+            ),
         ),
     )
 
@@ -550,18 +717,37 @@ def room12_steps() -> tuple[StepSpec, ...]:
             fields=(PredictField("ΔQ của A", "iqr", "a"),
                     PredictField("ΔQ của B", "iqr", "b")),
             reveal=_r12_reveal_iqr,
+            latex=(r"\begin{gathered}"
+                   r"Q_1 = u + \frac{\frac{N}{4} - c_f}{n}\cdot w \qquad "
+                   r"Q_3 = u + \frac{\frac{3N}{4} - c_f}{n}\cdot w \\"
+                   r"\Delta_Q = Q_3 - Q_1"
+                   r"\end{gathered}"),
+            latex_note=(
+                "Cùng công thức nội suy với Me, thay N/2 bằng N/4 (Q₁) hoặc "
+                "3N/4 (Q₃); u, c_f, n tính theo nhóm chứa vị trí tương ứng."
+            ),
+            casio=(
+                "Như phòng Toán 11: máy không nội suy được Q₁, Q₃ của mẫu ghép "
+                "nhóm — làm tay theo công thức SGK, máy dùng cho phần số học."
+            ),
         ),
         StepSpec(
             step_id="variance",
             title="Bước 2 — Phương sai s²g của mẫu ghép nhóm",
             question=(
-                "Dùng trung điểm c và tần số n của từng nhóm, tính s²g = "
-                "(1/N)·Σ nᵢ(cᵢ − x̄g)² cho A và B."
+                "Dùng trung điểm c và tần số n của từng nhóm, tính "
+                r"$s_g^2 = \frac{1}{N}\sum n_i (c_i - \bar{x}_g)^2$ cho A và B."
             ),
             hint="x̄g đã tính ở phòng Toán 11: cả hai bộ đều là 0,2.",
             fields=(PredictField("s²g của A", "variance", "a"),
                     PredictField("s²g của B", "variance", "b")),
             reveal=_r12_reveal_variance,
+            latex=r"s_g^2 = \frac{1}{N}\sum_{i=1}^{k} n_i \left(c_i - \bar{x}_g\right)^2",
+            latex_note="x̄g lấy từ phòng Toán 11 (cả hai bộ đều bằng 0,2); chia cho N = 100.",
+            casio=(
+                "Đã nhập trung điểm + tần số vào máy: dòng `σ²x` là s²g. Đừng "
+                "lấy dòng `s²x` (máy chia cho N − 1)."
+            ),
         ),
         StepSpec(
             step_id="std",
@@ -571,6 +757,9 @@ def room12_steps() -> tuple[StepSpec, ...]:
             fields=(PredictField("s_g của A", "std", "a"),
                     PredictField("s_g của B", "std", "b")),
             reveal=_r12_reveal_std,
+            latex=r"s_g = \sqrt{s_g^2}",
+            latex_note="s_g cùng đơn vị với lợi suất (%) nên đọc trực tiếp được.",
+            casio="Đọc dòng `σx` — đó là s_g, cùng đơn vị %. Dùng số này cho bước 4.",
         ),
         StepSpec(
             step_id="money",
@@ -583,6 +772,14 @@ def room12_steps() -> tuple[StepSpec, ...]:
             hint="Nhân s_g của B với 1 triệu đồng/1 điểm %.",
             fields=(PredictField("số triệu đồng/phiên của B", "std", "b"),),
             reveal=_r12_reveal_money,
+            latex=(r"\text{tiền lệch mỗi phiên} = s_g \times "
+                   r"\frac{1\ \text{triệu đồng}}{1\ \text{điểm \%}}"),
+            latex_note="Chỉ đúng khi vốn 100 triệu đồng: 1 điểm % của 100 triệu = 1 triệu đồng.",
+            casio=(
+                "Bước này chỉ là phép nhân sau khi đọc s_g: dòng `σx` × 1 "
+                "(triệu đồng/điểm %). Ví dụ `σx` = 1.35 → mỗi phiên thường lệch "
+                "khoảng 1,35 triệu đồng."
+            ),
         ),
     )
 
@@ -930,6 +1127,11 @@ def _render_step_controls(room: str, step: StepSpec, sa: dict, sb: dict) -> None
     if step.latex:
         with st.expander("Công thức bám SGK"):
             st.latex(step.latex)
+            if step.latex_note:
+                st.caption(step.latex_note)
+    if step.casio:
+        with st.expander("Bấm máy Casio fx-580VN X / fx-880BTG"):
+            st.markdown(step.casio)
     columns = st.columns(len(step.fields))
     predictions: list[float | None] = []
     for column, field in zip(columns, step.fields):

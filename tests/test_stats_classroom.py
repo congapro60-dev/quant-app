@@ -111,6 +111,32 @@ def test_scenario_grouped_numbers_match_teaching_plan(room):
     assert sb["std"] == pytest.approx(1.345362, abs=1e-5)
 
 
+# ---------------------------------------------------------------------------
+# LaTeX bám SGK và hướng dẫn bấm máy Casio ở mọi bước
+# ---------------------------------------------------------------------------
+
+def test_every_step_has_sgk_latex_and_casio_guide():
+    for room in sc.ROOM_ORDER:
+        for step in sc.steps_for_room(room):
+            assert step.latex, f"{room}/{step.step_id} thiếu công thức SGK"
+            assert "\\" in step.latex
+            assert not step.latex.lstrip().startswith("$"), (room, step.step_id)
+            assert step.latex_note, f"{room}/{step.step_id} thiếu chú giải ký hiệu"
+            assert step.casio, f"{room}/{step.step_id} thiếu hướng dẫn Casio"
+
+
+def test_casio_guides_cover_both_models_and_machine_limits():
+    # Bước 1 mỗi phòng: đủ cả hai dòng máy và bảng ký hiệu SGK ↔ máy.
+    assert "fx-580VN X" in sc._CASIO_R10_STEP1 and "fx-880BTG" in sc._CASIO_R10_STEP1
+    assert "fx-580VN X" in sc._CASIO_R11_STEP1 and "fx-880BTG" in sc._CASIO_R11_STEP1
+    assert "σ²x" in sc._CASIO_R10_STEP1 and "Med" in sc._CASIO_R10_STEP1
+    # Dữ liệu ghép nhóm: phải cảnh báo máy không nội suy được Me/Mo/Q.
+    assert "không" in sc._CASIO_R11_STEP1 and "nội suy" in sc._CASIO_R11_STEP1
+    # Phòng 10 bước 4: cảnh báo đừng nhầm σ²x (chia n) với s²x (chia n − 1).
+    r10_std = next(s for s in sc.room10_steps() if s.step_id == "std")
+    assert "n − 1" in r10_std.casio
+
+
 def test_summarize_grouped_from_freq_validation():
     mids = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]
     with pytest.raises(ValueError):
