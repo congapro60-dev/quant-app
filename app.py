@@ -37,6 +37,7 @@ import data_status_ui as dstatus
 import learning_modes as lmode
 import progress_store
 import stats_tools
+import stats_classroom
 from feature_guides import render_guide
 from workspace_ui import (
     HOME_LABEL, NAV_KEY, HISTORY_LABEL, MUSE_LABEL, navigate_to,
@@ -664,6 +665,7 @@ tab4 = _data_tabs.get(lmode.FEATURE_EVIEWS)
 stats_tab = _data_tabs.get(lmode.FEATURE_STATS_CALC)
 grouping_tab = _data_tabs.get(lmode.FEATURE_GROUPING_LAB)
 freq_tab = _data_tabs.get(lmode.FEATURE_FREQ_TABLE)
+classroom_tab = _data_tabs.get(lmode.FEATURE_STATS_CLASSROOM)
 tab1 = _lab_tabs.get(lmode.FEATURE_SIM)
 tab2 = _lab_tabs.get(lmode.FEATURE_MARKOWITZ)
 tab5 = _lab_tabs.get(lmode.FEATURE_EXAM)
@@ -993,6 +995,13 @@ if freq_tab is not None:
     with freq_tab:
         render_guide(lmode.FEATURE_FREQ_TABLE)
         stats_tools.render_frequency_table(
+            st.session_state.prices_df, st.session_state.market_ticker,
+        )
+
+if classroom_tab is not None:
+    with classroom_tab:
+        render_guide(lmode.FEATURE_STATS_CLASSROOM)
+        stats_classroom.render_stats_classroom(
             st.session_state.prices_df, st.session_state.market_ticker,
         )
 

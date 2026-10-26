@@ -183,20 +183,14 @@ def _grouped_percentile(boundaries, counts, width: float, position: float) -> fl
     return float(boundaries[-1])
 
 
-def summarize_grouped(values: list[float], num_groups: int) -> dict[str, object]:
-    """Số đặc trưng ước lượng của mẫu ghép nhóm (Toán 11: trung tâm; Toán 12: phân tán).
+def _grouped_stats(boundaries, counts, mids, width: float) -> dict[str, float]:
+    """Số đặc trưng ước lượng của một bảng tần số đã dựng xong (biên đều).
 
-    Trung bình và phương sai dùng giá trị đại diện (trung điểm nhóm); trung vị,
-    tứ phân vị, mốt dùng công thức nội suy thường gặp trong SGK. Khoảng biến
-    thiên xấp xỉ bằng hiệu biên lớn nhất trừ biên nhỏ nhất của các nhóm.
+    Dùng chung cho ``summarize_grouped`` (tự chia nhóm từ dãy thô) và
+    ``summarize_grouped_from_freq`` (nhận sẵn bảng khoảng - tần số).
     """
 
-    groups = group_series(values, num_groups)
-    boundaries = groups["boundaries"]
-    counts = groups["counts"]
-    mids = groups["mids"]
-    width = float(groups["width"])
-    n_total = int(groups["n_total"])
+    n_total = sum(counts)
     mean = sum(c * m for c, m in zip(counts, mids)) / n_total
     variance = sum(c * (m - mean) ** 2 for c, m in zip(counts, mids)) / n_total
     median = _grouped_percentile(boundaries, counts, width, n_total / 2.0)
@@ -209,10 +203,65 @@ def summarize_grouped(values: list[float], num_groups: int) -> dict[str, object]
     denom = (mode_count - prev_n) + (mode_count - next_n)
     mode = (float(mids[j]) if denom == 0 else
             float(boundaries[j] + width * (mode_count - prev_n) / denom))
-    return {**groups, "mean": mean, "median": median, "mode": mode,
+    return {"mean": mean, "median": median, "mode": mode,
             "q1": q1, "q3": q3, "iqr": q3 - q1,
             "range": float(boundaries[-1] - boundaries[0]),
             "variance": variance, "std": sqrt(variance)}
+
+
+def summarize_grouped(values: list[float], num_groups: int) -> dict[str, object]:
+    """Số đặc trưng ước lượng của mẫu ghép nhóm (Toán 11: trung tâm; Toán 12: phân tán).
+
+    Trung bình và phương sai dùng giá trị đại diện (trung điểm nhóm); trung vị,
+    tứ phân vị, mốt dùng công thức nội suy thường gặp trong SGK. Khoảng biến
+    thiên xấp xỉ bằng hiệu biên lớn nhất trừ biên nhỏ nhất của các nhóm.
+    """
+
+    groups = group_series(values, num_groups)
+    return {**groups,
+            **_grouped_stats(groups["boundaries"], groups["counts"],
+                             groups["mids"], float(groups["width"]))}
+
+
+def summarize_grouped_from_freq(mids, freqs) -> dict[str, object]:
+    """Số đặc trưng ước lượng từ bảng tần số có sẵn (Toán 11-12, khoảng đều).
+
+    Khi mẫu chỉ còn ở dạng bảng khoảng - tần số (giáo án, báo cáo) thì không
+    thể tái tạo dãy thô để gọi :func:`summarize_grouped`: hàm nhận trực tiếp
+    trung điểm các nhóm và tần số, suy ra biên khoảng (trung điểm ± nửa độ
+    rộng) rồi áp cùng bộ công thức nội suy. Kết quả là số gần đúng như mọi
+    mẫu ghép nhóm, cùng bộ khóa với :func:`summarize_grouped`.
+    """
+
+    clean_mids = [float(v) for v in mids]
+    clean_freqs = [float(f) for f in freqs]
+    if len(clean_mids) != len(clean_freqs):
+        raise ValueError("Số trung điểm phải bằng số tần số.")
+    if len(clean_mids) < 2:
+        raise ValueError("Cần ít nhất hai nhóm để suy ra độ rộng khoảng.")
+    if any(not isfinite(v) for v in clean_mids):
+        raise ValueError("Trung điểm phải là số hữu hạn.")
+    if any(not isfinite(f) or f < 0 for f in clean_freqs):
+        raise ValueError("Tần số phải là số không âm.")
+    width = clean_mids[1] - clean_mids[0]
+    if width <= 0:
+        raise ValueError("Trung điểm phải xếp tăng dần.")
+    for i in range(2, len(clean_mids)):
+        if abs((clean_mids[i] - clean_mids[i - 1]) - width) > 1e-9 * max(1.0, abs(width)):
+            raise ValueError("Các nhóm phải đều nhau (trung điểm cách đều).")
+    if not any(f > 0 for f in clean_freqs):
+        raise ValueError("Tổng tần số phải lớn hơn 0.")
+    boundaries = [clean_mids[0] - width / 2.0]
+    boundaries += [m + width / 2.0 for m in clean_mids]
+    labels = [
+        f"[{boundaries[i]:.4g}; {boundaries[i + 1]:.4g})"
+        if i < len(clean_freqs) - 1 else
+        f"[{boundaries[i]:.4g}; {boundaries[i + 1]:.4g}]"
+        for i in range(len(clean_freqs))
+    ]
+    return {"boundaries": boundaries, "counts": clean_freqs, "labels": labels,
+            "mids": clean_mids, "width": width, "n_total": sum(clean_freqs),
+            **_grouped_stats(boundaries, clean_freqs, clean_mids, width)}
 
 
 def compare_grouping(values: list[float], num_groups: int) -> tuple[dict, dict, pd.DataFrame]:

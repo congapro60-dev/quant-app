@@ -86,9 +86,9 @@ def test_preserved_keys_cover_the_contract_named_in_the_spec():
         assert key in lm.PRESERVED_SESSION_KEYS
 
 
-def test_university_mode_sees_all_twelve_features():
+def test_university_mode_sees_all_thirteen_features():
     session = {lm.MODE_KEY: lm.MODE_UNIVERSITY}
-    assert len(lm.visible_features(session)) == 12
+    assert len(lm.visible_features(session)) == 13
     assert set(lm.visible_features(session)) == set(lm.FEATURES)
 
 
@@ -113,7 +113,7 @@ def test_highschool_sees_advanced_after_unlock():
     session = {lm.MODE_KEY: lm.MODE_HIGHSCHOOL, lm.UNLOCK_KEY: True}
     unlocked = lm.visible_features(session)
     assert lm.FEATURE_SIM in unlocked
-    assert len(unlocked) == 12
+    assert len(unlocked) == 13
 
 
 def test_advanced_unlocked_always_true_for_university():

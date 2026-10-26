@@ -246,6 +246,7 @@ FEATURE_ADVISOR = "advisor"
 FEATURE_STATS_CALC = "stats_calc"
 FEATURE_GROUPING_LAB = "grouping_lab"
 FEATURE_FREQ_TABLE = "freq_table"
+FEATURE_STATS_CLASSROOM = "stats_classroom"
 
 FEATURES: dict[str, dict[str, Any]] = {
     FEATURE_INTRADAY: {
@@ -272,6 +273,13 @@ FEATURES: dict[str, dict[str, Any]] = {
         "label": "EViews tiếng Việt",
         "area": AREA_DATA,
         "advanced": True,
+    },
+    # Đặt cuối khu Khám phá dữ liệu: học công cụ tự do trước, sau đó mới vào
+    # phòng học được dẫn dắt theo kịch bản (tab cuối cùng cho mọi chế độ).
+    FEATURE_STATS_CLASSROOM: {
+        "label": "Phòng học thống kê",
+        "area": AREA_DATA,
+        "advanced": False,
     },
     FEATURE_SIM: {
         "label": "Rủi ro chỉ số đơn (SIM)",

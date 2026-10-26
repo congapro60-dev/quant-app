@@ -143,6 +143,34 @@ GUIDES: dict[str, FeatureGuide] = {
             "luyện cách đọc bảng, không phản ánh thị trường thật."
         ),
     ),
+    lmode.FEATURE_STATS_CLASSROOM: FeatureGuide(
+        what=(
+            "Phòng học thống kê: ba phòng riêng cho Toán 10, 11, 12 dạy theo "
+            "kịch bản — đặt câu hỏi, tự tính trên giấy, nhập dự đoán, bấm đối "
+            "chiếu, đọc biểu đồ, nêu ý nghĩa, phản tư rồi làm exit ticket."
+        ),
+        why=(
+            "Biến các công thức khô khan thành bài toán ra quyết định có trách "
+            "nhiệm: cùng trung bình nhưng khác độ phân tán thì chưa thể kết luận "
+            "nên mua gì. Điểm exit ticket được ghi vào bài học SGK tương ứng, "
+            "giáo viên nhận được khi lớp có gói bài nộp."
+        ),
+        steps=(
+            "Chọn phòng học (mặc định theo lớp bạn khai ở màn hình 'Bạn là ai') và nguồn dữ liệu.",
+            "Làm từng bước: tự tính trên giấy rồi nhập ô dự đoán; bấm **Đối chiếu** để so đáp án.",
+            "Hoàn thành hết các bước thì biểu đồ, bảng tổng kết, ý nghĩa, phản tư và exit ticket mở ra.",
+            "Nộp exit ticket để lưu điểm; mở nút dưới trang để chuyển sang công cụ thống kê tương ứng.",
+        ),
+        read_result=(
+            "Mỗi bước hiện ✅ hoặc ➡️ kèm đáp án và phần chốt. Bảng tổng kết xếp "
+            "số đặc trưng của hai bộ dữ liệu cạnh nhau để so trực tiếp."
+        ),
+        caution=(
+            "Trong giờ dạy nên giữ bộ dữ liệu giả định để hiện tượng thống kê rõ; "
+            "dữ liệu thật là phần vận dụng. Mọi kết luận đều dừng ở mức mô tả — "
+            "phòng học không đưa khuyến nghị mua bán."
+        ),
+    ),
     lmode.FEATURE_SIM: FeatureGuide(
         what=(
             "Hồi quy lợi suất một cổ phiếu theo lợi suất chỉ số thị trường để tách "
