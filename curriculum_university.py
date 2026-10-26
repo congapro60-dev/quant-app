@@ -136,20 +136,24 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
             "Độ dao động của danh mục là độ lệch chuẩn của lợi suất danh mục, ký "
             "hiệu σ_P. Nó phản ánh mức biến động giá trị danh mục nên được dùng làm "
             "thước đo rủi ro khi nắm giữ.\n\n"
-            "Từ r_P = Σ w_i·r_i suy ra phương sai là tổng kép σ² = ΣΣ w_i·w_j·σ_ij, "
-            "trong đó σ_ij = cov(r_i, r_j). Viết gọn bằng ma trận hiệp phương sai V "
-            "và vector tỷ trọng W: σ_P² = W′VW, do đó σ_P = √(W′VW).\n\n"
+            "Từ $r_P = \\sum_i w_i r_i$ suy ra phương sai là tổng kép "
+            "$\\sigma_P^2 = \\sum_i \\sum_j w_i w_j \\sigma_{ij}$, "
+            "trong đó $\\sigma_{ij} = \\mathrm{cov}(r_i, r_j)$. Viết gọn bằng ma trận "
+            "hiệp phương sai $V$ và vector tỷ trọng $W$:\n\n"
+            "$$\n"
+            "\\sigma_P^2 = W'VW \\qquad \\sigma_P = \\sqrt{W'VW}\n"
+            "$$\n\n"
             "Điểm cốt lõi nằm ở các số hạng chéo. Nếu hai tài sản có hiệp phương sai "
             "thấp hoặc âm, phần đóng góp chéo nhỏ đi và độ dao động danh mục thấp hơn "
             "trung bình độ dao động từng tài sản. Đó chính là cơ chế toán học của đa "
             "dạng hóa.\n\n"
-            "V là ma trận đối xứng, bán xác định dương, nên W′VW luôn không âm — đúng "
+            "V là ma trận đối xứng, bán xác định dương, nên $W'VW$ luôn không âm — đúng "
             "với thực tế rằng phương sai không thể âm."
         ),
         example=(
             "Hai tài sản cùng độ lệch chuẩn 20%, tỷ trọng bằng nhau 0,5.\n\n"
             "Nếu tương quan bằng 1: σ_P = 20%, đa dạng hóa vô ích.\n\n"
-            "Nếu tương quan bằng 0: σ_P = √(0,25·0,04 + 0,25·0,04) ≈ 14,1%. "
+            "Nếu tương quan bằng 0: $\\sigma_P = \\sqrt{0{,}25 \\cdot 0{,}04 + 0{,}25 \\cdot 0{,}04} \\approx 14{,}1\\%$. "
             "Cùng hai tài sản, chỉ khác mức tương quan, rủi ro đã giảm gần một phần ba."
         ),
         interactive=(
@@ -164,7 +168,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_SINGLE,
                 options=("W′VW", "V′WW", "W + V"),
                 answer_index=0,
-                explanation="σ_P² = W′VW với V là ma trận hiệp phương sai.",
+                explanation="$\\sigma_P^2 = W'VW$ với $V$ là ma trận hiệp phương sai.",
             ),
             Question(
                 qid="dh2_q2",
@@ -182,7 +186,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                 qid="dh2_q3",
                 prompt="Hai tài sản cùng độ lệch chuẩn 20%, tỷ trọng 0,5–0,5, tương quan bằng 0. Độ dao động danh mục xấp xỉ bao nhiêu phần trăm?",
                 kind=QUESTION_NUMBER, answer_value=14.14, tolerance=0.2,
-                explanation="√(2 × 0,25 × 0,04) ≈ 0,1414 = 14,14%.",
+                explanation="$\\sqrt{2 \\times 0{,}25 \\times 0{,}04} \\approx 0{,}1414 = 14{,}14\\%$.",
             ),
         ),
         misconceptions=(
@@ -191,7 +195,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
             ("Ma trận hiệp phương sai chỉ cần đường chéo",
              "Các số hạng ngoài đường chéo mới là chỗ đa dạng hóa phát huy tác dụng."),
             ("Phương sai danh mục có thể âm nếu tương quan âm",
-             "V bán xác định dương nên W′VW luôn không âm."),
+             "V bán xác định dương nên $W'VW$ luôn không âm."),
         ),
         resources=(_SRC_LECTURE, _SRC_APP),
     ),
@@ -205,24 +209,30 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
         ),
         explanation=(
             "Mô hình chỉ số đơn mô tả quan hệ tuyến tính giữa lợi suất một tài sản và "
-            "lợi suất chỉ số thị trường: r_i = γ_i + β_i·r_I + ε_i.\n\n"
-            "Ba giả thiết của mô hình: kỳ vọng nhiễu bằng không E(ε_i) = 0; nhiễu "
-            "không tương quan với lợi suất thị trường cov(ε_i, r_I) = 0; và nhiễu của "
-            "các tài sản khác nhau không tương quan với nhau cov(ε_i, ε_k) = 0 khi i ≠ k.\n\n"
-            "Về ý nghĩa: γ_i là phần lợi suất cố định riêng có của tài sản. β_i đo mức "
-            "nhạy cảm của tài sản với biến động thị trường — β_i > 1 gọi là tài sản "
-            "năng động vì phản ứng mạnh hơn thị trường, β_i < 1 là tài sản thụ động. "
-            "ε_i là phần biến động ngẫu nhiên riêng có.\n\n"
+            "lợi suất chỉ số thị trường:\n\n"
+            "$$\n"
+            "r_i = \\gamma_i + \\beta_i r_I + \\varepsilon_i\n"
+            "$$\n\n"
+            "Ba giả thiết của mô hình: kỳ vọng nhiễu bằng không $E(\\varepsilon_i) = 0$; "
+            "nhiễu không tương quan với lợi suất thị trường "
+            "$\\mathrm{cov}(\\varepsilon_i, r_I) = 0$; và nhiễu của các tài sản khác nhau "
+            "không tương quan với nhau $\\mathrm{cov}(\\varepsilon_i, \\varepsilon_k) = 0$ "
+            "khi $i \\neq k$.\n\n"
+            "Về ý nghĩa: $\\gamma_i$ là phần lợi suất cố định riêng có của tài sản. "
+            "$\\beta_i$ đo mức nhạy cảm của tài sản với biến động thị trường — "
+            "$\\beta_i > 1$ gọi là tài sản năng động vì phản ứng mạnh hơn thị trường, "
+            "$\\beta_i < 1$ là tài sản thụ động. $\\varepsilon_i$ là phần biến động "
+            "ngẫu nhiên riêng có.\n\n"
             "Giả thiết thứ hai và thứ ba mới là chỗ đáng chú ý: chúng nói rằng cú sốc "
             "riêng của một doanh nghiệp không liên quan tới thị trường chung, và cũng "
             "không liên quan tới cú sốc riêng của doanh nghiệp khác. Thực tế các doanh "
             "nghiệp cùng ngành thường vi phạm giả thiết thứ ba."
         ),
         example=(
-            "Ước lượng cho một cổ phiếu ngân hàng ra kết quả r_i = 0,0005 + 1,07·r_I.\n\n"
-            "β = 1,07 lớn hơn 1 nên đây là tài sản năng động: khi chỉ số tăng 1%, lợi "
-            "suất cổ phiếu này tăng khoảng 1,07% về mặt trung bình.\n\n"
-            "γ = 0,0005 là phần lợi suất cố định riêng, rất nhỏ theo phiên."
+            "Ước lượng cho một cổ phiếu ngân hàng ra kết quả $r_i = 0{,}0005 + 1{,}07\\,r_I$.\n\n"
+            "$\\beta = 1{,}07$ lớn hơn 1 nên đây là tài sản năng động: khi chỉ số tăng 1%, "
+            "lợi suất cổ phiếu này tăng khoảng 1,07% về mặt trung bình.\n\n"
+            "$\\gamma = 0{,}0005$ là phần lợi suất cố định riêng, rất nhỏ theo phiên."
         ),
         interactive=(
             "Chạy Phân tích rồi mở Phòng thí nghiệm mô hình → Rủi ro chỉ số đơn. "
@@ -236,11 +246,11 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_SINGLE,
                 options=("Tài sản thụ động", "Tài sản năng động", "Tài sản phi rủi ro"),
                 answer_index=1,
-                explanation="β > 1 nên tài sản phản ứng mạnh hơn thị trường.",
+                explanation="$\\beta > 1$ nên tài sản phản ứng mạnh hơn thị trường.",
             ),
             Question(
                 qid="dh3_q2",
-                prompt="Giả thiết cov(ε_i, ε_k) = 0 với i ≠ k có nghĩa gì?",
+                prompt="Giả thiết $\\mathrm{cov}(\\varepsilon_i, \\varepsilon_k) = 0$ với $i \\neq k$ có nghĩa gì?",
                 kind=QUESTION_SINGLE,
                 options=(
                     "Biến động riêng của các tài sản không liên quan với nhau",
@@ -256,7 +266,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_SINGLE,
                 options=("γ_i", "β_i", "ε_i"),
                 answer_index=1,
-                explanation="β_i là hệ số của r_I nên đo độ nhạy.",
+                explanation="$\\beta_i$ là hệ số của $r_I$ nên đo độ nhạy.",
             ),
             Question(
                 qid="dh3_q4",
@@ -285,26 +295,31 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
         ),
         explanation=(
             "Từ mô hình chỉ số đơn, lấy phương sai hai vế và dùng giả thiết nhiễu "
-            "không tương quan với thị trường, ta được: σ_i² = β_i²·σ_I² + η_i².\n\n"
-            "Trong đó σ_i² là tổng rủi ro của tài sản, β_i²·σ_I² là **rủi ro hệ thống** "
-            "do thị trường chung gây ra, còn η_i² là phương sai của nhiễu, tức **rủi ro "
-            "phi hệ thống** đặc thù riêng của tài sản. Nói gọn: rủi ro tài sản bằng "
+            "không tương quan với thị trường, ta được:\n\n"
+            "$$\n"
+            "\\sigma_i^2 = \\beta_i^2 \\sigma_I^2 + \\eta_i^2\n"
+            "$$\n\n"
+            "Trong đó $\\sigma_i^2$ là tổng rủi ro của tài sản, $\\beta_i^2 \\sigma_I^2$ là "
+            "**rủi ro hệ thống** do thị trường chung gây ra, còn $\\eta_i^2$ là phương sai "
+            "của nhiễu, tức **rủi ro phi hệ thống** đặc thù riêng của tài sản. Nói gọn: "
+            "rủi ro tài sản bằng "
             "rủi ro hệ thống cộng rủi ro phi hệ thống.\n\n"
-            "Hệ quả quan trọng: hệ số xác định R² của hồi quy chính là **tỷ lệ rủi ro "
-            "hệ thống trong tổng rủi ro**. R² bằng 0,43 nghĩa là khoảng 43% biến động "
+            "Hệ quả quan trọng: hệ số xác định $R^2$ của hồi quy chính là **tỷ lệ rủi ro "
+            "hệ thống trong tổng rủi ro**. $R^2$ bằng 0,43 nghĩa là khoảng 43% biến động "
             "của cổ phiếu đến từ thị trường, phần còn lại là riêng của doanh nghiệp.\n\n"
-            "Với danh mục, hệ số γ và β bằng bình quân gia quyền theo tỷ trọng của các "
-            "tài sản thành phần, và σ_P² = β_P²·σ_I² + η_P² với η_P² = Σ w_i²·η_i². "
-            "Chính dạng bình phương của w_i giải thích vì sao chia nhỏ tỷ trọng làm "
+            "Với danh mục, hệ số $\\gamma$ và $\\beta$ bằng bình quân gia quyền theo tỷ "
+            "trọng của các tài sản thành phần, và "
+            "$\\sigma_P^2 = \\beta_P^2 \\sigma_I^2 + \\eta_P^2$ với $\\eta_P^2 = \\sum_i w_i^2 \\eta_i^2$. "
+            "Chính dạng bình phương của $w_i$ giải thích vì sao chia nhỏ tỷ trọng làm "
             "rủi ro phi hệ thống co lại nhanh."
         ),
         example=(
             "Hồi quy một cổ phiếu cho độ lệch chuẩn biến phụ thuộc 0,0185 và sai số "
             "chuẩn hồi quy 0,0141.\n\n"
-            "Tổng rủi ro: σ² ≈ 0,0185² ≈ 0,000344. Rủi ro phi hệ thống: η² ≈ 0,0141² "
-            "≈ 0,000198.\n\n"
-            "Rủi ro hệ thống là phần còn lại ≈ 0,000146, chiếm khoảng 42% tổng rủi ro — "
-            "khớp với R² của mô hình."
+            "Tổng rủi ro: $\\sigma^2 \\approx 0{,}0185^2 \\approx 0{,}000344$. Rủi ro phi hệ "
+            "thống: $\\eta^2 \\approx 0{,}0141^2 \\approx 0{,}000198$.\n\n"
+            "Rủi ro hệ thống là phần còn lại $\\approx 0{,}000146$, chiếm khoảng 42% tổng "
+            "rủi ro — khớp với $R^2$ của mô hình."
         ),
         interactive=(
             "Trong Phòng thí nghiệm mô hình → Rủi ro chỉ số đơn, đối chiếu ba cột "
@@ -326,7 +341,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
             ),
             Question(
                 qid="dh4_q2",
-                prompt="R² của hồi quy chỉ số đơn cho biết điều gì?",
+                prompt="$R^2$ của hồi quy chỉ số đơn cho biết điều gì?",
                 kind=QUESTION_SINGLE,
                 options=(
                     "Tỷ lệ rủi ro hệ thống trong tổng rủi ro",
@@ -334,7 +349,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                     "Mức lợi suất kỳ vọng",
                 ),
                 answer_index=0,
-                explanation="Đây là cách đọc R² riêng trong bối cảnh mô hình chỉ số đơn.",
+                explanation="Đây là cách đọc $R^2$ riêng trong bối cảnh mô hình chỉ số đơn.",
             ),
             Question(
                 qid="dh4_q3",
@@ -348,14 +363,14 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_SINGLE,
                 options=("Rủi ro hệ thống", "Rủi ro phi hệ thống", "Cả hai như nhau"),
                 answer_index=1,
-                explanation="η_P² = Σ w_i²·η_i² co lại khi chia nhỏ tỷ trọng; phần thị trường thì không.",
+                explanation="$\\eta_P^2 = \\sum_i w_i^2 \\eta_i^2$ co lại khi chia nhỏ tỷ trọng; phần thị trường thì không.",
             ),
         ),
         misconceptions=(
-            ("R² thấp nghĩa là mô hình sai",
-             "R² thấp chỉ nói cổ phiếu ít chịu ảnh hưởng thị trường, phần riêng lớn. Đó là thông tin, không phải lỗi."),
+            ("$R^2$ thấp nghĩa là mô hình sai",
+             "$R^2$ thấp chỉ nói cổ phiếu ít chịu ảnh hưởng thị trường, phần riêng lớn. Đó là thông tin, không phải lỗi."),
             ("Đa dạng hóa đủ nhiều thì hết rủi ro",
-             "Phần β_P²·σ_I² vẫn còn nguyên dù nắm bao nhiêu mã."),
+             "Phần $\\beta_P^2 \\sigma_I^2$ vẫn còn nguyên dù nắm bao nhiêu mã."),
             ("Beta danh mục là trung bình cộng beta các mã",
              "Là bình quân **gia quyền theo tỷ trọng**, không phải trung bình cộng."),
         ),
@@ -460,29 +475,34 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
             "ký hiệu giáo trình và suy ra độ dao động của danh mục biên duyên."
         ),
         explanation=(
-            "Bài toán biên duyên: với mức lợi suất kỳ vọng r̄_P cho trước, tìm vector "
-            "tỷ trọng W sao cho ½·W′VW nhỏ nhất, thỏa hai ràng buộc W′r̄ = r̄_P và "
-            "W′[1] = 1. Đây là quy hoạch lồi toàn phương trên tập compact nên nghiệm "
-            "tồn tại và duy nhất.\n\n"
-            "Giải bằng nhân tử Lagrange dẫn tới W = λ·(V⁻¹r̄) + μ·(V⁻¹[1]). Đặt bốn "
-            "đại lượng theo ký hiệu giáo trình:\n\n"
-            "• A = [1]′V⁻¹[1]\n"
-            "• B = [r̄]′V⁻¹[1]  (số hạng chéo)\n"
-            "• C = [r̄]′V⁻¹[r̄]\n"
-            "• D = A·C − B²\n\n"
-            "Nghiệm viết gọn thành W(r̄_P) = g + r̄_P·h, nghĩa là mọi danh mục biên "
-            "duyên đều nằm trên một đường thẳng trong không gian tỷ trọng. Hệ quả: "
-            "biết hai danh mục biên duyên là dựng được toàn bộ phần còn lại.\n\n"
-            "Phương sai của danh mục biên duyên: σ_P²(r̄_P) = (A·r̄_P² − 2B·r̄_P + C)/D. "
-            "Đây là một parabol theo r̄_P, và chính dạng parabol này tạo ra hình quả "
-            "chuông quen thuộc của đường biên hiệu quả."
+            "Bài toán biên duyên: với mức lợi suất kỳ vọng $\\bar{r}_P$ cho trước, tìm "
+            "vector tỷ trọng $W$ sao cho $\\tfrac{1}{2} W'VW$ nhỏ nhất, thỏa hai ràng "
+            "buộc $W'\\bar{r} = \\bar{r}_P$ và $W'[1] = 1$. Đây là quy hoạch lồi toàn "
+            "phương trên tập compact nên nghiệm tồn tại và duy nhất.\n\n"
+            "Giải bằng nhân tử Lagrange dẫn tới $W = \\lambda (V^{-1}\\bar{r}) + \\mu (V^{-1}[1])$. "
+            "Đặt bốn đại lượng theo ký hiệu giáo trình:\n\n"
+            "$$\n"
+            "A = [1]'V^{-1}[1] \\qquad B = [\\bar{r}]'V^{-1}[1] \\quad \\text{(số hạng chéo)}\n\\\\\n"
+            "C = [\\bar{r}]'V^{-1}[\\bar{r}] \\qquad D = A \\cdot C - B^2\n"
+            "$$\n\n"
+            "Nghiệm viết gọn thành $W(\\bar{r}_P) = g + \\bar{r}_P \\cdot h$, nghĩa là mọi "
+            "danh mục biên duyên đều nằm trên một đường thẳng trong không gian tỷ "
+            "trọng. Hệ quả: biết hai danh mục biên duyên là dựng được toàn bộ phần "
+            "còn lại.\n\n"
+            "Phương sai của danh mục biên duyên:\n\n"
+            "$$\n"
+            "\\sigma_P^2(\\bar{r}_P) = \\frac{A\\bar{r}_P^2 - 2B\\bar{r}_P + C}{D}\n"
+            "$$\n\n"
+            "Đây là một parabol theo $\\bar{r}_P$, và chính dạng parabol này tạo ra hình "
+            "quả chuông quen thuộc của đường biên hiệu quả."
         ),
         example=(
-            "Với r̄_P = 0 ta được W(0) = g, tức danh mục biên duyên ứng với lợi suất "
-            "kỳ vọng bằng không.\n\n"
-            "Với r̄_P = 1 ta được W(1) = g + h. Từ hai danh mục này suy ra mọi danh "
-            "mục biên duyên khác theo W(r̄_P) = W(0) + r̄_P·[W(1) − W(0)].\n\n"
-            "Thay r̄_P = 35% vào công thức phương sai để có độ dao động tương ứng."
+            "Với $\\bar{r}_P = 0$ ta được $W(0) = g$, tức danh mục biên duyên ứng với lợi "
+            "suất kỳ vọng bằng không.\n\n"
+            "Với $\\bar{r}_P = 1$ ta được $W(1) = g + h$. Từ hai danh mục này suy ra mọi "
+            "danh mục biên duyên khác theo "
+            "$W(\\bar{r}_P) = W(0) + \\bar{r}_P \\cdot [W(1) - W(0)]$.\n\n"
+            "Thay $\\bar{r}_P = 35\\%$ vào công thức phương sai để có độ dao động tương ứng."
         ),
         interactive=(
             "Mở thẻ Ôn thi, chọn phần đại lượng Markowitz để ứng dụng tính A, B, C, D "
@@ -508,7 +528,7 @@ UNIVERSITY_LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_SINGLE,
                 options=("D = A·C − B²", "D = A·B − C²", "D = B·C − A²"),
                 answer_index=0,
-                explanation="Với A = [1]′V⁻¹[1], B = [r̄]′V⁻¹[1], C = [r̄]′V⁻¹[r̄].",
+                explanation="Với $A = [1]'V^{-1}[1]$, $B = [\\bar{r}]'V^{-1}[1]$, $C = [\\bar{r}]'V^{-1}[\\bar{r}]$.",
             ),
             Question(
                 qid="dh6_q3",

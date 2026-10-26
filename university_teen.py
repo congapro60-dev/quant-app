@@ -36,7 +36,7 @@ _TEEN_PARTS: dict[str, dict[str, str]] = {
             "= 5%. Tính theo logarit: ln(21/20) ≈ 4,88% — hơi lệch vì mức "
             "tăng nhỏ. Sang danh mục: chia 1 triệu thành 300 nghìn cho A "
             "(kỳ vọng 1%), 200 nghìn cho B (2%) và 500 nghìn cho C (3%), "
-            "lợi suất kỳ vọng = 0,3×1% + 0,2×2% + 0,5×3% = 2,2% — đúng kiểu "
+            "lợi suất kỳ vọng $= 0{,}3 \\times 1\\% + 0{,}2 \\times 2\\% + 0{,}5 \\times 3\\% = 2{,}2\\%$ — đúng kiểu "
             "tính điểm trung bình môn có hệ số, và ba tỷ trọng cộng lại "
             "phải đúng 100%."
         ),
@@ -70,7 +70,7 @@ _TEEN_PARTS: dict[str, dict[str, str]] = {
             "50–50. Nếu hai cái luôn đồng hành (tương quan 1): danh mục vẫn "
             "biến động đúng 20% — chia cỡ nào cũng không đỡ rủi ro. Nếu hai "
             "cái chẳng liên quan (tương quan 0): biến động còn "
-            "√(0,25×20%² + 0,25×20%²) ≈ 14,1%. Cùng số tiền, chỉ khác việc "
+            "$\\sqrt{0{,}25 \\times 20\\%^2 + 0{,}25 \\times 20\\%^2} \\approx 14{,}1\\%$. Cùng số tiền, chỉ khác việc "
             "chọn tài sản không đồng hành, rủi ro đã giảm gần một phần ba — "
             "tính tay được trên giấy nháp."
         ),
@@ -99,7 +99,7 @@ _TEEN_PARTS: dict[str, dict[str, str]] = {
             "động, lười theo triều."
         ),
         "example": (
-            "Hồi quy một cổ phiếu ngân hàng cho ra r_i = 0,0005 + 1,07·r_I. "
+            "Hồi quy một cổ phiếu ngân hàng cho ra $r_i = 0{,}0005 + 1{,}07\\,r_I$. "
             "Đọc thế này: phiên bình thường cổ phiếu có phần riêng rất nhỏ "
             "(γ = 0,0005), và khi chỉ số tăng 1% thì cổ phiếu tăng trung "
             "bình khoảng 1,07% — nhạy hơn thị trường một chút. Ngược lại, "
@@ -125,15 +125,15 @@ _TEEN_PARTS: dict[str, dict[str, str]] = {
         "easy": (
             "Tổng rủi ro của một cổ phiếu gồm hai lớp: lớp thị trường — cả "
             "sàn chuyển động cùng nhau — và lớp riêng của doanh nghiệp. "
-            "Công thức β²·σ_I² + η² là cách ghi lại phép chia hai lớp đó. "
-            "Chỉ số R² của mô hình cho biết thị trường chiếm bao nhiêu phần "
-            "trăm câu chuyện của mã này: R² = 0,43 nghĩa là khoảng 43% biến "
+            "Công thức $\\beta^2 \\sigma_I^2 + \\eta^2$ là cách ghi lại phép chia hai lớp đó. "
+            "Chỉ số $R^2$ của mô hình cho biết thị trường chiếm bao nhiêu phần "
+            "trăm câu chuyện của mã này: $R^2 = 0{,}43$ nghĩa là khoảng 43% biến "
             "động đến từ thủy triều chung, phần còn lại là chuyện riêng."
         ),
         "example": (
-            "Hồi quy một cổ phiếu cho tổng biến động σ² ≈ 0,000344 và phần "
-            "nhiễu riêng η² ≈ 0,000198. Rủi ro hệ thống = 0,000344 − "
-            "0,000198 ≈ 0,000146, tức khoảng 42% tổng rủi ro — khớp với R² "
+            "Hồi quy một cổ phiếu cho tổng biến động $\\sigma^2 \\approx 0{,}000344$ và phần "
+            "nhiễu riêng $\\eta^2 \\approx 0{,}000198$. Rủi ro hệ thống $= 0{,}000344 - "
+            "0{,}000198 \\approx 0{,}000146$, tức khoảng 42% tổng rủi ro — khớp với $R^2$ "
             "của mô hình. Toàn bài toán chỉ là một phép trừ."
         ),
         "application": (
@@ -145,7 +145,7 @@ _TEEN_PARTS: dict[str, dict[str, str]] = {
         ),
         "reflection": (
             "Em nắm 30 mã, một buổi cả sàn đỏ và tài khoản lỗ nặng: phần "
-            "rủi ro nào chưa được triệt tiêu, vì sao? R² cao hay thấp mới "
+            "rủi ro nào chưa được triệt tiêu, vì sao? $R^2$ cao hay thấp mới "
             "đáng mong muốn — câu trả lời có \"đúng\" không, hay tùy người "
             "nắm giữ muốn gì?"
         ),

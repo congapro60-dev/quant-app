@@ -135,7 +135,7 @@ LESSONS: tuple[Lesson, ...] = (
         ),
         example=(
             "Bạn để dành 10 triệu đồng, lãi suất 6% một năm, gửi trong 10 năm.\n\n"
-            "Giá trị tương lai = 10.000.000 × (1 + 0,06)^10 ≈ 17.908.000 đồng.\n\n"
+            "Giá trị tương lai $= \\text{10.000.000} \\times (1 + 0{,}06)^{10} \\approx \\text{17.908.000}$ đồng.\n\n"
             "Nếu lạm phát trung bình 4% một năm thì lãi suất thực chỉ khoảng 2%. "
             "Sức mua thực tế tăng ít hơn nhiều so với con số 79% mà bạn nhìn thấy."
         ),
@@ -152,7 +152,7 @@ LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_NUMBER,
                 answer_value=23.15,
                 tolerance=0.1,
-                explanation="20 × 1,05³ ≈ 23,15 triệu đồng.",
+                explanation="$20 \\times 1{,}05^3 \\approx 23{,}15$ triệu đồng.",
             ),
             Question(
                 qid="m1_q2",
@@ -750,30 +750,35 @@ LESSONS: tuple[Lesson, ...] = (
         objective=(
             "Tính được số trung bình, trung vị, tứ phân vị, mốt; khoảng biến "
             "thiên, khoảng tứ phân vị, phương sai, độ lệch chuẩn của mẫu không "
-            "ghép nhóm; phát hiện giá trị bất thường theo quy tắc 1,5·IQR."
+            "ghép nhóm; phát hiện giá trị bất thường theo quy tắc $1{,}5 \\cdot \\mathrm{IQR}$."
         ),
         explanation=(
-            "Số đặc trưng đo xu thế trung tâm: số trung bình (bar x) nhạy với giá "
+            "Số đặc trưng đo xu thế trung tâm: số trung bình $\\bar{x}$ nhạy với giá "
             "trị bất thường; trung vị (Me) là giá trị chính giữa; mốt (Mo) là giá "
-            "trị xuất hiện nhiều nhất. Tứ phân vị Q1, Q3 chia mẫu đã sắp xếp thành "
-            "bốn phần bằng nhau.\n\n"
-            "Số đặc trưng đo độ phân tán: khoảng biến thiên R = x_max − x_min; "
-            "khoảng tứ phân vị Δ_Q = Q3 − Q1 (bỏ qua 25% nhỏ nhất và 25% lớn "
-            "nhất); phương sai s² = (1/n)×tổng (x_i − bar x)²; độ lệch chuẩn "
-            "s = √s², cùng đơn vị với dữ liệu.\n\n"
-            "Giá trị bất thường theo quy tắc SGK: nằm ngoài khoảng [Q1 − 1,5·Δ_Q; "
-            "Q3 + 1,5·Δ_Q]. Trong thị trường, đó thường là phiên có tin lớn — đáng "
+            "trị xuất hiện nhiều nhất. Tứ phân vị $Q_1$, $Q_3$ chia mẫu đã sắp xếp "
+            "thành bốn phần bằng nhau.\n\n"
+            "Số đặc trưng đo độ phân tán: khoảng biến thiên $R = x_{\\max} - x_{\\min}$; "
+            "khoảng tứ phân vị $\\Delta_Q = Q_3 - Q_1$ (bỏ qua 25% nhỏ nhất và 25% lớn "
+            "nhất); phương sai và độ lệch chuẩn:\n\n"
+            "$$\n"
+            "s^2 = \\frac{1}{n}\\sum_{i=1}^{n}(x_i - \\bar{x})^2 \\qquad s = \\sqrt{s^2}\n"
+            "$$\n\n"
+            "$s$ cùng đơn vị với dữ liệu.\n\n"
+            "Giá trị bất thường theo quy tắc SGK: nằm ngoài khoảng "
+            "$[Q_1 - 1{,}5\\Delta_Q;\\ Q_3 + 1{,}5\\Delta_Q]$. Trong thị trường, đó thường là phiên có tin lớn — đáng "
             "dò nguyên nhân, chưa chắc là dữ liệu lỗi."
         ),
         example=(
             "SGK có ví dụ quen thuộc: An với điểm 9,2; 8,7; 9,5; 6,8; 8,0; 8,0; "
             "7,3; 6,5 và Bình với 8,2; 8,1; 8,0; 7,8; 8,3; 7,9; 7,6; 8,1. Cả hai "
             "đều có số trung bình 8,0, nhưng:\n\n"
-            "s² của An = 1,045 (s ≈ 1,02); s² của Bình = 0,045 (s ≈ 0,21). Bình "
+            "$s^2$ của An $= 1{,}045$ ($s \\approx 1{,}02$); $s^2$ của Bình "
+            "$= 0{,}045$ ($s \\approx 0{,}21$). Bình "
             "học đều hơn vì điểm của Bình tập trung sát trung bình.\n\n"
             "Ví dụ với lợi suất ngày (%): dãy (−2; 1; 0,5; 3; −1). Số trung bình "
-            "= 1,5/5 = 0,3. Phương sai s² = 14,8/5 = 2,96, độ lệch chuẩn "
-            "s = √2,96 ≈ 1,72 (%)."
+            "$\\bar{x} = \\frac{1{,}5}{5} = 0{,}3$. Phương sai $s^2 = \\frac{14{,}8}{5} = 2{,}96$, "
+            "độ lệch chuẩn "
+            "$s = \\sqrt{2{,}96} \\approx 1{,}72$ (%)."
         ),
         interactive=(
             "Nhập một dãy lợi suất (hoặc dán lợi suất thật từ tab Khám phá dữ "
@@ -788,15 +793,15 @@ LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_NUMBER,
                 answer_value=0.3,
                 tolerance=0.001,
-                explanation="bar x = (−2 + 1 + 0,5 + 3 − 1)/5 = 1,5/5 = 0,3 (%).",
+                explanation="$\\bar{x} = \\frac{-2 + 1 + 0{,}5 + 3 - 1}{5} = \\frac{1{,}5}{5} = 0{,}3$ (%).",
             ),
             Question(
                 qid="s2_q2",
-                prompt="Với dãy trên, phương sai s² (chia cho n = 5) bằng bao nhiêu?",
+                prompt="Với dãy trên, phương sai $s^2$ (chia cho $n = 5$) bằng bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=2.96,
                 tolerance=0.005,
-                explanation="Tổng (x_i − 0,3)² = 14,8 nên s² = 14,8/5 = 2,96.",
+                explanation="Tổng $(x_i - 0{,}3)^2 = 14{,}8$ nên $s^2 = \\frac{14{,}8}{5} = 2{,}96$.",
             ),
             Question(
                 qid="s2_q3",
@@ -804,7 +809,7 @@ LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_NUMBER,
                 answer_value=1.72,
                 tolerance=0.01,
-                explanation="s = √2,96 ≈ 1,72 (%).",
+                explanation="$s = \\sqrt{2{,}96} \\approx 1{,}72$ (%).",
             ),
             Question(
                 qid="s2_q4",
@@ -828,13 +833,13 @@ LESSONS: tuple[Lesson, ...] = (
             ),
             (
                 "Phương sai cùng đơn vị với dữ liệu",
-                "s² là bình phương đơn vị (%² chẳng hạn); độ lệch chuẩn s mới cùng "
+                "$s^2$ là bình phương đơn vị ($\\%^2$ chẳng hạn); độ lệch chuẩn $s$ mới cùng "
                 "đơn vị với dữ liệu nên được dùng để diễn giải.",
             ),
             (
                 "Khoảng biến thiên và khoảng tứ phân vị luôn như nhau",
                 "R dùng giá trị lớn nhất - nhỏ nhất nên phụ thuộc hai điểm đầu mút; "
-                "Δ_Q bỏ 25% mỗi phía nên bền hơn trước giá trị bất thường.",
+                "$\\Delta_Q$ bỏ 25% mỗi phía nên bền hơn trước giá trị bất thường.",
             ),
         ),
         resources=(
@@ -850,18 +855,21 @@ LESSONS: tuple[Lesson, ...] = (
         sgk_grade=11,
         title="Mẫu số liệu ghép nhóm và số đặc trưng trung tâm (Toán 11) — khi dữ liệu chỉ ghi theo khoảng",
         objective=(
-            "Ghép được mẫu lớn thành các nhóm [u_i; u_(i+1)), tính được tần số, "
+            "Ghép được mẫu lớn thành các nhóm $[u_i; u_{i+1})$, tính được tần số, "
             "giá trị đại diện (trung điểm) của nhóm; ước lượng số trung bình, "
             "trung vị, mốt của mẫu ghép nhóm."
         ),
         explanation=(
             "Khi mẫu lớn hoặc dữ liệu chỉ được ghi dưới dạng khoảng (ví dụ 'giá "
             "biên động từ 24 đến 28 nghìn'), ta ghép mẫu thành các nhóm liền nhau "
-            "[u_i; u_(i+1)) và đếm tần số n_i của mỗi nhóm. Tổng các tần số bằng "
-            "cỡ mẫu N.\n\n"
+            "$[u_i; u_{i+1})$ và đếm tần số $n_i$ của mỗi nhóm. Tổng các tần số bằng "
+            "cỡ mẫu $N$.\n\n"
             "Mỗi nhóm được đại diện bởi một giá trị — thường lấy trung điểm "
-            "c_i = (u_i + u_(i+1))/2 (một số bộ SGK gọi là tổ trọng tâm). Số trung "
-            "bình ghép nhóm: bar x_g = (n_1·c_1 + ... + n_k·c_k)/N.\n\n"
+            "$c_i = \\frac{u_i + u_{i+1}}{2}$ (một số bộ SGK gọi là tổ trọng tâm). Số trung "
+            "bình ghép nhóm:\n\n"
+            "$$\n"
+            "\\bar{x}_g = \\frac{n_1 c_1 + n_2 c_2 + \\dots + n_k c_k}{N}\n"
+            "$$\n\n"
             "Trung vị, tứ phân vị và mốt ghép nhóm được ước lượng từ bảng tần số "
             "(nội suy theo nhóm chứa vị trí N/2, N/4, 3N/4; mốt g thuộc nhóm có "
             "tần số lớn nhất). Số ghép nhóm chỉ là ước lượng vì ta đã mất chi tiết "
@@ -870,10 +878,10 @@ LESSONS: tuple[Lesson, ...] = (
         example=(
             "Bảng lợi suất ngày (%) của 20 phiên được ghép thành hai nhóm: "
             "[−2; 0) có n = 6, c = −1; [0; 2) có n = 14, c = 1.\n\n"
-            "bar x_g = (6 × (−1) + 14 × 1)/20 = 8/20 = 0,4 (%).\n\n"
+            "$\\bar{x}_g = \\frac{6 \\times (-1) + 14 \\times 1}{20} = \\frac{8}{20} = 0{,}4$ (%).\n\n"
             "Một bảng khác về giá đóng cửa 20 phiên: nhóm (24; 28) n = 5, c = 26; "
-            "nhóm (28; 32) n = 15, c = 30. bar x_g = (5 × 26 + 15 × 30)/20 = "
-            "580/20 = 29 (nghìn đồng)."
+            "nhóm (28; 32) n = 15, c = 30. "
+            "$\\bar{x}_g = \\frac{5 \\times 26 + 15 \\times 30}{20} = \\frac{580}{20} = 29$ (nghìn đồng)."
         ),
         interactive=(
             "Kéo số nhóm k và xem bảng tần số, giá trị đại diện thay đổi thế nào; "
@@ -884,19 +892,19 @@ LESSONS: tuple[Lesson, ...] = (
         questions=(
             Question(
                 qid="s3_q1",
-                prompt="Bảng ghép nhóm: [−2; 0) n = 6, c = −1; [0; 2) n = 14, c = 1. Số trung bình ghép nhóm bar x_g bằng bao nhiêu?",
+                prompt="Bảng ghép nhóm: [−2; 0) n = 6, c = −1; [0; 2) n = 14, c = 1. Số trung bình ghép nhóm $\\bar{x}_g$ bằng bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=0.4,
                 tolerance=0.001,
-                explanation="bar x_g = (6 × (−1) + 14 × 1)/20 = 8/20 = 0,4.",
+                explanation="$\\bar{x}_g = \\frac{6 \\times (-1) + 14 \\times 1}{20} = \\frac{8}{20} = 0{,}4$.",
             ),
             Question(
                 qid="s3_q2",
-                prompt="Giá đóng cửa 20 phiên: (24; 28) n = 5, c = 26; (28; 32) n = 15, c = 30. bar x_g bằng bao nhiêu (nghìn đồng)?",
+                prompt="Giá đóng cửa 20 phiên: (24; 28) n = 5, c = 26; (28; 32) n = 15, c = 30. $\\bar{x}_g$ bằng bao nhiêu (nghìn đồng)?",
                 kind=QUESTION_NUMBER,
                 answer_value=29.0,
                 tolerance=0.01,
-                explanation="bar x_g = (5 × 26 + 15 × 30)/20 = 580/20 = 29.",
+                explanation="$\\bar{x}_g = \\frac{5 \\times 26 + 15 \\times 30}{20} = \\frac{580}{20} = 29$.",
             ),
             Question(
                 qid="s3_q3",
@@ -904,7 +912,7 @@ LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_NUMBER,
                 answer_value=2.0,
                 tolerance=0.001,
-                explanation="c = (1,5 + 2,5)/2 = 2.",
+                explanation="$c = \\frac{1{,}5 + 2{,}5}{2} = 2$.",
             ),
             Question(
                 qid="s3_q4",
@@ -926,7 +934,7 @@ LESSONS: tuple[Lesson, ...] = (
                 "tần số — đó là nguồn gốc của sai số ước lượng (nối với bài sai số).",
             ),
             (
-                "bar x_g là trung bình của các tần số",
+                "$\\bar{x}_g$ là trung bình của các tần số",
                 "Là trung bình của các giá trị đại diện có trọng số là tần số, "
                 "không phải trung bình của n_i.",
             ),
@@ -955,21 +963,23 @@ LESSONS: tuple[Lesson, ...] = (
         ),
         explanation=(
             "Với mẫu ghép nhóm, độ phân tán được ước lượng từ bảng tần số:\n\n"
-            "- Khoảng biến thiên: R_g xấp xỉ u_max − u_min, hiệu giữa biên lớn "
+            "- Khoảng biến thiên: $R_g \\approx u_{\\max} - u_{\\min}$, hiệu giữa biên lớn "
             "nhất của nhóm cuối và biên nhỏ nhất của nhóm đầu.\n"
-            "- Khoảng tứ phân vị: Δ_(Q,g) = Q3g − Q1g với Q1g, Q3g nội suy theo "
-            "công thức nhóm chứa vị trí N/4 và 3N/4.\n"
-            "- Phương sai: s²_g = (1/N) × tổng n_i (c_i − bar x_g)²; độ lệch chuẩn "
-            "s_g = √s²_g.\n\n"
+            "- Khoảng tứ phân vị: $\\Delta_{Q,g} = Q_{3,g} - Q_{1,g}$ với $Q_{1,g}$, $Q_{3,g}$ "
+            "nội suy theo công thức nhóm chứa vị trí $N/4$ và $3N/4$.\n"
+            "- Phương sai và độ lệch chuẩn:\n\n"
+            "$$\n"
+            "s^2_g = \\frac{1}{N}\\sum_{i=1}^{k} n_i\\,(c_i - \\bar{x}_g)^2 \\qquad s_g = \\sqrt{s^2_g}\n"
+            "$$\n\n"
             "So sánh hai mẫu ghép nhóm (cùng đơn vị): mẫu có R_g hay s_g lớn hơn "
             "phân tán mạnh hơn. Đây chính là cách SGK hỏi 'giai đoạn nào biến động "
             "nhiều hơn' — và cũng là cách nhà đầu tư so hai thời kỳ của một mã."
         ),
         example=(
             "So sánh hai tuần của một mã, lợi suất ngày (%):\n\n"
-            "Tuần 1: [−1; 1) n = 8; [1; 3) n = 12. R_g = 3 − (−1) = 4.\n"
+            "Tuần 1: [−1; 1) n = 8; [1; 3) n = 12. $R_g = 3 - (-1) = 4$.\n"
             "Tuần 2: [−3; −1) n = 4; [−1; 1) n = 8; [1; 3) n = 8. "
-            "R_g = 3 − (−3) = 6.\n\n"
+            "$R_g = 3 - (-3) = 6$.\n\n"
             "Tuần 2 có R_g lớn hơn nên biến động mạnh hơn — dù số phiên hai tuần "
             "như nhau. Với s_g cũng vậy: mẫu nào s_g lớn hơn, mức dao động quanh "
             "trung tâm lớn hơn."
@@ -987,15 +997,15 @@ LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_NUMBER,
                 answer_value=5.0,
                 tolerance=0.001,
-                explanation="R_g = 3 − (−2) = 5 (biên trên nhóm cuối trừ biên dưới nhóm đầu).",
+                explanation="$R_g = 3 - (-2) = 5$ (biên trên nhóm cuối trừ biên dưới nhóm đầu).",
             ),
             Question(
                 qid="s4_q2",
-                prompt="Mẫu ghép nhóm N = 20: n = 6 với c = −1; n = 14 với c = 1; bar x_g = 0,4. Phương sai s²_g bằng bao nhiêu?",
+                prompt="Mẫu ghép nhóm N = 20: n = 6 với c = −1; n = 14 với c = 1; $\\bar{x}_g = 0{,}4$. Phương sai $s^2_g$ bằng bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=0.84,
                 tolerance=0.005,
-                explanation="s²_g = (6 × (−1,4)² + 14 × (0,6)²)/20 = (11,76 + 5,04)/20 = 16,8/20 = 0,84.",
+                explanation="$s^2_g = \\frac{6 \\times (-1{,}4)^2 + 14 \\times (0{,}6)^2}{20} = \\frac{11{,}76 + 5{,}04}{20} = \\frac{16{,}8}{20} = 0{,}84$.",
             ),
             Question(
                 qid="s4_q3",
@@ -1003,7 +1013,7 @@ LESSONS: tuple[Lesson, ...] = (
                 kind=QUESTION_NUMBER,
                 answer_value=0.92,
                 tolerance=0.01,
-                explanation="s_g = √0,84 ≈ 0,92.",
+                explanation="$s_g = \\sqrt{0{,}84} \\approx 0{,}92$.",
             ),
             Question(
                 qid="s4_q4",
@@ -1015,7 +1025,7 @@ LESSONS: tuple[Lesson, ...] = (
                     "Hai mẫu phân tán như nhau vì cùng trung bình",
                 ),
                 answer_index=1,
-                explanation="s_g nhỏ nghĩa là các giá trị đại diện nằm gần bar x_g hơn: ít dao động, 'đều' hơn.",
+                explanation="s_g nhỏ nghĩa là các giá trị đại diện nằm gần $\\bar{x}_g$ hơn: ít dao động, 'đều' hơn.",
             ),
         ),
         misconceptions=(
@@ -1081,7 +1091,7 @@ LESSONS: tuple[Lesson, ...] = (
             "66,7%'. Bạn Huy định hiểu: 'Vậy mua là chắc chắn lời?' Không — dùng "
             "lại cách đếm xác suất ở bài phân tán: xác suất một phiên tăng là "
             "0,667, xác suất hai phiên tăng liên tiếp (giả sử độc lập) là "
-            "0,667² ≈ 0,4449 ≈ 44,5%. Nghĩa là chỉ riêng việc 'nhiều khả năng "
+            "$0{,}667^2 \\approx 0{,}4449 \\approx 44{,}5\\%$. Nghĩa là chỉ riêng việc 'nhiều khả năng "
             "lên' không đủ để đặt cả tài sản vào một cửa: gần 1/2 khả năng hai "
             "phiên liên tiếp đi khác dự đoán. Huy rút quy tắc: dự báo xác suất "
             "cao hơn 50% chỉ nghĩa là 'thiên lệch nhẹ', muốn sống sót phải có "

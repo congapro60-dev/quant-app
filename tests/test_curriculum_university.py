@@ -87,14 +87,14 @@ def test_unanswered_scores_zero():
 
 def test_sim_lesson_states_the_three_assumptions():
     text = uni.get_lesson("dh3_sim_gia_thiet").explanation
-    assert "E(ε_i) = 0" in text
-    assert "cov(ε_i, r_I) = 0" in text
-    assert "cov(ε_i, ε_k) = 0" in text
+    assert r"E(\varepsilon_i) = 0" in text
+    assert r"\mathrm{cov}(\varepsilon_i, r_I) = 0" in text
+    assert r"\mathrm{cov}(\varepsilon_i, \varepsilon_k) = 0" in text
 
 
 def test_risk_split_lesson_carries_the_decomposition_formula():
     text = uni.get_lesson("dh4_phan_ra_rui_ro").explanation
-    assert "σ_i² = β_i²·σ_I² + η_i²" in text
+    assert r"\sigma_i^2 = \beta_i^2 \sigma_I^2 + \eta_i^2" in text
 
 
 def test_risk_split_lesson_explains_r_squared_as_systematic_share():
@@ -102,12 +102,12 @@ def test_risk_split_lesson_explains_r_squared_as_systematic_share():
 
     text = uni.get_lesson("dh4_phan_ra_rui_ro").explanation
     assert "tỷ lệ rủi ro" in text.lower()
-    assert "R²" in text
+    assert "$R^2$" in text
 
 
 def test_portfolio_lesson_uses_matrix_form():
     text = uni.get_lesson("dh2_do_dao_dong").explanation
-    assert "W′VW" in text
+    assert r"\sigma_P^2 = W'VW" in text
 
 
 def test_markowitz_lesson_uses_textbook_letters():
@@ -118,10 +118,10 @@ def test_markowitz_lesson_uses_textbook_letters():
     """
 
     text = uni.get_lesson("dh6_markowitz").explanation
-    assert "A = [1]′V⁻¹[1]" in text
-    assert "B = [r̄]′V⁻¹[1]" in text
-    assert "C = [r̄]′V⁻¹[r̄]" in text
-    assert "D = A·C − B²" in text
+    assert r"A = [1]'V^{-1}[1]" in text
+    assert r"B = [\bar{r}]'V^{-1}[1]" in text
+    assert r"C = [\bar{r}]'V^{-1}[\bar{r}]" in text
+    assert r"D = A \cdot C - B^2" in text
 
 
 def test_markowitz_question_matches_textbook_determinant():
