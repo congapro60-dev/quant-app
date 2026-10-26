@@ -1,8 +1,45 @@
 # HANDOFF — Quant App
 
-**Cập nhật**: 2026-10-24 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+**Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
-## 0y. Bổ sung 25/10/2026 — tab "Chứng khoán trên MoMo" trong khu Đầu tư
+## 0z7. 26/10/2026 — che lỗi kỹ thuật AI khỏi học sinh + tình trạng key dùng chung
+
+Người dùng hỏi "app ổn định để phát hành cho HS chưa" kèm ảnh chụp khung đỏ:
+`Lỗi gọi API [INVALID_KEY] ... Chi tiết kỹ thuật nguyên văn (raw detail):
+HTTP Error 401: Unauthorized`. Bấm "Kích hoạt & kiểm tra kết nối" trên
+production lần nữa vẫn ra kết quả tương tự (khung đỏ bản cũ).
+
+- **Kết luận về key của người dùng (chủ app): KHÔNG dùng được.** Máy chủ AI trả
+  401 INVALID_KEY — key sai, hết hạn hoặc thuộc sai project. Đây là lỗi cấu hình
+  trong Secrets `[shared_ai]`, chỉ chủ app sửa được (đường: Streamlit Cloud →
+  Manage app → Secrets → thay `api_key`). Agent không đọc được Secrets và không
+  bao giờ nhận key qua chat/repo.
+- **Fix `f987444`** (đã push, đã qua 790 tests):
+  - `analytics._friendly_llm_error` KHÔNG còn nhúng chi tiết kỹ thuật vào chuỗi
+    trả về; chi tiết (đã khử key) ghi vào `logging` cho chủ app xem ở dashboard.
+    Chuỗi trả về chỉ còn `Lỗi gọi API [MÃ]: hướng dẫn.` — phân lớp mới trong
+    `call_llm`: lỗi app tự mô tả (`AnalyticsValidationError`, ví dụ thiếu base
+    URL) trả nguyên thông điệp tiếng Việt vì chúng viết cho người dùng; chỉ lỗi
+    từ nhà cung cấp đi qua `_friendly_llm_error`.
+  - `app.py` khối AI: bỏ `st.error` (màu đỏ, cấm ở vùng HS); AI dùng chung lỗi →
+    `st.warning` "tạm chưa kết nối được — vẫn học bình thường" + caption mã tình
+    trạng cho người quản trị; key riêng lỗi → `st.warning` giữ hướng dẫn.
+- Test mới: `test_friendly_llm_error_never_leaks_raw_http_detail`,
+  `test_friendly_llm_error_redacts_api_key_even_in_logs` (test_analytics.py),
+  `test_learner_never_sees_raw_ai_error_in_sidebar` (tests/test_app_smoke.py —
+  patch `shared_ai._read_section`, KHÔNG `import app` trong pytest: app.py là
+  script, import làm thực thi render và ném lỗi dialog trong bare mode).
+- **Sửa lại kết luận trước trong mục 0z6:** nút trong `st.dialog` BẤM ĐƯỢC bằng
+  `element.click()` — fragment rerun chỉ **chậm (15–20 giây)**, các lần trước
+  kiểm sau 3–8 giây nên tưởng không ăn. Đã xác nhận: bấm "Để sau" → dialog
+  đóng. Bẫy mới: phải đợi đủ lâu rồi mới đọc trạng thái.
+- Giới hạn tool còn lại: viewport tool hẹp → Streamlit rơi vào chế độ di động,
+  sidebar không nằm trong DOM cho tới khi bấm "Main menu"; click Main menu không
+  ăn bằng tool. Không chứng cứ lỗi app (máy người dùng có sidebar — ảnh 0z7).
+  Vì vậy: **trên máy tool không kiểm trực tiếp được nút Kích hoạt**; verify
+  sau Reboot tập trung vào chữ trong khối cảnh báo, hoặc nhờ người dùng bấm.
+
+## 0z6. Sửa 25/10/2026 — nút "Đi làm bài Đầu vào" bị kẹt (hai lỗi chồng nhau)
 
 Mục đích: học sinh hỏi "học xong thì làm thật ở đâu" — câu trả lời ngắn nhất là
 mở tài khoản ngay trên MoMo (sản phẩm **Chứng Khoán** do **CVS** cung cấp).

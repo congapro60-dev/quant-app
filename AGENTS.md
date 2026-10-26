@@ -65,6 +65,13 @@ sẽ tưởng ứng dụng hỏng. Dùng `st.warning` cho cảnh báo, kể cả
 - Snapshot không vào được iframe Streamlit → dùng `browser.frames` lấy frame id.
 - `element.click()` bị React bỏ qua → bắn đủ `pointerdown → mousedown → pointerup
   → mouseup → click`.
+- **Nút trong `st.dialog` bấm được bằng `element.click()`** — nhưng fragment rerun
+  CHẬM (15–20 giây). Bấm xong phải đợi đủ lâu rồi mới đọc trạng thái; kiểm sau
+  3–8 giây sẽ tưởng nút "không ăn" (bài học thật 26/10/2026, sửa lại kết luận sai
+  của 25/10: từng kết luận "công cụ không bấm được nút dialog" — SAI, chỉ là chậm).
+- Viewport tool hẹp → Streamlit rơi vào chế độ di động: sidebar KHÔNG nằm trong
+  DOM cho tới khi bấm "Main menu" ở header; click đó chưa ăn được bằng tool. Đừng
+  kết luận "app mất sidebar" — máy người dùng vẫn có (xem ảnh 0z7 trong HANDOFF).
 - Tab con báo `aria-selected="true"` **dù tab cha chưa mở** (phần tử cao 0px).
   Mở tab cha trước, kiểm `width > 0`, rồi mới bấm tab con.
 - Có thể có `stMarkdown` đè lên thanh tab → `elementFromPoint` trả về markdown và
