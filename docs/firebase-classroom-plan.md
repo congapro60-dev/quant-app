@@ -1,6 +1,6 @@
 # Nộp bài Firebase thật — 26/10/2026
 
-Status: deployed; teacher browser flow verified. Student browser end-to-end pending.
+Status: deployed; teacher + student browser flows verified on production (student E2E done 26/10, see HANDOFF 0z12).
 User: “Làm thật cho xong”, sau bốn câu đã trả lời.
 Repo: master, d5fbccf. Không dùng Astra. Không sửa bộ máy tài chính hoặc tour.
 

@@ -2,6 +2,41 @@
 
 **Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z12. 26/10/2026 — verify browser E2E luồng học sinh trên production (phần Codex bỏ ngỏ)
+
+- Hoàn tất mục "Student browser end-to-end pending" trong
+  `docs/firebase-classroom-plan.md`. Kiểm trọn luồng trên production bằng
+  browser tích hợp, 1 lớp QA nhỏ: lớp `LOP-QA-BROWSER` do GV-001 tạo, cấp
+  `HS-CB581D2958A0`, gói `bai-01` (1 mô-đun `m1_tien_ngan_sach`, track thpt).
+- Luồng HS đạt từng bước: upload JSON gói giao bài → "Gói hợp lệ. Làm các
+  mô-đun được giao trong Lộ trình học." → đăng nhập kênh nộp (radio Học sinh,
+  mã lớp + mã HS + mật khẩu) → "Xem dữ liệu sẽ gửi" hiển thị đúng payload
+  (mã lớp/HS/bài giao, điểm NULL, 0 lượt làm, journal_count 0; không PII) →
+  tick đồng ý → "Nộp bài lên Firebase" → biên nhận `Đã lưu bài ·
+  2026-10-26T14:11:49.704836Z` + `receipt_id 31524be5…7829`.
+- Luồng GV đọc lại đạt: đăng nhập lại GV-001 → chọn lớp → "Tải danh sách bài
+  nộp" → CSV `tong_hop_LOP-QA-BROWSER.csv` đúng dòng
+  `HS-CB581D2958A0,bai-01,1,2026-10-26T14:11:49.647Z` (khớp biên nhận) → JSON
+  `bai_nop_LOP-QA-BROWSER.json` đủ `owner_uid` (UID HS, khác UID GV) và
+  summary khớp 100% với dữ liệu HS đã xem trước khi đồng ý.
+- Xác nhận lại với chủ project: HS không đăng nhập vẫn dùng được toàn bộ web;
+  đăng nhập kênh nộp chỉ để lưu báo cáo học tập lâu dài cho GV — khớp thiết kế
+  (panel nằm trong Gói lớp học, không khóa chế độ).
+- Kỹ thuật browser (dùng lại khi cần): `st.download_button` tải được bằng
+  click tổng hợp qua reactProps onClick — tệp rơi vào `browser.files.list`/
+  `files.get` (không cần trusted click, không cần bắt blob); upload vào
+  `st.file_uploader` được bằng DataTransfer: `input.files = dt.files` + dispatch
+  `change` (không cần ref từ a11y snapshot); tab Streamlit giờ là React Aria
+  (`data-rac`) — bấm tab phải chuỗi pointer đầy đủ hoặc focus + Enter,
+  radio/checkbox thì `input.click()` ăn; app iframe cần 2 lần run trước khi
+  widget upload hiện nút phụ thuộc.
+- Tránh treo tour 4/4: seed `localStorage["quantapp.progress.v1"]` = hồ sơ
+  rỗng + `seen_tour: true` trước reload (hồ sơ vẫn "fresh" nhưng tour không
+  mở); dọn seed sau khi đăng xuất để trả lại trạng thái sạch. Đã đăng xuất cả
+  2 vai trò + xóa seed cuối phiên.
+- Sau verify này, mọi luồng nộp bài Firebase đã kiểm qua browser thật trên
+  production: GV (từ `1e30b34`) và HS (mục này). Không có thay đổi code.
+
 ## 0z11. 26/10/2026 — nộp bài Firebase thật
 
 - Người dùng yêu cầu hoàn tất thật, đã trả lời 4 câu chặn; duyệt lưu cấu hình
