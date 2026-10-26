@@ -257,3 +257,26 @@ phải để AI thay dữ liệu.
 Trong phiên trước, người viết đã ba lần vá cùng một lỗi fragment mà không đóng được.
 Đề nghị người nhận: nếu lần verify tay thứ nhất vẫn kẹt, **đổi cách làm (bỏ dialog)**,
 đừng vá lần thứ tư.
+
+## Cập nhật 26/10/2026 — quyết định chủ dự án và điểm dừng
+
+- Đã tạo và đọc lại trạng thái ACTIVE bằng Firebase CLI cho project riêng
+  `quant-app-classroom-20261026` (tên hiển thị `Quant App Classroom`). Không bật
+  Firestore/Auth, triển khai Rules, liên kết thanh toán hoặc tạo API key.
+- Định danh: mã lớp + mã số do giáo viên phát, không thu thập thêm PII.
+- Nhiều giáo viên; mỗi giáo viên chỉ được đọc lớp mình. Mã lớp/mã số không tự
+  chứng minh quyền truy cập; bước sau phải ràng buộc với UID xác thực.
+- Chủ dự án xác nhận đã có đồng ý phụ huynh; chưa kiểm chứng hồ sơ đồng ý.
+- Bước hiện tại: chỉ `classroom_submit.py` + test, chưa nối Firebase/UI/Rules.
+- Payload allowlist: mã lớp, mã học sinh, ID bài giao, điểm và số lần làm các
+  bài được giao, điểm/số lần chẩn đoán, số mục nhật ký. Không gửi văn bản nhật ký
+  vì bộ lọc hiện có không khử được mọi tên riêng trong văn bản tự do.
+- Dùng lại validator, bộ lọc và giới hạn byte của `classroom_packages.py`.
+- `submit()` luôn báo chưa cấu hình; không gửi mạng, không trả biên nhận giả.
+- Kiểm: bốn nhóm test bắt buộc, lỗi kiểu/NaN/Infinity, input không bị thay đổi,
+  profile JSON cũ, không import Streamlit, full pytest trước từng commit.
+- Sau module và test: dừng, chưa push/reboot/deploy hoặc tiếp tục bước Rules.
+- Kết quả: nền trước thay đổi 790/790 đạt; sau thêm module + test 877/877 đạt
+  (312,46 giây), test riêng 87/87 đạt. `py_compile` hai tệp đạt.
+- Đây là dựng payload cục bộ đã kiểm thử, không phải đã nộp bài thật hoặc đã
+  xác minh phân quyền Firebase. Không sử dụng model/AI để vận chuyển dữ liệu.
