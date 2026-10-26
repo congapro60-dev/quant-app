@@ -14,3 +14,8 @@ htmlcov/
 
 # Anh chup giao dien, sinh lai duoc bang tools/capture_ui.py
 anh_giao_dien/
+
+# Firebase CLI/emulator diagnostics can contain generated test credentials.
+*-debug.log
+*-debug.*.log
+.firebase/

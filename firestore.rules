@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function teacher() {
+      return signed() && exists(/databases/$(database)/documents/teachers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/teachers/$(request.auth.uid)).data.enabled == true;
+    }
+    function owns(c) {
+      return teacher() && get(/databases/$(database)/documents/classes/$(c)).data.owner_uid == request.auth.uid;
+    }
+    function code(v) { return v is string && v.matches('^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'); }
+    function score(v) { return v == null || (v is number && v >= 0 && v <= 100); }
+    function count(v) { return v is int && v >= 0 && v <= 100; }
+    function lesson(d) {
+      let latest = d.latest_score;
+      let best = d.best_score;
+      let attempts = d.attempt_count;
+      return d is map && d.keys().hasOnly(['lesson_id','latest_score','best_score','attempt_count'])
+        && code(d.lesson_id) && score(latest) && score(best)
+        && attempts is int && attempts >= 0 && attempts <= 100;
+    }
+    function diagnostic(d) {
+      return d is map && d.keys().hasOnly(['score','attempt_count'])
+        && score(d.score) && count(d.attempt_count);
+    }
+    function summary(d,c) {
+      let diagnostics = d.diagnostics;
+      return d is map && d.keys().hasOnly(['schema_version','class_code','student_code','assignment_id','diagnostics','journal_count'])
+        && d.schema_version is int && d.schema_version == 1 && d.class_code == c && code(d.student_code)
+        && d.student_code.size() <= 32 && code(d.assignment_id)
+        && diagnostics is map
+        && diagnostics.keys().hasOnly(['pre_test','post_test'])
+        && diagnostic(diagnostics.pre_test) && diagnostic(diagnostics.post_test)
+        && d.journal_count is int && d.journal_count >= 0 && d.journal_count <= 500;
+    }
+    match /teachers/{uid} {
+      allow get: if signed() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+    match /classes/{c} {
+      allow create: if teacher() && code(c)
+        && request.resource.data.keys().hasOnly(['owner_uid','class_code'])
+        && request.resource.data.owner_uid == request.auth.uid
+        && request.resource.data.class_code == c;
+      allow read: if teacher() && resource.data.owner_uid == request.auth.uid;
+      allow update, delete: if false;
+      match /students/{s} {
+        allow create: if owns(c) && code(s) && s.size() <= 32
+          && request.resource.data.keys().hasOnly(['uid','student_code'])
+          && request.resource.data.uid is string && request.resource.data.uid.size() <= 128
+          && request.resource.data.student_code == s;
+        allow get: if owns(c) || (signed() && resource.data.uid == request.auth.uid);
+        allow list: if owns(c);
+        allow update, delete: if false;
+      }
+      match /submissions/{receipt} {
+        function valid() {
+          let data = request.resource.data;
+          let incoming = data.summary;
+          return signed()
+            && data.keys().hasOnly(['owner_uid','summary','received_at','lesson_count'])
+            && data.lesson_count is int && data.lesson_count >= 1 && data.lesson_count <= 200
+            && data.owner_uid == request.auth.uid
+            && data.received_at == request.time
+            && summary(incoming,c)
+            && get(/databases/$(database)/documents/classes/$(c)/students/$(incoming.student_code)).data.uid == request.auth.uid
+            && (!exists(/databases/$(database)/documents/classes/$(c)/submissions/$(receipt))
+                || (resource.data.owner_uid == request.auth.uid
+                    && resource.data.summary.assignment_id == incoming.assignment_id
+                    && resource.data.summary.student_code == incoming.student_code));
+        }
+        allow get: if owns(c) || (signed() && resource.data.owner_uid == request.auth.uid);
+        allow list: if owns(c);
+        allow create, update: if valid();
+        allow delete: if false;
+        match /lessons/{row} {
+          function parent() {
+            return getAfter(/databases/$(database)/documents/classes/$(c)/submissions/$(receipt)).data;
+          }
+          allow read: if owns(c) || (signed() && get(/databases/$(database)/documents/classes/$(c)/submissions/$(receipt)).data.owner_uid == request.auth.uid);
+          allow create, update: if signed() && parent().owner_uid == request.auth.uid
+            && request.resource.data.keys().hasOnly(['index','lesson'])
+            && request.resource.data.index is int && request.resource.data.index >= 0
+            && request.resource.data.index < parent().lesson_count
+            && row == string(request.resource.data.index)
+            && lesson(request.resource.data.lesson);
+          allow delete: if false;
+        }
+      }
+    }
+    match /{path=**} { allow read, write: if false; }
+  }
+}
