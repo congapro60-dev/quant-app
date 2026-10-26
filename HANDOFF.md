@@ -2,6 +2,35 @@
 
 **Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z11. 26/10/2026 — nộp bài Firebase thật
+
+- Người dùng yêu cầu hoàn tất thật, đã trả lời 4 câu chặn; duyệt lưu cấu hình
+  Cloud và reboot ngay (biết sẽ ngắt phiên đang dùng). Không dùng Astra/AI ngoài.
+- Project riêng `quant-app-classroom-20261026`, Spark không billing, Firestore
+  Standard `asia-southeast1`, Auth định danh tổng hợp không email HS thật.
+- `7fe6dde`: REST bằng ID token, Rules theo UID/lớp, công cụ chủ project cấp GV.
+  `084372d`: UI trong Gói lớp học, GV tạo lớp/phát tài khoản/đọc/xuất điểm,
+  HS xem trước/đồng ý/nộp/nhận biên nhận. JSON và localStorage giữ nguyên.
+- Không gửi nội dung nhật ký, danh mục, cấu hình AI; điểm tự báo từ máy HS,
+  không phải điểm thi đã xác minh. Firebase chỉ vận chuyển dữ liệu, không AI.
+- Rules mảng 20 rồi 12 mô-đun vẫn vượt 1.000 biểu thức. Không giữ các bản đó:
+  dùng subcollection lessons, một commit nguyên tử với header. Kiểm đủ 200
+  mô-đun có điểm đạt. Đọc lại có phân trang, thiếu điểm báo lỗi thay vì giả đạt.
+- Full pytest cuối: 888 passed, 1 skipped; emulator chạy riêng 1 integration
+  test đạt (200 mô-đun, token refresh, phân trang, cross-user/teacher denials,
+  nâng role, ghi dữ liệu sai). py_compile/diff check/scan khóa trong file mới đạt.
+- Live Firebase schema mới 13:11 UTC: lưu/đọc, refresh token thật, B đọc/ghi A
+  bị chặn, GV ngoài lớp bị chặn. Rules Playground B đọc A: denied; A: allowed.
+- Rules đã triển khai, Secrets đã lưu Cloud; chưa verified UI production ở
+  thời điểm ghi mục này. Trạng thái reboot/production bổ sung sau kiểm.
+- Tệp riêng ngoài repo: `C:\Users\ADMIN\.quant-app-classroom\teacher-GV-001.json`
+  (mã GV-001/mật khẩu); không công khai nội dung. Cấp GV khác bằng
+  `tools/provision_classroom.py --teacher-code GV-002` với account chủ project.
+- Thử một lớp nhỏ trước mở rộng. Spark hết quota thì dùng JSON dự phòng.
+- Không có review chéo khác hãng: theo yêu cầu không gọi model ngoài; đây là
+  tự rà soát + kiểm thử thực, không gọi là review độc lập.
+- WIP có sẵn `docs/thiet_ke_onboarding.html` giữ nguyên, không stage.
+
 ## 0z10. 26/10/2026 — nộp bài: dừng sau module dữ liệu + test
 
 - Chủ dự án đã trả lời đủ bốn câu: yêu cầu tạo project, dùng mã lớp + mã số GV
