@@ -557,15 +557,15 @@ def render_investment_desk(
     )
     st.dataframe(formatted, width="stretch", hide_index=True)
     st.caption(
-        "Biến động năm hóa = độ lệch chuẩn lợi suất ngày nhân √252 — chính là "
+        "Biến động năm hóa = độ lệch chuẩn lợi suất ngày nhân $\\sqrt{252}$ — chính là "
         "số s học ở bài 'Số đặc trưng đo độ phân tán' (Toán 10) và 'Độ phân tán "
         "của mẫu ghép nhóm' (Toán 12), chỉ chuyển sang thang năm để so mã với nhau."
     )
     with st.expander("🎓 Toán đằng sau 'Biến động năm hóa' — vì sao nhân √252?"):
         stats_tools.theory_lead(
-            "s ngày đo sự đi lạc quanh trung bình trong một phiên. Muốn biết cả năm "
+            "$s_{\\text{ngày}}$ đo sự đi lạc quanh trung bình trong một phiên. Muốn biết cả năm "
             "đi lạc cỡ nào, không thể cộng thẳng các độ lệch chuẩn của 252 phiên "
-            "độc lập, mà cộng phương sai rồi lấy căn: s năm = s ngày × √252. Số trong "
+            "độc lập, mà cộng phương sai rồi lấy căn: $s_{\\text{năm}} = s_{\\text{ngày}} \\times \\sqrt{252}$. Số trong "
             "cột “Biến động năm hóa” là số gần đúng kiểu đó, nên đọc kèm giá trị thật "
             "của cổ phiếu mới bàn được rủi ro."
         )
@@ -574,7 +574,7 @@ def render_investment_desk(
             "Mã A có s ngày (độ lệch chuẩn lợi suất mỗi ngày) 1,0%, mã B có s ngày "
             "0,4% — quy cả hai về thang năm rồi chọn theo khẩu vị rủi ro của lớp "
             "(đi êm hay chấp nhận dao động để kỳ vọng lãi cao hơn).",
-            "Khung tham khảo: “A: 1,0% × √252 ≈ 15,9%/năm; B: 0,4% × √252 ≈ 6,3%/năm. "
+            "Khung tham khảo: “A: $1{,}0\\% \\times \\sqrt{252} \\approx 15{,}9\\%/\\text{năm}$; B: $0{,}4\\% \\times \\sqrt{252} \\approx 6{,}3\\%/\\text{năm}$. "
             "Muốn đi êm thì trọng số nghiêng về B; muốn kỳ vọng lãi cao hơn và chấp "
             "nhận dao động thì thêm A, nhưng phải đa dạng hóa và đặt điểm cắt lỗ.”",
             hint="Bấm máy: nhân mỗi s với √252 (tức 1 × √252 và 0,4 × √252); đối chiếu "
@@ -587,7 +587,7 @@ def render_investment_desk(
             ("Vì sao nhân √252 mà không cộng 252 độ lệch chuẩn lại hay nhân nguyên 252?",
              "Phương sai của lợi suất các phiên độc lập cộng dồn tuyến tính theo thời "
              "gian; độ lệch chuẩn là căn phương sai nên chỉ nhân căn của số phiên ("
-             "√252). Nhân nguyên 252 sẽ phóng đại biến động gần 16 lần."),
+             "$\\sqrt{252}$). Nhân nguyên 252 sẽ phóng đại biến động gần 16 lần."),
         ])
 
     st.markdown("#### Kịch bản vào lệnh có điều kiện")

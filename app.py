@@ -1224,7 +1224,7 @@ if tab1 is not None:
     *   **Alpha (lợi suất riêng, $\\alpha$):** Lợi suất vượt trội do yếu tố riêng của cổ phiếu.
     *   **Rủi ro Hệ thống:** Do biến động chung của thị trường (không thể đa dạng hoá để loại bỏ).
     *   **Rủi ro Phi hệ thống:** Do đặc thù công ty (loại bỏ được bằng đa dạng hoá).
-    *   **R² :** Tỷ lệ biến động giá cổ phiếu được giải thích bởi VNINDEX.
+    *   **$R^2$ :** Tỷ lệ biến động giá cổ phiếu được giải thích bởi VNINDEX.
     *   **Kiểm định White (White test):** `Yes` (Có) = có phương sai sai số thay đổi (cần sai số chuẩn vững).
     *   **Kiểm định Breusch-Godfrey:** `Yes` (Có) = có tự tương quan chuỗi.\n*   **Dạng hàm (Ramsey RESET):** 'Có thể có' = mô hình có thể bị sai dạng hàm / bỏ sót biến (Chương 5).\n*   **Phân phối chuẩn (Jarque-Bera):** 'Không chuẩn' = phần dư không phân phối chuẩn, ảnh hưởng suy diễn thống kê mẫu nhỏ.
                 """)
@@ -1686,7 +1686,7 @@ if tab5 is not None:
                             st.markdown(
                                 f"**Diễn giải:** Lợi suất trung bình danh mục ≈ **{res['mean']*100:.4f}%/phiên** ({direction}); "
                                 f"rủi ro (độ lệch chuẩn) ≈ **{res['std']*100:.4f}%**. "
-                                f"Tính bằng r_P = Σ wᵢ·rᵢ rồi lấy trung bình & độ lệch chuẩn — bằng đúng W'VW. "
+                                f"Tính bằng $r_P = \\sum_i w_i r_i$ rồi lấy trung bình & độ lệch chuẩn — bằng đúng $W'VW$. "
                                 f"\n\n> ⚠️ Lợi suất TB đổi dấu nếu thay đổi thứ tự ngày; rủi ro không đổi.")
                         except Exception as e:
                             st.error(f"Lỗi: {e}")
@@ -1718,8 +1718,8 @@ if tab5 is not None:
                         r = compute_sim_portfolio_risk(exam_data, s_assets, s_market, s_weights,
                                                        nobs=s_n, reverse=s_order.startswith("Đảo"),
                                                        normalize=s_norm, is_returns=s_isret)
-                        st.caption(f"{r['n_returns']} lợi suất | σ²_thị trường = {r['sigma_market2']:.8f} | "
-                                   f"Beta danh mục β_P = {r['beta_p']:.6f}")
+                        st.caption(f"{r['n_returns']} lợi suất | $\\sigma^2_\\text{{thị trường}}$ = {r['sigma_market2']:.8f} | "
+                                   f"Beta danh mục $\\beta_P$ = {r['beta_p']:.6f}")
                         st.write("Chi tiết từng cổ phiếu theo mô hình chỉ số đơn (SIM):")
                         sim_detail = pd.DataFrame(r['per_stock']).rename(
                             columns={"Beta": "Beta (độ nhạy)"}
@@ -1733,8 +1733,8 @@ if tab5 is not None:
                             f"**Diễn giải:** Rủi ro danh mục P theo mô hình chỉ số đơn (SIM) = **{r['total']:.8f}** "
                             f"(= hệ thống {r['systematic']:.8f} + phi hệ thống {r['unsystematic']:.8f}); "
                             f"độ lệch chuẩn ≈ **{r['total_std']*100:.4f}%**. "
-                            f"Hệ thống = β²_P·σ²_I; phi hệ thống = Σ wᵢ²·ηᵢ² "
-                            f"(ηᵢ² = phương sai phần dư hồi quy mô hình chỉ số đơn, SIM).")
+                            f"Hệ thống $= \\beta_P^2 \\sigma_I^2$; phi hệ thống $= \\sum_i w_i^2 \\eta_i^2$ "
+                            f"($\\eta_i^2$ = phương sai phần dư hồi quy mô hình chỉ số đơn, SIM).")
                     except Exception as e:
                         st.error(f"Lỗi: {e}")
 
