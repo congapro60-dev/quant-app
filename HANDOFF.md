@@ -2,6 +2,40 @@
 
 **Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z8. 26/10/2026 — viết lại toàn bộ công thức toán thành LaTeX chuẩn
+
+Yêu cầu: "Các công thức viết lại cho đúng chuẩn Toán học đẹp như equation
+trong word để HS đọc". Phạm vi chốt: **mọi chỗ HS đọc** — 2 commit.
+
+- **Commit 1 `22c3391`** (bài học): `curriculum.py` (~35 chỗ), 
+  `curriculum_university.py` (dh2/dh3/dh4/dh6), `university_teen.py` (10 chỗ),
+  `tests/test_curriculum_university.py` (cập nhật 5 assert khóa sang chuỗi
+  LaTeX mới, giữ nguyên ý khóa ký hiệu giáo trình A/B/C/D, W'VW). 790 passed.
+- **Commit 2 `9693257`** (caption công cụ): `investment_ui.py` (khối √252:
+  caption, theory_lead, model_answer, reflection — hint/frame giữ unicode),
+  `app.py` (diễn giải SIM-Markowitz, caption σ²/β_P, diễn giải rủi ro SIM,
+  expander kinh tế lượng thống nhất `$R^2$`). 790 passed.
+- **Không đụng** (đã chốt): chuỗi report runtime `app.py` 778–779, 
+  docstring/dataframe key `R^2` (881, 913, 918, 1188, 1214), prompt AI (1545),
+  đáp án trắc nghiệm qua `st.radio` (KHÔNG render được LaTeX — giữ dạng chữ,
+  test dòng 129 không đổi), chuỗi `interactive` render `st.info` giữ unicode R².
+- Quy ước LaTeX đã dùng: số thập phân kiểu Việt `{,}` (vd `0{,}06`), số lớn 
+  trong `\text{}` (vd `\text{10.000.000}`), `%` escape `\\%` trong math, khối
+  công thức lớn dùng `$$...$$` nhiều dòng (ngắt hàng `\\\\`), Greek dùng 
+  `\varepsilon`/`\beta`/`\eta`/`\sigma`/`\gamma`, chữ Việt trong `\text{}`.
+- **Bẫy edit tool lần nữa**: thay chuỗi nhiều dòng trong chuỗi Python bị nối
+  dòng làm MẤT dấu quote/cấu trúc (4 lần hỏng cú pháp hôm nay). Bài học: mọi
+  thay đổi text có backslash/quote → dùng script Python byte-replace với
+  `assert count == 1` (mẫu: `fix_uni.py`, `fix_teen.py` trong
+  `C:\Users\ADMIN\AppData\Local\Temp\opencode\`). Sau mỗi edit: chạy
+  `py_compile` hoặc import với `-W error::SyntaxWarning` TRƯỚC khi pytest.
+- **Bẫy f-string**: `$...\text{tiếng Việt}...$` trong f-string phải viết
+  `{{tiếng Việt}}` (ngoặc nhân đôi), nếu không f-string hiểu là replacement
+  field → SyntaxError.
+- **Chưa verify trên production**: KaTeX render + cảnh báo AI thân thiện
+  (commit `f987444`) + nút tour bấm được (`1480f6b`). Chờ user xin phép
+  Reboot rồi kiểm (nút dialog đợi 15–20s).
+
 ## 0z7. 26/10/2026 — che lỗi kỹ thuật AI khỏi học sinh + tình trạng key dùng chung
 
 Người dùng hỏi "app ổn định để phát hành cho HS chưa" kèm ảnh chụp khung đỏ:
