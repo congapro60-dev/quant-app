@@ -2,6 +2,40 @@
 
 **Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z9. 26/10/2026 — Reboot production thành công + verify cả 3 thay đổi trên live
+
+Đã xin phép và được duyệt; user tự đăng nhập Streamlit Cloud trong trình duyệt
+của agent (phiên Google/GitHub đều trống, agent không xin credentials).
+Agent mở app → nút **Manage app** (trang cha, ngoài iframe) → nút ⋮
+(`data-testid="app-menu"`) → **Reboot app** → dialog xác nhận
+"Reboot app? This will disrupt all current users." → bấm **Reboot**.
+
+- Boot mới `[06:45:59 UTC] Starting up repository: 'quant-app', branch: 'master'`
+  → production chạy `master` gồm `d40350b` (kèm `1480f6b` tour, `f987444` che
+  lỗi AI, `22c3391`+`9693257` LaTeX).
+- **Verify 1 — KaTeX (22c3391)**: trang học có 26 phần tử `.katex`; annotation
+  khớp công thức mới, vd `\sqrt{0{,}25 \times 20\%^2 + ...} \approx 14{,}1\%`,
+  `r_i = 0{,}0005 + 1{,}07\,r_I`, `\beta^2 \sigma_I^2 + \eta^2`, `R^2 = 0{,}43`,
+  `\text{10.000.000} \times (1 + 0{,}06)^{10}`. Không thấy lỗi render.
+- **Verify 2 — cảnh báo AI thân thiện (f987444)**: bấm "Kích hoạt & kiểm tra
+  kết nối" với key còn chết → `st.warning` màu vàng: "AI dùng chung của trang
+  tạm chưa kết nối được. Bạn vẫn học và phân tích giá bình thường…" + caption
+  "Mã tình trạng (dành cho người quản trị): INVALID_KEY". KHÔNG còn khung đỏ
+  raw HTTP. **Key `[shared_ai]` vẫn 401 — chủ app tự sửa Secrets.**
+- **Verify 3 — nút tour (1480f6b)**: đặt `seen_tour=false` trong
+  `localStorage["quantapp.progress.v1"]` rồi reload → dialog "Chào mừng đến
+  Quant App" BƯỚC 1/4 tự mở; click "Tiếp →" chuyển đúng BƯỚC 2/4 "HỌC Ở ĐÂU?".
+  Nút trong `st.dialog` bấm ăn. (Sau test đã đặt lại `seen_tour=true`.)
+- **Mẹo điều khiển Streamlit Cloud bằng script** (dùng lại khi cần): a11y
+  snapshot của dashboard/panel thường TRỐNG — phải đào DOM bằng
+  `browser.evaluate`; React không ăn click tổng hợp — gọi thẳng handler qua
+  fiber: `btn[Object.keys(btn).find(k => k.startsWith('__reactProps$'))].onClick(e)`
+  với `e = {preventDefault(){}, stopPropagation(){}, target, currentTarget}`;
+  dialog xác nhận Reboot là `[role=dialog]` với nút text "Reboot".
+- **Còn nợ**: user sửa key AI trong Secrets; Firebase (bước 2 nộp bài) chờ
+  user trả lời 4 câu (project, định danh HS, quyền đọc, đồng ý phụ huynh —
+  Nghị định 13/2023/NĐ-CP).
+
 ## 0z8. 26/10/2026 — viết lại toàn bộ công thức toán thành LaTeX chuẩn
 
 Yêu cầu: "Các công thức viết lại cho đúng chuẩn Toán học đẹp như equation
