@@ -1,6 +1,7 @@
 # Nộp bài Firebase thật — 26/10/2026
 
-Status: approved-for-build. User: “Làm thật cho xong”, sau bốn câu đã trả lời.
+Status: deployed; teacher browser flow verified. Student browser end-to-end pending.
+User: “Làm thật cho xong”, sau bốn câu đã trả lời.
 Repo: master, d5fbccf. Không dùng Astra. Không sửa bộ máy tài chính hoặc tour.
 
 ## Thiết kế đã rà soát
@@ -58,6 +59,21 @@ Repo: master, d5fbccf. Không dùng Astra. Không sửa bộ máy tài chính ho
   Không giữ phương án hạ trần 12 mô-đun; kiểm lại toàn bộ 200 mô-đun có điểm.
 - Secrets Cloud đã lưu, giữ nguyên cấu hình AI cũ. Người dùng đã duyệt reboot
   ngay trong lượt này. Chưa verified UI production trước kiểm giao diện mới.
+- Reboot 20:17:55 giờ Việt Nam. Sau đó browser production đã hiện UI mới, đăng
+  nhập GV-QA01, chọn lớp QA-E31FF0DA, đọc bài HS-QA01 đạt 80 điểm, có CSV/JSON.
+  Đã đăng xuất. HS nạp JSON rồi bấm nộp chưa kiểm xuyên suốt bằng browser;
+  đã có AppTest bước consent/receipt và REST thật. Không đánh đồng các lớp bằng chứng.
+
+## Dùng thử một lớp nhỏ
+
+1. Mở Nhật ký và tiến độ → Gói lớp học → chọn Giáo viên, đăng nhập GV-001 bằng
+   tệp riêng; mã lớp để trống khi đăng nhập GV.
+2. Tạo mã lớp, cấp tài khoản HS, tải và phát riêng tệp tài khoản từng em.
+3. Tạo gói giao bài JSON ở ngay bên dưới, gửi cho HS (không gửi tệp tài khoản
+   của em này cho em khác).
+4. HS nạp gói, học như cũ, đăng nhập kênh nộp bài bằng mã lớp/mã HS/mật khẩu,
+   xem dữ liệu sẽ gửi, đồng ý rồi nộp. Giữ biên nhận hoặc JSON dự phòng.
+5. GV chọn lớp → Tải danh sách bài nộp → đọc bài / xuất CSV hoặc JSON.
 
 Mã GV đầu tiên `GV-001`; mật khẩu chỉ trong tệp riêng
 `C:\Users\ADMIN\.quant-app-classroom\teacher-GV-001.json`. Không commit tệp này.

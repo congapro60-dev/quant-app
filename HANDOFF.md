@@ -21,8 +21,24 @@
   nâng role, ghi dữ liệu sai). py_compile/diff check/scan khóa trong file mới đạt.
 - Live Firebase schema mới 13:11 UTC: lưu/đọc, refresh token thật, B đọc/ghi A
   bị chặn, GV ngoài lớp bị chặn. Rules Playground B đọc A: denied; A: allowed.
-- Rules đã triển khai, Secrets đã lưu Cloud; chưa verified UI production ở
-  thời điểm ghi mục này. Trạng thái reboot/production bổ sung sau kiểm.
+- Rules đã triển khai, Secrets đã lưu Cloud. Đã push `76936d6`; reboot được
+  duyệt, thực hiện 20:17:55 ngày 26/10/2026 (Asia/Saigon). Trang production
+  ban đầu báo `Your app is in the oven`; chưa verified ở thời điểm reboot.
+- Sau reboot, verified giao diện mới: Nhật ký và tiến độ → Gói lớp học có
+  kênh nộp trực tuyến + cảnh báo gửi dữ liệu + đường JSON cũ. Browser đăng nhập
+  GV giả lập GV-QA01 thành công, chọn QA-E31FF0DA, tải danh sách và đọc đúng
+  HS-QA01 / QA-COURSE / điểm 80 / thời điểm 13:11:09Z; CSV/JSON hiện đầy đủ.
+  Đã đăng xuất tài khoản QA sau kiểm. CHƯA kiểm browser E2E phía HS nạp JSON rồi
+  bấm nộp; phía đó đã kiểm AppTest và REST thật, không gọi là browser E2E.
+- Browser: điều khiển trong iframe có radio/click không ăn/CDP timeout. Mở trực
+  tiếp đường iframe `/~/+/` (đã quan sát từ DOM) giải quyết được; không dùng
+  React fiber hoặc invoke handler. Nút Close đóng tour, không sửa tour.
+- Lưu Secrets: chỉ thêm một khối classroom_firebase bằng thao tác textarea,
+  không đọc cấu hình/khóa AI cũ. Nếu TOML invalid vì nhập lặp: reload bỏ nháp
+  chưa lưu, mở Secrets lại, append đúng một lần; Save bật, lưu xong đóng dialog.
+- Nợ nhỏ về câu chữ: caption sao lưu cũ nói dữ liệu không gửi máy chủ; nay phải
+  hiểu là không tự động đồng bộ hồ sơ. Kênh nộp chủ động có cảnh báo riêng. Nếu
+  sửa caption trong lượt sau, cần quyền reboot riêng cho lần triển khai mới.
 - Tệp riêng ngoài repo: `C:\Users\ADMIN\.quant-app-classroom\teacher-GV-001.json`
   (mã GV-001/mật khẩu); không công khai nội dung. Cấp GV khác bằng
   `tools/provision_classroom.py --teacher-code GV-002` với account chủ project.
