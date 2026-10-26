@@ -887,6 +887,8 @@ def _render_journal(profile: dict[str, Any]) -> None:
 def _render_classroom_packages(profile: dict[str, Any]) -> None:
     """Local teacher/student handoff; no account, network, or learner identity."""
 
+    from classroom_ui import render_online_classroom
+    render_online_classroom(profile, st.session_state.get("classroom_assignment"))
     st.subheader("Giao bài và nộp kết quả bằng tệp")
     st.caption(
         "Giáo viên tạo gói giao bài (.json), học sinh làm trên máy rồi xuất gói kết quả. "
