@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import urllib.request
 from collections.abc import Mapping
@@ -27,6 +28,10 @@ _OPENAI_COMPATIBLE_TIMEOUT = 60.0
 MIN_SIM_OBSERVATIONS = 8
 MIN_PORTFOLIO_OBSERVATIONS = 20
 _WEIGHT_TOLERANCE = 1e-6
+
+# Lỗi gọi AI ghi vào log cho chủ app (xem trên dashboard Streamlit Cloud);
+# giao diện chỉ nhận mã lỗi ổn định, không nhận chi tiết kỹ thuật.
+_LOGGER = logging.getLogger(__name__)
 
 
 class AnalyticsValidationError(ValueError):
@@ -555,11 +560,12 @@ def _friendly_llm_error(exc, *, provider="", model="", api_key=""):
             "Kiểm tra cấu hình nhà cung cấp/mô hình (provider/model) và thử lại"
         )
 
-    detail = raw[:240]
-    return (
-        f"Lỗi gọi API [{code}] (giao diện lập trình ứng dụng): {guidance}. "
-        f"Chi tiết kỹ thuật nguyên văn (raw detail): {detail}"
-    )
+    # Chi tiết kỹ thuật chỉ được ghi vào log (dashboard Streamlit Cloud của chủ
+    # app đọc được), KHÔNG trả về cho giao diện. Bài học thật từ production
+    # 25/10/2026: học sinh nhìn thấy nguyên văn "HTTP Error 401: Unauthorized"
+    # — thứ ngôn ngữ của lập trình viên, không phải của học sinh lớp 10.
+    _LOGGER.warning("LLM call failed [%s] provider=%r detail=%s", code, provider, raw)
+    return f"Lỗi gọi API [{code}]: {guidance}."
 
 
 def _http_post_json(url, *, headers, payload, timeout=_OPENAI_COMPATIBLE_TIMEOUT):
@@ -708,6 +714,15 @@ def call_llm(prompt, config):
             return text
 
         raise AnalyticsValidationError(f"Nhà cung cấp AI không được hỗ trợ: {provider!r}.")
+    except AnalyticsValidationError as exc:
+        # Lỗi do app tự mô tả bằng tiếng Việt (thiếu cấu hình, phản hồi rỗng…).
+        # Thông điệp này được viết cho người dùng nên trả nguyên bản — chỉ khử
+        # key phòng ngừa. Không dùng _friendly_llm_error: nó gộp mọi thứ thành
+        # API_ERROR chung chung, người tự cấu hình mất hướng dẫn cụ thể.
+        message = " ".join(str(exc).split())
+        if api_key:
+            message = message.replace(str(api_key), "[REDACTED]")
+        return message
     except Exception as exc:
         return _friendly_llm_error(
             exc,

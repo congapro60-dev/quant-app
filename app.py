@@ -1,5 +1,7 @@
 import io
 import hashlib
+import re
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -386,7 +388,21 @@ with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọ
                 st.session_state.get('ai_connection_signature') == current_ai_signature):
             st.success(f"🟢 Đã kết nối {ai_provider} — {model_choice}. Sẵn sàng dùng ở các thẻ (tab) AI.")
         elif st.session_state.get('ai_ok') is False:
-            st.error(f"🔴 Luồng AI chưa dùng được: {st.session_state.get('ai_err','')}")
+            # st.error bị cấm ở vùng học sinh (luật test smoke); quan trọng hơn,
+            # thông điệp phải là thứ học sinh đọc hiểu được. Chi tiết kỹ thuật
+            # đã nằm trong log của chủ app (xem analytics._friendly_llm_error).
+            _ai_err = str(st.session_state.get('ai_err', ''))
+            if ai_provider == SHARED_PROVIDER_OPTION:
+                st.warning(
+                    "⚠️ AI dùng chung của trang tạm chưa kết nối được. "
+                    "Bạn vẫn học và phân tích giá bình thường — nhờ thầy cô hoặc "
+                    "người quản trị app kiểm tra lại."
+                )
+                _code_match = re.search(r"\[([A-Z_]{3,})\]", _ai_err)
+                if _code_match:
+                    st.caption(f"Mã tình trạng (dành cho người quản trị): {_code_match.group(1)}")
+            else:
+                st.warning(f"⚠️ Luồng AI chưa dùng được: {_ai_err}")
         elif ai_provider != SHARED_PROVIDER_OPTION:
             st.info("🔑 Đã nhận credential — có thể dùng ngay. Bấm nút trên để xác nhận luồng hoạt động (khuyên dùng).")
         if ai_provider != SHARED_PROVIDER_OPTION:

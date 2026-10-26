@@ -97,6 +97,51 @@ def test_learner_never_sees_raw_provider_error_codes():
         assert jargon not in shown, jargon
 
 
+def test_learner_never_sees_raw_ai_error_in_sidebar(monkeypatch):
+    """AI dùng chung lỗi thì HS thấy lời nhắn dễ hiểu, không thấy mã HTTP thô.
+
+    Bài học từ production 25/10/2026: lỗi 401 của key dùng chung hiển thị nguyên
+    văn "HTTP Error 401: Unauthorized" bằng khung st.error đỏ cho học sinh.
+    """
+
+    import hashlib
+
+    import shared_ai
+
+    # KHÔNG `import app` trong pytest: app.py là script, import ở mức module
+    # sẽ thực thi render và ném lỗi dialog trong bare mode. Patch nguồn Secrets
+    # của shared_ai — app.py lấy `shared_ai_config` từ module này mỗi lần chạy.
+    monkeypatch.setattr(shared_ai, "_read_section", lambda source: {
+        "api_key": "test-shared-key",
+        "base_url": "https://example.com/v1",
+        "model": "test-model",
+        "display_name": "AI dùng chung của trang",
+    })
+
+    at = _run(**{lmode.MODE_KEY: lmode.MODE_HIGHSCHOOL})
+    # Chữ ký cấu hình giống app tính; khớp thì trạng thái lỗi không bị reset.
+    signature = hashlib.sha256(
+        f"{shared_ai.SHARED_PROVIDER_OPTION}|test-model|test-shared-key|https://example.com/v1".encode("utf-8")
+    ).hexdigest()
+    at.session_state["ai_ok"] = False
+    at.session_state["ai_err"] = (
+        "Lỗi gọi API [INVALID_KEY]: Tạo hoặc kiểm tra lại khóa API. "
+        "Chi tiết kỹ thuật nguyên văn (raw detail): HTTP Error 401: Unauthorized"
+    )
+    at.session_state["ai_connection_signature"] = signature
+    at.run()
+
+    assert not [e for e in at.error], "Không được còn khung đỏ khi AI lỗi"
+    warnings = " ".join(w.value for w in at.warning)
+    assert "chưa kết nối được" in warnings
+    assert "vẫn học và phân tích giá bình thường" in warnings
+    shown = " ".join([i.value for i in at.info] + [warnings] + [e.value for e in at.error])
+    for leak in ("401", "Unauthorized", "HTTP Error", "raw detail"):
+        assert leak not in shown, leak
+    # Mã ổn định cho người quản trị vẫn hiện (caption), để sửa Secrets nhanh.
+    assert "INVALID_KEY" in " ".join(c.value for c in at.caption)
+
+
 def test_university_renders_all_five_areas():
     at = _run(**{lmode.MODE_KEY: lmode.MODE_UNIVERSITY})
     assert not at.exception

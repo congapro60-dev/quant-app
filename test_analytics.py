@@ -1,3 +1,4 @@
+import logging
 import sys
 import types
 from types import SimpleNamespace
@@ -268,6 +269,42 @@ def test_call_llm_classifies_quota_error_and_redacts_key(monkeypatch):
     assert secret not in output
 
 
+def test_friendly_llm_error_never_leaks_raw_http_detail():
+    """Lỗi 401 thật trên production (25/10/2026) từng lộ nguyên văn cho HS.
+
+    Chuỗi trả về giữ mã ổn định (INVALID_KEY) và hướng dẫn để người quản trị
+    sửa Secrets; chi tiết kỹ thuật HTTP/JSON phải chỉ nằm trong log.
+    """
+
+    raw = (
+        "HTTP Error 401: Unauthorized. "
+        '{"error": {"message": "Invalid API key", "status": "INVALID_KEY"}}'
+    )
+    output = analytics._friendly_llm_error(
+        RuntimeError(raw),
+        provider="Router (OpenAI tương thích)",
+        model="glm-test",
+    )
+    assert output.startswith("Lỗi gọi API [INVALID_KEY]")
+    assert "Tạo hoặc kiểm tra lại khóa API" in output
+    for leak in ("HTTP Error", "401", "Unauthorized", "{", "raw detail",
+                 "giao diện lập trình ứng dụng"):
+        assert leak not in output, leak
+
+
+def test_friendly_llm_error_redacts_api_key_even_in_logs(caplog):
+    secret = "sk-test-abcdef1234567890"
+    with caplog.at_level(logging.WARNING, logger="analytics"):
+        output = analytics._friendly_llm_error(
+            RuntimeError(f"bad key {secret} rejected"),
+            provider="Router (OpenAI tương thích)",
+            api_key=secret,
+        )
+    assert secret not in output
+    assert secret not in caplog.text          # log cũng phải khử key
+    assert "[REDACTED]" in caplog.text        # nhưng giữ manh mối cho chủ app
+
+
 def test_expert_advice_sends_structured_metrics_only(monkeypatch):
     captured = {}
 
@@ -362,20 +399,24 @@ def test_call_llm_openai_compatible_requires_base_url_and_model():
     assert "mã mô hình" in missing_model
 
 
-def test_call_llm_openai_compatible_redacts_key_on_error(monkeypatch):
+def test_call_llm_openai_compatible_redacts_key_on_error(monkeypatch, caplog):
     def fake_post(url, *, headers, payload, timeout):
         raise PermissionError("401 invalid api key k-test at gateway")
 
     monkeypatch.setattr(analytics, "_http_post_json", fake_post)
-    out = analytics.call_llm("hi", {
-        "provider": analytics.OPENAI_COMPATIBLE_PROVIDER,
-        "api_key": "k-test",
-        "base_url": "https://r.example/v1",
-        "model": "m",
-    })
+    with caplog.at_level(logging.WARNING, logger="analytics"):
+        out = analytics.call_llm("hi", {
+            "provider": analytics.OPENAI_COMPATIBLE_PROVIDER,
+            "api_key": "k-test",
+            "base_url": "https://r.example/v1",
+            "model": "m",
+        })
 
-    assert "k-test" not in out
-    assert "[REDACTED]" in out
+    assert "k-test" not in out                      # thông điệp không lộ key
+    assert "[REDACTED]" not in out                  # cũng không hiện marker vô nghĩa cho HS
+    assert "k-test" not in caplog.text              # log phải khử key
+    assert "[REDACTED]" in caplog.text              # nhưng giữ manh mối cho chủ app
+    assert out.startswith("Lỗi gọi API [")          # mã ổn định cho người quản trị
 
 
 def test_call_llm_openai_compatible_reports_empty_reasoning_response(monkeypatch):
