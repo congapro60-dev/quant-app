@@ -2,6 +2,33 @@
 
 **Cập nhật**: 2026-10-26 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z10. 26/10/2026 — nộp bài: dừng sau module dữ liệu + test
+
+- Chủ dự án đã trả lời đủ bốn câu: yêu cầu tạo project, dùng mã lớp + mã số GV
+  phát, nhiều GV chỉ đọc lớp mình, xác nhận đã có đồng ý phụ huynh.
+- Đã tạo project Firebase riêng `quant-app-classroom-20261026`, tên hiển thị
+  `Quant App Classroom`; đọc lại bằng CLI xác nhận ACTIVE. Chưa bật Firestore/
+  Auth, chưa tạo app/key, Rules hoặc liên kết billing. Không gửi dữ liệu HS.
+- `classroom_submit.py`: `build_submission` chỉ lấy mã lớp/HS/ID bài giao,
+  điểm mới nhất/tốt nhất và số lần làm của bài được giao, điểm/số lần chẩn đoán,
+  số mục nhật ký. Dùng lại bộ lọc và giới hạn UTF-8 256 KB của
+  `classroom_packages.py`; không import Streamlit, không gọi AI/mạng.
+- Không gửi văn bản nhật ký kể cả đã có đồng ý: regex hiện có không khử được
+  mọi tên riêng trong văn bản. Vẫn giữ toàn bộ bản gốc tại máy HS. Profile cũ
+  có điểm nhưng chưa có history giữ số lần đã biết = 0, không bịa lần làm.
+- `submit()` cố ý ném `SubmissionNotConfiguredError`: chưa có transport, không
+  tạo biên nhận giả. Mã lớp/HS chưa được xác thực, điểm là số liệu cục bộ,
+  KHÔNG phải điểm do Firebase/giáo viên xác minh.
+- Tests: baseline **790 passed**; sau thay đổi **877 passed** trong 312,46 giây;
+  riêng `tests/test_classroom_submit.py` **87 passed**, `py_compile` đạt.
+  Bao phủ từng marker PII/secret/finance có sẵn, mã rỗng/sai, giới hạn byte đầu
+  vào/đầu ra, NaN/Infinity/sai kiểu, không sửa input, profile cũ và không mạng.
+- Code commit `f4cdca6`; tests và ghi chú bàn giao được commit riêng sau đó.
+- Đúng điểm dừng: CHƯA nối Firebase thật, thêm UI/feature flag, viết/đẩy Rules,
+  push/reboot production. Giữ nguyên `docs/thiet_ke_onboarding.html` chưa track.
+- Bước sau cần thiết kế ràng buộc UID ↔ mã HS ↔ lớp ↔ GV, kiểm Rules Playground
+  (HS A đọc/ghi bài HS B bị từ chối) rồi mới cân nhắc mở nộp cho một lớp thử.
+
 ## 0z9. 26/10/2026 — Reboot production thành công + verify cả 3 thay đổi trên live
 
 Đã xin phép và được duyệt; user tự đăng nhập Streamlit Cloud trong trình duyệt
