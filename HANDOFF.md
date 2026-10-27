@@ -38,6 +38,16 @@
   **931 passed, 2 skipped** (2:03 phút).
 - Bài học mock: `document_data` cần `fields` dạng {trường: wrapper} — mock
   sai kiểu `fc._value(dict)` làm `document_data` trả {} (test bắt được).
+- Phản biện độc lập từ Codex QA (27/10) và khắc phục toàn diện:
+  1. Rules `student_state/{uid}`: bổ sung `teacher != uid` chặn HS tự làm GV của chính mình.
+  2. Bắt lỗi mạng chuẩn: tách `ClassroomNotFoundError` (404); không nuốt lỗi mạng/500
+     thành "tài khoản không tồn tại" hoặc "GV đã xóa".
+  3. Dọn Auth an toàn: chỉ dọn khi có mã từ chối chắc chắn (400, 403, 409) từ máy chủ.
+  4. Validator: chặn ký tự tàng hình (Zero-width space `\u200b`, control chars) trong username;
+     đối chiếu số khối khớp với tiền tố tên lớp ("khối 10 nhưng lớp 11A1" bị từ chối).
+  5. UI: hiển thị tiền tố mã UID giáo viên (`Cô ... (mã: abcd1234)`) để học sinh dễ đối chiếu
+     với mã GV cấp thật, tránh chọn nhầm tài khoản GV mạo danh; thêm thông báo bảo mật PII.
+  6. Sửa test emulator: sửa lệnh xóa chéo gửi đúng path `rosters/{t2}/members/{s2}` của GV khác.
 - Verify production `a4d6028` đã hoàn tất 100% trên browser thật sau Reboot
   (user cho phép):
   1. Backend Firestore Rules đã deploy lên Firebase thật (`quant-app-classroom-20261026`),

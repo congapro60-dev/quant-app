@@ -111,6 +111,7 @@ service cloud.firestore {
           && class_name(request.resource.data.class_name)
           && (teacher == null
               || (teacher is string && teacher.size() >= 20 && teacher.size() <= 128
+                  && teacher != uid
                   && exists(/databases/$(database)/documents/teacher_directory/$(teacher))))
           && request.resource.data.updated_at == request.time;
       }

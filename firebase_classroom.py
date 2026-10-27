@@ -18,7 +18,14 @@ PROJECT_ID = "quant-app-classroom-20261026"
 
 
 class ClassroomConnectionError(RuntimeError):
-    pass
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class ClassroomNotFoundError(ClassroomConnectionError):
+    def __init__(self, message="Tài nguyên không tồn tại."):
+        super().__init__(message, status_code=404)
 
 
 def account_email(role, class_code, code):
@@ -47,16 +54,17 @@ def _json_request(url, data=None, *, token="", method=None):
                 raise ClassroomConnectionError("Phản hồi Firebase quá lớn.")
             return json.loads(raw)
     except HTTPError as exc:
+        if exc.code == 404:
+            raise ClassroomNotFoundError("Chưa có lớp hoặc tài khoản được cấp.") from None
         # Never echo response bodies, URLs, tokens or passwords into the UI.
         message = {
             400: "Thông tin đăng nhập hoặc dữ liệu không hợp lệ.",
             401: "Phiên đã hết hạn. Đăng nhập lại.",
             403: "Không có quyền truy cập lớp hoặc bài nộp này.",
-            404: "Chưa có lớp hoặc tài khoản được cấp.",
             409: "Mã đã tồn tại. Chọn mã khác; không ghi đè.",
             429: "Quá nhiều yêu cầu. Chờ một lát rồi thử lại.",
         }.get(exc.code, "Firebase tạm chưa phản hồi. Bản học cục bộ vẫn được giữ.")
-        raise ClassroomConnectionError(message) from None
+        raise ClassroomConnectionError(message, status_code=exc.code) from None
     except (URLError, OSError, ValueError):
         raise ClassroomConnectionError("Mất kết nối Firebase. Hãy giữ bản JSON và thử lại sau.") from None
 
@@ -144,12 +152,14 @@ class FirebaseClassroom:
         try:
             self._write(session, doc_path.format(uid=session.uid), doc_data,
                         create=True, timestamp=True, timestamp_field=timestamp_field)
-        except ClassroomConnectionError:
-            # Remove only this just-created Auth account; never an existing user.
-            try:
-                self._auth("delete", {"idToken": created["idToken"]})
-            except ClassroomConnectionError:
-                pass
+        except ClassroomConnectionError as exc:
+            # Chỉ dọn tài khoản Auth vừa tạo nếu là lỗi từ chối chắc chắn từ máy chủ (400, 403, 409).
+            # Lỗi mạng không xác định không tự xóa để tránh mất đồng bộ.
+            if getattr(exc, "status_code", None) in (400, 403, 409):
+                try:
+                    self._auth("delete", {"idToken": created["idToken"]})
+                except ClassroomConnectionError:
+                    pass
             raise
         return session
 
@@ -165,12 +175,16 @@ class FirebaseClassroom:
                               "updated_at")
 
     def self_profile(self, session):
-        """Hồ sơ tự đăng ký: HS (student_state) trước, rồi GV (teacher_directory)."""
+        """Hồ sơ tự đăng ký: HS (student_state) trước, rồi GV (teacher_directory).
+        
+        Chỉ bỏ qua khi tài liệu thật sự không tồn tại (404). Lỗi mạng / xác thực
+        sẽ ném ra ngoài để UI không kết luận sai là không có tài khoản.
+        """
         for kind, path in (("student", f"student_state/{session.uid}"),
                            ("teacher", f"teacher_directory/{session.uid}")):
             try:
                 return {"kind": kind, **self.get(session, path)}
-            except ClassroomConnectionError:
+            except ClassroomNotFoundError:
                 continue
         return {"kind": "none"}
 

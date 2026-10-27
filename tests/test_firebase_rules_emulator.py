@@ -143,12 +143,21 @@ def test_rules_self_service_registration_roster_and_denials(sandbox):
     client.join_teacher(s2, t2.uid)
     assert client.roster(t1) == []
     assert [r["display_name"] for r in client.roster(t2)] == ["Trần Bình"]
-    # GV khác không xóa được HS trong danh sách của GV này (403).
+    # GV khác không xóa được HS trong danh sách của GV này (403):
+    # t1 cố tình xóa trực tiếp tài liệu trong roster của t2
+    cross_delete = [client._delete_write(f"rosters/{t2.uid}/members/{s2.uid}")]
     with pytest.raises(fc.ClassroomConnectionError):
-        client.remove_student(t1, s2.uid)  # t1 xóa HS đang thuộc danh sách của t2
-    # GV xóa HS khỏi danh sách của mình.
+        client._commit(t1, cross_delete)
+    # GV xóa HS khỏi danh sách của chính mình (hợp lệ).
     client.remove_student(t2, s2.uid)
     assert client.roster(t2) == []
+    # Rules chặn HS tự đặt teacher_uid trỏ về chính UID của mình (tự làm GV hướng dẫn).
+    self_teacher_write = [client._make_write(
+        f"student_state/{s2.uid}",
+        {"display_name": "Trần Bình", "block": "11", "class_name": "11A1",
+         "teacher_uid": s2.uid}, timestamp=True, timestamp_field="updated_at")]
+    with pytest.raises(fc.ClassroomConnectionError):
+        client._commit(s2, self_teacher_write)
     # Rules chặn dữ liệu sai schema: khối không hợp lệ, tên lớp quá dài.
     for bad in [{"display_name": "X", "block": "9", "class_name": "11A1"},
                 {"display_name": "X", "block": "11", "class_name": "A" * 17}]:

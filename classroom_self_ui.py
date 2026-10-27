@@ -7,7 +7,11 @@ nhiên không gọi mạng, nên AppTest với key giả vẫn chạy được.
 import streamlit as st
 
 import classroom_packages as cp
-from firebase_classroom import FirebaseClassroom, ClassroomConnectionError
+from firebase_classroom import (
+    FirebaseClassroom,
+    ClassroomConnectionError,
+    ClassroomNotFoundError,
+)
 
 
 def _logout():
@@ -75,8 +79,10 @@ def _entry(client):
 
 
 def _register_student(client):
-    st.caption("Sau khi đăng ký, em chọn giáo viên hướng dẫn; tên và lớp của em sẽ hiện "
+    st.caption("Sau khi đăng ký, em chọn giáo viên hướng dẫn; tên hiển thị và lớp của em sẽ hiện "
                "trong danh sách của giáo viên đó.")
+    st.info("🔒 **Quyền riêng tư:** Em có thể dùng biệt danh hoặc tên viết tắt nếu không muốn để lộ họ tên thật. "
+            "Thông tin lớp và tên chỉ chia sẻ với giáo viên em chọn.")
     with st.form("self_register_student"):
         username = st.text_input("Tên đăng nhập (4-32 ký tự, không khoảng trắng)")
         display = st.text_input("Tên hiển thị (hiện trong danh sách lớp)")
@@ -116,10 +122,15 @@ def _register_teacher(client):
 
 
 def _member_ok(client, session, tuid):
+    """Kiểm tra học sinh còn trong danh sách GV không.
+    
+    Chỉ trả về False khi nhận đúng mã 404 (document không tồn tại).
+    Lỗi mạng / lỗi máy chủ sẽ ném ra để UI báo đúng trạng thái kết nối.
+    """
     try:
         client.get(session, f"rosters/{tuid}/members/{session.uid}")
         return True
-    except ClassroomConnectionError:
+    except ClassroomNotFoundError:
         return False
 
 
@@ -164,7 +175,7 @@ def _pick_teacher(client, session):
     if not teachers:
         st.caption("Bấm \"Tải danh sách giáo viên\" để xem các thầy cô đã đăng ký.")
         return
-    options = {t["uid"]: t.get("display_name", "(không tên)") for t in teachers}
+    options = {t["uid"]: f"{t.get('display_name', '(không tên)')} (mã: {t['uid'][:8]})" for t in teachers}
     chosen = st.selectbox("Giáo viên hướng dẫn", list(options),
                           format_func=lambda uid: options[uid], key="self_teacher_choice")
     if st.button("Vào danh sách của giáo viên này", type="primary", key="self_join"):

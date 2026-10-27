@@ -40,7 +40,7 @@ def test_username_is_casefolded_nfc_and_rejects_bad_input():
     # NFC gộp dấu: chuỗi tổ hợp NFD và chuỗi gộp sẵn cho cùng tên đăng nhập.
     decomposed = unicodedata.normalize("NFD", "NguyễnVănAn")
     assert cself.normalize_username(decomposed) == cself.normalize_username("NguyễnVănAn")
-    for bad in ("abc", "a" * 33, "co khoang trang", "  An  Van ", ""):
+    for bad in ("abc", "a" * 33, "co khoang trang", "  An  Van ", "", "an\u200bvan", "an@van"):
         with pytest.raises(cp.ClassroomPackageError):
             cself.normalize_username(bad)
 
@@ -53,7 +53,9 @@ def test_display_name_block_class_and_password_rules():
         with pytest.raises(cp.ClassroomPackageError):
             cself.normalize_block(bad)
     assert cself.normalize_block(11) == "11"
-    assert cself.normalize_class_name(" 11a1 ") == "11A1"
+    assert cself.normalize_class_name(" 11a1 ", block="11") == "11A1"
+    with pytest.raises(cp.ClassroomPackageError):
+        cself.normalize_class_name("11A1", block="10")
     for bad in ("11-A1", "LỚP 12", "A" * 17, ""):
         with pytest.raises(cp.ClassroomPackageError):
             cself.normalize_class_name(bad)
@@ -104,11 +106,19 @@ def test_register_cleans_orphan_auth_account_when_profile_write_fails(monkeypatc
     monkeypatch.setattr(c, "_auth", lambda action, data: (
         {"localId": "uidNew", "idToken": "tok", "refreshToken": "r", "expiresIn": "3600"}
         if action == "signUp" else (deleted.append(data["idToken"]), {})[1]))
+    # 1. Lỗi từ chối chắc chắn (ví dụ 400 do rules/schema): phải dọn tài khoản Auth mồ côi
     monkeypatch.setattr(c, "_write",
-                        lambda *a, **k: (_ for _ in ()).throw(fc.ClassroomConnectionError("x")))
+                        lambda *a, **k: (_ for _ in ()).throw(fc.ClassroomConnectionError("Lỗi", status_code=400)))
     with pytest.raises(fc.ClassroomConnectionError):
         c.register_student("hoc-sinh-01", "mat-khau-8", "An", "11", "11A1")
     assert deleted == ["tok"]
+    # 2. Lỗi mạng không xác định (không có status_code client 4xx): không vội xóa
+    deleted.clear()
+    monkeypatch.setattr(c, "_write",
+                        lambda *a, **k: (_ for _ in ()).throw(fc.ClassroomConnectionError("Mất mạng")))
+    with pytest.raises(fc.ClassroomConnectionError):
+        c.register_student("hoc-sinh-02", "mat-khau-8", "An", "11", "11A1")
+    assert deleted == []
 
 
 def test_join_teacher_builds_atomic_commit_and_refuses_self(monkeypatch):
@@ -175,12 +185,17 @@ def test_list_teachers_and_remove_student_and_profile_fallback(monkeypatch):
     c.remove_student(session("uidT"), "uidX")
     assert commits[0][0]["delete"].endswith("rosters/uidT/members/uidX")
     monkeypatch.setattr(c, "get", lambda _sess, path: (
-        (_ for _ in ()).throw(fc.ClassroomConnectionError("404"))
+        (_ for _ in ()).throw(fc.ClassroomNotFoundError())
         if path.startswith("student_state") else {"display_name": "Cô Hồng"}))
     assert c.self_profile(s)["kind"] == "teacher"
     monkeypatch.setattr(c, "get", lambda _sess, path: (
-        (_ for _ in ()).throw(fc.ClassroomConnectionError("404"))))
+        (_ for _ in ()).throw(fc.ClassroomNotFoundError())))
     assert c.self_profile(s) == {"kind": "none"}
+    # Lỗi kết nối / lỗi 500 không bị nuốt thành kind=none mà ném ra ngoài
+    monkeypatch.setattr(c, "get", lambda _sess, path: (
+        (_ for _ in ()).throw(fc.ClassroomConnectionError("Mất mạng", 500))))
+    with pytest.raises(fc.ClassroomConnectionError):
+        c.self_profile(s)
 
 
 # ---------------- UI (AppTest, không mạng lúc render) ----------------
