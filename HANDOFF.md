@@ -34,6 +34,19 @@
   đủ; phòng 11 `.katex`=9, Me/Q₁Q₃/s² gathered + cảnh báo "không nội suy";
   phòng 12 `.katex`=5, bước 4 latex quy đổi tiền. Seed localStorage đã dọn
   (removeItem `quantapp.progress.v1`).
+- Verify production `50216cc` (4 chỗ câu chữ theo QA Codex) đã live sau Reboot
+  lần 2 (user cho phép; dashboard tab browser tích hợp vẫn đăng nhập sau restart
+  server). Phòng 11, bước 5, bấm "Đối chiếu" + mở 5 expander "Công thức bám SGK":
+  render nguyên văn "Chốt: độ lệch chuẩn s của mẫu B lớn hơn của mẫu A — cùng
+  trung bình, B rủi ro hơn." và "…s² có đơn vị là bình phương đơn vị dữ liệu
+  (bị bình phương); s giữ lại đúng đơn vị của dữ liệu."; không còn "mất đơn vị %";
+  `.katex`=9; token cũ x̄g/s_g/s²g/R_g = 0. Seed đã dọn. Lưu ý: 2 câu còn lại
+  (learning_ui phân tán, curriculum s4_q4) là chuỗi tĩnh trong phần không chạm
+  được trên production — đã qua compile + pytest, không spot-check riêng.
+- Sau server restart: chrome-devtools MCP mất rồi quay lại nhưng `list_pages`
+  chỉ còn about:blank (profile cũ mất); app public nên điều hướng thẳng URL là
+  verify được, không cần login. Browser tích hợp thì báo "No desktop browser is
+  connected" — cần user mở desktop app để nối lại.
 - Verify production `0d4f8fa` (ký hiệu SGK) đã live sau khi Reboot qua dashboard
   share.streamlit.io (auto-deploy kẹt 40+ phút; đăng nhập Google do user thực
   hiện trên browser tích hợp). Phòng 10 `.katex`=7; phòng 11 `.katex`=9 + câu
