@@ -34,6 +34,20 @@
   đủ; phòng 11 `.katex`=9, Me/Q₁Q₃/s² gathered + cảnh báo "không nội suy";
   phòng 12 `.katex`=5, bước 4 latex quy đổi tiền. Seed localStorage đã dọn
   (removeItem `quantapp.progress.v1`).
+- Verify production `0d4f8fa` (ký hiệu SGK) đã live sau khi Reboot qua dashboard
+  share.streamlit.io (auto-deploy kẹt 40+ phút; đăng nhập Google do user thực
+  hiện trên browser tích hợp). Phòng 10 `.katex`=7; phòng 11 `.katex`=9 + câu
+  Casio mới "máy chỉ tính được x̄ và s"; phòng 12 `.katex`=5; đếm token
+  x̄g/s_g/s²g = 0 cả 3 phòng (lưu ý false positive: bảng ký hiệu dồn text thành
+  "x̄x̄giống nhau" — chữ g là đầu từ "giống", không phải ký hiệu cũ). Công cụ
+  "Máy tính số đặc trưng": Me/Mo/s²/s/Q1/Q3 sạch; "Phòng thí nghiệm ghép nhóm"
+  đủ metric mới x̄/Me nội suy/Mo/s/R/ΔQ. Seed đã dọn.
+- Kỹ thuật selectbox Streamlit Cloud mới (react-aria ComboBox): synthetic
+  dispatchEvent không ăn — phải dùng chrome-devtools `take_snapshot` lấy uid nút
+  "Open" cạnh combobox, `click` native, rồi `press_key` ArrowDown/ArrowUp +
+  Enter (list ảo chỉ render khi có sự kiện thật). Sau đổi Lớp/phòng, app reset
+  tab về Tổng quan → điều hướng lại. Enter khi focus nhầm vào combobox "Lớp:"
+  sẽ đổi lộ trình — kiểm `aria-label` trước khi bấm phím.
 - Kỹ thuật browser mới (dùng lại được): browser tích hợp lỗi
   `ERR_TUNNEL_CONNECTION_FAILED` → dùng chrome-devtools; nếu kêu
   "browser is already running" thì kill các tiến trình chrome.exe có
