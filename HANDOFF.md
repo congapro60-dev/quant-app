@@ -2,6 +2,47 @@
 
 **Cập nhật**: 2026-10-27 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z14. 27/10/2026 — HS/GV tự đăng ký tài khoản + chọn GV hướng dẫn
+
+- Feature mới cạnh kênh "mã cấp sẵn" (giữ nguyên 100%): HS tự đăng ký
+  (tên đăng nhập 4-32 không khoảng trắng, casefold+NFC; tên hiển thị; khối
+  10/11/12 + tên lớp chuẩn `^[A-Z0-9]{1,16}$`; mật khẩu ≥8 — riêng kênh nộp
+  bài cũ vẫn ≥12) và chọn GV từ danh bạ. GV tự đăng ký, tên hiện ngay trong
+  dropdown chọn GV của HS. HS đổi/rút GV linh động; GV xóa HS khỏi danh sách
+  của mình (chỉ xóa, không sửa); sắp xếp danh sách theo khối→lớp→tên. 1 người
+  mở nhiều tài khoản bình thường. Không email/SĐT; quên mật khẩu giai đoạn 1
+  = đăng ký tài khoản mới, GV xóa bản cũ.
+- Kiến trúc: `classroom_self.py` (validators thuần + `sort_roster`),
+  `firebase_classroom.py` thêm `self_email` (synthetic
+  `self-{sha256(username)}@quant-app.invalid`), `login_self`,
+  `_register` (signUp + viết hồ sơ, hủy tài khoản mồ côi nếu viết hỏng),
+  `register_teacher/register_student`, `self_profile` (student_state →
+  teacher_directory → none), `list_teachers`, `join_teacher` (1 commit: xóa
+  member cũ + tạo member mới + cập nhật con trỏ), `leave_teacher`, `roster`,
+  `remove_student`, `_delete_write`; `_make_write` tổng quát hóa
+  `timestamp_field`. Firestore mới: `teacher_directory/{uid}` (mọi signed user
+  đọc), `student_state/{uid}` (chỉ chủ sở hữu get/update; teacher_uid phải
+  trỏ tới directory có thật), `rosters/{tuid}/members/{suid}` (HS create/delete
+  doc của mình, GV list/delete; update false; tuid != suid).
+- UI: `classroom_self_ui.py` — `render_self_service(config=None)` gọi trước
+  `render_online_classroom` trong `_render_classroom_packages`
+  (learning_ui.py ~891). Tách module để không vỡ AppTest cũ; mọi fetch mạng
+  đều sau nút/form (render tự nhiên không gọi mạng — AppTest với key giả vẫn
+  xanh). Disabled → caption, không widget.
+- Test: `tests/test_classroom_self.py` 17 unit (validators, commit nguyên tử,
+  hủy tài khoản mồ côi, parse uid bằng `rsplit`, AppTest: entry 9 text_input,
+  panel HS/GV không mạng lúc render, luồng join/remove/đăng ký qua form).
+  Emulator: `test_rules_self_service_registration_roster_and_denials` —
+  đăng ký, trùng username bị chặn, join/leave/đổi GV, xóa HS, chặn chéo GV,
+  chặn khối/lớp sai schema, chặn tự-làm-GV-của-chính-mình. Full pytest
+  **931 passed, 2 skipped** (2:03 phút).
+- Bài học mock: `document_data` cần `fields` dạng {trường: wrapper} — mock
+  sai kiểu `fc._value(dict)` làm `document_data` trả {} (test bắt được).
+- Verify production: chưa chạy (deploy mới push — chờ auto-deploy; nếu kẹt
+  phải xin phép user trước khi Reboot). Luồng cần verify: đăng ký HS + GV
+  thật trên tab Gói lớp học, chọn GV, GV thấy danh sách xếp lớp, xóa HS,
+  HS bị xóa thấy cảnh báo khi "Làm mới trạng thái".
+
 ## 0z13. 27/10/2026 — công thức SGK LaTeX + hướng dẫn bấm máy Casio cho Phòng học thống kê
 
 - Feature: `684934a` (Phòng học thống kê 3 phòng Toán 10/11/12) + `9dc0492`

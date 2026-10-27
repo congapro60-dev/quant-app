@@ -886,8 +886,14 @@ def _render_journal(profile: dict[str, Any]) -> None:
 
 
 def _render_classroom_packages(profile: dict[str, Any]) -> None:
-    """Local teacher/student handoff; no account, network, or learner identity."""
+    """Tự đăng ký tài khoản (tùy chọn) + bàn giao bài bằng tệp, không máy chủ.
 
+    Luồng chính vẫn là gói JSON cục bộ. Ở trên có mục tài khoản tự đăng ký
+    (HS/GV tự tạo tài khoản, chọn GV hướng dẫn) khi kênh Firebase được bật.
+    """
+
+    from classroom_self_ui import render_self_service
+    render_self_service()
     from classroom_ui import render_online_classroom
     render_online_classroom(profile, st.session_state.get("classroom_assignment"))
     st.subheader("Giao bài và nộp kết quả bằng tệp")

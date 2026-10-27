@@ -10,6 +10,9 @@ service cloud.firestore {
       return teacher() && get(/databases/$(database)/documents/classes/$(c)).data.owner_uid == request.auth.uid;
     }
     function code(v) { return v is string && v.matches('^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'); }
+    function self_name(v) { return v is string && v.size() >= 1 && v.size() <= 60; }
+    function block(v) { return v is string && v in ['10', '11', '12']; }
+    function class_name(v) { return v is string && v.matches('^[A-Z0-9]{1,16}$'); }
     function score(v) { return v == null || (v is number && v >= 0 && v <= 100); }
     function count(v) { return v is int && v >= 0 && v <= 100; }
     function lesson(d) {
@@ -88,6 +91,48 @@ service cloud.firestore {
           allow delete: if false;
         }
       }
+    }
+    match /teacher_directory/{uid} {
+      allow get, list: if signed();
+      allow create: if signed() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['display_name', 'created_at'])
+        && self_name(request.resource.data.display_name)
+        && request.resource.data.created_at == request.time;
+      allow update, delete: if false;
+    }
+    match /student_state/{uid} {
+      function valid() {
+        let teacher = request.resource.data.teacher_uid;
+        return signed() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(
+               ['display_name','block','class_name','teacher_uid','updated_at'])
+          && self_name(request.resource.data.display_name)
+          && block(request.resource.data.block)
+          && class_name(request.resource.data.class_name)
+          && (teacher == null
+              || (teacher is string && teacher.size() >= 20 && teacher.size() <= 128
+                  && exists(/databases/$(database)/documents/teacher_directory/$(teacher))))
+          && request.resource.data.updated_at == request.time;
+      }
+      allow get: if signed() && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update: if valid();
+      allow delete: if false;
+    }
+    match /rosters/{tuid}/members/{suid} {
+      function member() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['display_name','block','class_name','joined_at'])
+          && self_name(data.display_name) && block(data.block) && class_name(data.class_name)
+          && data.joined_at == request.time;
+      }
+      allow get: if signed() && (request.auth.uid == tuid || request.auth.uid == suid);
+      allow list: if signed() && request.auth.uid == tuid;
+      allow create: if signed() && request.auth.uid == suid && tuid != suid
+        && exists(/databases/$(database)/documents/teacher_directory/$(tuid))
+        && member();
+      allow delete: if signed() && (request.auth.uid == suid || request.auth.uid == tuid);
+      allow update: if false;
     }
     match /{path=**} { allow read, write: if false; }
   }

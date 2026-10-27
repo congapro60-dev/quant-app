@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 import classroom_packages as cp
 import classroom_submit as cs
+import classroom_self as cself
 
 PROJECT_ID = "quant-app-classroom-20261026"
 
@@ -27,6 +28,11 @@ def account_email(role, class_code, code):
     class_code = cp._id(class_code, "class_code").upper() if role == "student" else ""
     digest = hashlib.sha256(f"{role}:{class_code}:{code}".encode()).hexdigest()
     return f"{role}-{digest}@quant-app.invalid"
+
+
+def self_email(username):
+    """Synthetic Auth identifier for self-registered accounts (no real email)."""
+    return f"self-{cself.username_digest(username)}@quant-app.invalid"
 
 
 def _json_request(url, data=None, *, token="", method=None):
@@ -116,6 +122,132 @@ class FirebaseClassroom:
         return ClassroomSession(result["localId"], result["idToken"], result["refreshToken"],
                                 time.time() + int(result["expiresIn"]) - 60)
 
+    def login_self(self, username, password):
+        """Đăng nhập tài khoản tự đăng ký bằng tên đăng nhập + mật khẩu tự chọn."""
+        username = cself.normalize_username(username)
+        cself.validate_password(password)
+        result = self._auth("signInWithPassword", {
+            "email": self_email(username), "password": password, "returnSecureToken": True,
+        })
+        return ClassroomSession(result["localId"], result["idToken"], result["refreshToken"],
+                                time.time() + int(result["expiresIn"]) - 60)
+
+    def _register(self, username, password, doc_path, doc_data, timestamp_field):
+        """Tạo tài khoản Auth rồi viết hồ sơ; hủy tài khoản mồ côi nếu viết hỏng."""
+        username = cself.normalize_username(username)
+        cself.validate_password(password)
+        created = self._auth("signUp", {
+            "email": self_email(username), "password": password, "returnSecureToken": True,
+        })
+        session = ClassroomSession(created["localId"], created["idToken"], created["refreshToken"],
+                                   time.time() + int(created["expiresIn"]) - 60)
+        try:
+            self._write(session, doc_path.format(uid=session.uid), doc_data,
+                        create=True, timestamp=True, timestamp_field=timestamp_field)
+        except ClassroomConnectionError:
+            # Remove only this just-created Auth account; never an existing user.
+            try:
+                self._auth("delete", {"idToken": created["idToken"]})
+            except ClassroomConnectionError:
+                pass
+            raise
+        return session
+
+    def register_teacher(self, username, password, display_name):
+        """GV tự tạo tài khoản; tên hiển thị public để HS chọn trong danh bạ."""
+        return self._register(username, password, "teacher_directory/{uid}",
+                              cself.teacher_directory_payload(display_name), "created_at")
+
+    def register_student(self, username, password, display_name, block, class_name):
+        """HS tự tạo tài khoản; chưa theo GV nào cho tới khi chọn."""
+        return self._register(username, password, "student_state/{uid}",
+                              cself.student_state_payload(display_name, block, class_name),
+                              "updated_at")
+
+    def self_profile(self, session):
+        """Hồ sơ tự đăng ký: HS (student_state) trước, rồi GV (teacher_directory)."""
+        for kind, path in (("student", f"student_state/{session.uid}"),
+                           ("teacher", f"teacher_directory/{session.uid}")):
+            try:
+                return {"kind": kind, **self.get(session, path)}
+            except ClassroomConnectionError:
+                continue
+        return {"kind": "none"}
+
+    def list_teachers(self, session):
+        """Danh bạ GV công khai (cần đăng nhập); trả [{uid, display_name}]."""
+        docs, page_token = [], ""
+        for _ in range(2):
+            query = urlencode({"pageSize": 200, **({"pageToken": page_token} if page_token else {})})
+            page = _json_request(f"{self.base}/teacher_directory?{query}", token=self._token(session))
+            for doc in page.get("documents", []):
+                uid = doc["name"].rsplit("/", 1)[-1]
+                docs.append({"uid": uid, "display_name": document_data(doc).get("display_name", "")})
+            page_token = page.get("nextPageToken", "")
+            if not page_token:
+                return docs
+        raise ClassroomConnectionError("Danh bạ giáo viên quá dài. Hãy chờ chủ project mở rộng.")
+
+    def join_teacher(self, session, teacher_uid):
+        """Một commit nguyên tử: rút danh sách cũ (nếu có) + vào danh sách mới + cập nhật con trỏ."""
+        if not isinstance(teacher_uid, str) or not teacher_uid:
+            raise ClassroomConnectionError("Chọn giáo viên trước khi vào danh sách.")
+        if teacher_uid == session.uid:
+            raise ClassroomConnectionError("Không thể tự chọn chính mình làm giáo viên.")
+        raw = self.get(session, f"student_state/{session.uid}")
+        state = cself.student_state_payload(**{k: raw[k] for k in
+                                               ("display_name", "block", "class_name")})
+        current = raw.get("teacher_uid")
+        writes = []
+        if isinstance(current, str) and current and current != teacher_uid:
+            writes.append(self._delete_write(f"rosters/{current}/members/{session.uid}"))
+        writes.append(self._make_write(
+            f"rosters/{teacher_uid}/members/{session.uid}",
+            cself.roster_member_payload(state), create=True,
+            timestamp=True, timestamp_field="joined_at"))
+        writes.append(self._make_write(
+            f"student_state/{session.uid}", {**state, "teacher_uid": teacher_uid},
+            timestamp=True, timestamp_field="updated_at"))
+        self._commit(session, writes)
+        return teacher_uid
+
+    def leave_teacher(self, session):
+        """HS chủ động rút khỏi danh sách GV hiện tại; con trỏ về rỗng."""
+        state = self.get(session, f"student_state/{session.uid}")
+        current = state.get("teacher_uid")
+        if not isinstance(current, str) or not current:
+            raise ClassroomConnectionError("Em chưa vào danh sách giáo viên nào.")
+        writes = [
+            self._delete_write(f"rosters/{current}/members/{session.uid}"),
+            self._make_write(
+                f"student_state/{session.uid}",
+                cself.student_state_payload(state.get("display_name"), state.get("block"),
+                                            state.get("class_name"), None),
+                timestamp=True, timestamp_field="updated_at"),
+        ]
+        self._commit(session, writes)
+
+    def roster(self, session):
+        """Danh sách HS đã tự chọn GV này; HS tự vào/rút, GV chỉ đọc và xóa."""
+        docs, page_token = [], ""
+        for _ in range(20):
+            query = urlencode({"pageSize": 100, **({"pageToken": page_token} if page_token else {})})
+            page = _json_request(f"{self.base}/rosters/{session.uid}/members?{query}",
+                                 token=self._token(session))
+            for doc in page.get("documents", []):
+                uid = doc["name"].rsplit("/", 1)[-1]
+                docs.append({"uid": uid, **document_data(doc)})
+            page_token = page.get("nextPageToken", "")
+            if not page_token:
+                return cself.sort_roster(docs)
+        raise ClassroomConnectionError("Danh sách có hơn 2.000 học sinh; hãy chia nhóm.")
+
+    def remove_student(self, session, student_uid):
+        """GV xóa HS khỏi danh sách của mình; hồ sơ HS và các nơi khác không đụng tới."""
+        if not isinstance(student_uid, str) or not student_uid:
+            raise ClassroomConnectionError("Chọn học sinh cần xóa.")
+        self._commit(session, [self._delete_write(f"rosters/{session.uid}/members/{student_uid}")])
+
     def _token(self, session):
         if session.expires_at <= time.time():
             key = urlencode({"key": self.config["api_key"]})
@@ -153,14 +285,19 @@ class FirebaseClassroom:
     def _commit(self, session, writes):
         return _json_request(f"{self.base}:commit", {"writes": writes}, token=self._token(session))
 
-    def _make_write(self, path, data, *, create=False, timestamp=False):
+    def _make_write(self, path, data, *, create=False, timestamp=False,
+                    timestamp_field="received_at"):
         write = {"update": {"name": self.base.split("/v1/")[1] + "/" + path,
                             "fields": {k: _value(v) for k, v in data.items()}}}
         if create:
             write["currentDocument"] = {"exists": False}
         if timestamp:
-            write["updateTransforms"] = [{"fieldPath": "received_at", "setToServerValue": "REQUEST_TIME"}]
+            write["updateTransforms"] = [{"fieldPath": timestamp_field,
+                                          "setToServerValue": "REQUEST_TIME"}]
         return write
+
+    def _delete_write(self, path):
+        return {"delete": self.base.split("/v1/")[1] + "/" + path}
 
     def _write(self, session, path, data, **options):
         return self._commit(session, [self._make_write(path, data, **options)])

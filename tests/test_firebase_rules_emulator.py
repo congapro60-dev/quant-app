@@ -107,3 +107,58 @@ def test_rules_full_teaching_flow_and_cross_account_denials(sandbox):
     # Legitimate repeat submission is idempotent; no second receipt document.
     assert cs.submit(data, client=client, session=sa)["receipt_id"] == receipt["receipt_id"]
     assert len(client.submissions(t1, code)) == 1
+
+
+def test_rules_self_service_registration_roster_and_denials(sandbox):
+    client, _teacher = sandbox
+    # GV tự đăng ký; tên vào danh bạ công khai cho HS chọn.
+    t1 = client.register_teacher("giao-vien-qa", "mat-khau-gv-1", "Cô QA")
+    prof_t = client.self_profile(t1)
+    assert prof_t["kind"] == "teacher" and prof_t["display_name"] == "Cô QA"
+    assert prof_t.get("created_at")
+    # Trùng tên đăng nhập: Auth chặn, không ghi đè tài khoản cũ.
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.register_teacher("giao-vien-qa", "mat-khau-gv-2", "Cô QA Hai")
+    # HS tự đăng ký; khối + tên lớp chuẩn hoá trước khi lên cloud.
+    s1 = client.register_student("hs-qa-1", "mat-khau-hs-1", "Nguyễn An", "11", "11a1")
+    prof1 = client.self_profile(s1)
+    assert (prof1["kind"], prof1["block"], prof1["class_name"]) == ("student", "11", "11A1")
+    assert prof1["teacher_uid"] is None
+    # Mật khẩu dưới 8 ký tự bị chặn trước khi gọi mạng.
+    with pytest.raises(cp.ClassroomPackageError):
+        client.register_student("hs-qa-2", "ngan", "Trần Bình", "11", "11A1")
+    s2 = client.register_student("hs-qa-2", "mat-khau-hs-2", "Trần Bình", "11", "11A1")
+    # Danh bạ GV hiển thị cho HS; vào danh sách = 1 commit nguyên tử.
+    assert {t["display_name"] for t in client.list_teachers(s1)} == {"Cô QA"}
+    client.join_teacher(s1, t1.uid)
+    client.join_teacher(s2, t1.uid)
+    rows = client.roster(t1)
+    assert [(r["display_name"], r["class_name"]) for r in rows] == [
+        ("Nguyễn An", "11A1"), ("Trần Bình", "11A1")]
+    # HS tự rút; con trỏ về rỗng, GV không còn thấy HS đó.
+    client.leave_teacher(s1)
+    assert [r["display_name"] for r in client.roster(t1)] == ["Trần Bình"]
+    # HS đổi GV trực tiếp; GV cũ mất HS, GV mới thấy.
+    t2 = client.register_teacher("giao-vien-qb", "mat-khau-gv-3", "Thầy QB")
+    client.join_teacher(s2, t2.uid)
+    assert client.roster(t1) == []
+    assert [r["display_name"] for r in client.roster(t2)] == ["Trần Bình"]
+    # GV khác không xóa được HS trong danh sách của GV này (403).
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.remove_student(t1, s2.uid)  # t1 xóa HS đang thuộc danh sách của t2
+    # GV xóa HS khỏi danh sách của mình.
+    client.remove_student(t2, s2.uid)
+    assert client.roster(t2) == []
+    # Rules chặn dữ liệu sai schema: khối không hợp lệ, tên lớp quá dài.
+    for bad in [{"display_name": "X", "block": "9", "class_name": "11A1"},
+                {"display_name": "X", "block": "11", "class_name": "A" * 17}]:
+        writes = [client._make_write(f"rosters/{t2.uid}/members/{s2.uid}", bad, create=True,
+                                     timestamp=True, timestamp_field="joined_at")]
+        with pytest.raises(fc.ClassroomConnectionError):
+            client._commit(s2, writes)
+    # Tự chọn chính mình làm GV bị rules chặn (tuid == suid).
+    writes = [client._make_write(f"rosters/{s2.uid}/members/{s2.uid}",
+                                 {"display_name": "X", "block": "11", "class_name": "11A1"},
+                                 create=True, timestamp=True, timestamp_field="joined_at")]
+    with pytest.raises(fc.ClassroomConnectionError):
+        client._commit(s2, writes)
