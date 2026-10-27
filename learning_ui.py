@@ -411,11 +411,12 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 s_b = stt.summarize_grouped(stt.parse_values(raw_b), 4)
                 wider = "Giai đoạn 2" if s_b["std"] > s_a["std"] else "Giai đoạn 1"
                 st.success(
-                    f"s giai đoạn 1: **{s_a['std']:.3f}**, giai đoạn 2: "
-                    f"**{s_b['std']:.3f}**. {wider} biến động mạnh hơn."
+                    f"Độ lệch chuẩn s giai đoạn 1: **{s_a['std']:.3f}**, "
+                    f"giai đoạn 2: **{s_b['std']:.3f}**. {wider} biến động mạnh hơn."
                 )
-                st.caption("Cùng đơn vị mới so được hai số s; phân tán lớn nghĩa là "
-                           "mẫu dao động quanh trung tâm mạnh hơn.")
+                st.caption("Chỉ so sánh trực tiếp độ lệch chuẩn s của hai mẫu khi "
+                           "dữ liệu có cùng đơn vị; phân tán lớn nghĩa là mẫu dao "
+                           "động quanh trung tâm mạnh hơn.")
             except (TypeError, ValueError) as exc:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ cho mỗi giai đoạn.")
         stt.meaning_block(

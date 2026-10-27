@@ -1017,7 +1017,7 @@ LESSONS: tuple[Lesson, ...] = (
             ),
             Question(
                 qid="s4_q4",
-                prompt="Hai mẫu cùng số trung bình nhưng s của mẫu A nhỏ hơn mẫu B. Phát biểu đúng là gì?",
+                prompt="Hai mẫu cùng số trung bình nhưng độ lệch chuẩn s của mẫu A nhỏ hơn của mẫu B. Phát biểu đúng là gì?",
                 kind=QUESTION_SINGLE,
                 options=(
                     "Mẫu A phân tán mạnh hơn mẫu B",

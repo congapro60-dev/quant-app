@@ -528,7 +528,8 @@ def _r11_reveal_std(sa: dict, sb: dict) -> str:
     return (
         f"**Đối chiếu:** s² của A = **{fmt(sa['variance'])}** (s ≈ {fmt(sa['std'])}); "
         f"s² của B = **{fmt(sb['variance'])}** (s ≈ {fmt(sb['std'])}).\n\n"
-        "**Chốt:** s của B lớn hơn A — cùng trung bình, B rủi ro hơn. "
+        f"**Chốt:** độ lệch chuẩn s của mẫu B lớn hơn của mẫu A — cùng trung bình, "
+        f"B rủi ro hơn. "
         "Đây là số nối thẳng sang Toán 12 và nhãn “Biến động” ở tab Đầu tư."
     )
 
@@ -651,7 +652,8 @@ def room11_steps() -> tuple[StepSpec, ...]:
                    r"\end{gathered}"),
             latex_note=(
                 "Thay xᵢ bằng trung điểm cᵢ, thêm trọng số tần số nᵢ và chia "
-                "cho N. s² mất đơn vị % (bị bình phương); s giữ lại đơn vị %."
+                "cho N. s² có đơn vị là bình phương đơn vị dữ liệu (bị bình "
+                "phương); s giữ lại đúng đơn vị của dữ liệu."
             ),
             casio=(
                 "**Đọc ở bước này** (đã nhập trung điểm + tần số như bước 1): "
