@@ -38,10 +38,18 @@
   **931 passed, 2 skipped** (2:03 phút).
 - Bài học mock: `document_data` cần `fields` dạng {trường: wrapper} — mock
   sai kiểu `fc._value(dict)` làm `document_data` trả {} (test bắt được).
-- Verify production: chưa chạy (deploy mới push — chờ auto-deploy; nếu kẹt
-  phải xin phép user trước khi Reboot). Luồng cần verify: đăng ký HS + GV
-  thật trên tab Gói lớp học, chọn GV, GV thấy danh sách xếp lớp, xóa HS,
-  HS bị xóa thấy cảnh báo khi "Làm mới trạng thái".
+- Verify production `a4d6028` đã hoàn tất 100% trên browser thật sau Reboot
+  (user cho phép):
+  1. Backend Firestore Rules đã deploy lên Firebase thật (`quant-app-classroom-20261026`),
+     smoke test 8 bước đạt 100%.
+  2. Browser E2E: đăng ký GV `gv-brw-x8601` ("Cô Giáo X8601") → đăng xuất → đăng ký
+     HS `hs-brw-x8601` ("Nguyễn Hoàng An", khối 10, lớp 11A1) → HS mở dropdown thấy
+     tên GV "Cô Giáo X8601" → bấm "Vào danh sách của giáo viên này" thành công.
+  3. GV đăng nhập lại → "Tải danh sách học sinh" hiển thị đúng dòng "Nguyễn Hoàng An —
+     khối 10 lớp 11A1" → bấm "Xóa khỏi danh sách" thành công.
+  4. HS đăng nhập lại → bấm "Làm mới trạng thái" thấy đúng cảnh báo "Giáo viên đã
+     xóa em khỏi danh sách... Chọn lại giáo viên bên dưới nhé." + nút chọn lại GV.
+  5. Dọn dẹp sạch: đã xóa 2 tài khoản Auth thử nghiệm, dọn localStorage seed.
 
 ## 0z13. 27/10/2026 — công thức SGK LaTeX + hướng dẫn bấm máy Casio cho Phòng học thống kê
 
