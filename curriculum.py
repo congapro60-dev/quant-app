@@ -868,20 +868,20 @@ LESSONS: tuple[Lesson, ...] = (
             "$c_i = \\frac{u_i + u_{i+1}}{2}$ (một số bộ SGK gọi là tổ trọng tâm). Số trung "
             "bình ghép nhóm:\n\n"
             "$$\n"
-            "\\bar{x}_g = \\frac{n_1 c_1 + n_2 c_2 + \\dots + n_k c_k}{N}\n"
+            "\\bar{x} = \\frac{n_1 c_1 + n_2 c_2 + \\dots + n_k c_k}{N}\n"
             "$$\n\n"
             "Trung vị, tứ phân vị và mốt ghép nhóm được ước lượng từ bảng tần số "
-            "(nội suy theo nhóm chứa vị trí N/2, N/4, 3N/4; mốt g thuộc nhóm có "
+            "(nội suy theo nhóm chứa vị trí N/2, N/4, 3N/4; mốt thuộc nhóm có "
             "tần số lớn nhất). Số ghép nhóm chỉ là ước lượng vì ta đã mất chi tiết "
             "trong từng nhóm."
         ),
         example=(
             "Bảng lợi suất ngày (%) của 20 phiên được ghép thành hai nhóm: "
             "[−2; 0) có n = 6, c = −1; [0; 2) có n = 14, c = 1.\n\n"
-            "$\\bar{x}_g = \\frac{6 \\times (-1) + 14 \\times 1}{20} = \\frac{8}{20} = 0{,}4$ (%).\n\n"
+            "$\\bar{x} = \\frac{6 \\times (-1) + 14 \\times 1}{20} = \\frac{8}{20} = 0{,}4$ (%).\n\n"
             "Một bảng khác về giá đóng cửa 20 phiên: nhóm (24; 28) n = 5, c = 26; "
             "nhóm (28; 32) n = 15, c = 30. "
-            "$\\bar{x}_g = \\frac{5 \\times 26 + 15 \\times 30}{20} = \\frac{580}{20} = 29$ (nghìn đồng)."
+            "$\\bar{x} = \\frac{5 \\times 26 + 15 \\times 30}{20} = \\frac{580}{20} = 29$ (nghìn đồng)."
         ),
         interactive=(
             "Kéo số nhóm k và xem bảng tần số, giá trị đại diện thay đổi thế nào; "
@@ -892,19 +892,19 @@ LESSONS: tuple[Lesson, ...] = (
         questions=(
             Question(
                 qid="s3_q1",
-                prompt="Bảng ghép nhóm: [−2; 0) n = 6, c = −1; [0; 2) n = 14, c = 1. Số trung bình ghép nhóm $\\bar{x}_g$ bằng bao nhiêu?",
+                prompt="Bảng ghép nhóm: [−2; 0) n = 6, c = −1; [0; 2) n = 14, c = 1. Số trung bình ghép nhóm $\\bar{x}$ bằng bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=0.4,
                 tolerance=0.001,
-                explanation="$\\bar{x}_g = \\frac{6 \\times (-1) + 14 \\times 1}{20} = \\frac{8}{20} = 0{,}4$.",
+                explanation="$\\bar{x} = \\frac{6 \\times (-1) + 14 \\times 1}{20} = \\frac{8}{20} = 0{,}4$.",
             ),
             Question(
                 qid="s3_q2",
-                prompt="Giá đóng cửa 20 phiên: (24; 28) n = 5, c = 26; (28; 32) n = 15, c = 30. $\\bar{x}_g$ bằng bao nhiêu (nghìn đồng)?",
+                prompt="Giá đóng cửa 20 phiên: (24; 28) n = 5, c = 26; (28; 32) n = 15, c = 30. $\\bar{x}$ bằng bao nhiêu (nghìn đồng)?",
                 kind=QUESTION_NUMBER,
                 answer_value=29.0,
                 tolerance=0.01,
-                explanation="$\\bar{x}_g = \\frac{5 \\times 26 + 15 \\times 30}{20} = \\frac{580}{20} = 29$.",
+                explanation="$\\bar{x} = \\frac{5 \\times 26 + 15 \\times 30}{20} = \\frac{580}{20} = 29$.",
             ),
             Question(
                 qid="s3_q3",
@@ -934,7 +934,7 @@ LESSONS: tuple[Lesson, ...] = (
                 "tần số — đó là nguồn gốc của sai số ước lượng (nối với bài sai số).",
             ),
             (
-                "$\\bar{x}_g$ là trung bình của các tần số",
+                "$\\bar{x}$ là trung bình của các tần số",
                 "Là trung bình của các giá trị đại diện có trọng số là tần số, "
                 "không phải trung bình của n_i.",
             ),
@@ -963,61 +963,61 @@ LESSONS: tuple[Lesson, ...] = (
         ),
         explanation=(
             "Với mẫu ghép nhóm, độ phân tán được ước lượng từ bảng tần số:\n\n"
-            "- Khoảng biến thiên: $R_g \\approx u_{\\max} - u_{\\min}$, hiệu giữa biên lớn "
+            "- Khoảng biến thiên: $R = u_{\\max} - u_{\\min}$, hiệu giữa biên lớn "
             "nhất của nhóm cuối và biên nhỏ nhất của nhóm đầu.\n"
-            "- Khoảng tứ phân vị: $\\Delta_{Q,g} = Q_{3,g} - Q_{1,g}$ với $Q_{1,g}$, $Q_{3,g}$ "
+            "- Khoảng tứ phân vị: $\\Delta_Q = Q_3 - Q_1$ với $Q_1$, $Q_3$ "
             "nội suy theo công thức nhóm chứa vị trí $N/4$ và $3N/4$.\n"
             "- Phương sai và độ lệch chuẩn:\n\n"
             "$$\n"
-            "s^2_g = \\frac{1}{N}\\sum_{i=1}^{k} n_i\\,(c_i - \\bar{x}_g)^2 \\qquad s_g = \\sqrt{s^2_g}\n"
+            "s^2 = \\frac{1}{N}\\sum_{i=1}^{k} n_i\\,(c_i - \\bar{x})^2 \\qquad s = \\sqrt{s^2}\n"
             "$$\n\n"
-            "So sánh hai mẫu ghép nhóm (cùng đơn vị): mẫu có R_g hay s_g lớn hơn "
+            "So sánh hai mẫu ghép nhóm (cùng đơn vị): mẫu có R hay s lớn hơn "
             "phân tán mạnh hơn. Đây chính là cách SGK hỏi 'giai đoạn nào biến động "
             "nhiều hơn' — và cũng là cách nhà đầu tư so hai thời kỳ của một mã."
         ),
         example=(
             "So sánh hai tuần của một mã, lợi suất ngày (%):\n\n"
-            "Tuần 1: [−1; 1) n = 8; [1; 3) n = 12. $R_g = 3 - (-1) = 4$.\n"
+            "Tuần 1: [−1; 1) n = 8; [1; 3) n = 12. $R = 3 - (-1) = 4$.\n"
             "Tuần 2: [−3; −1) n = 4; [−1; 1) n = 8; [1; 3) n = 8. "
-            "$R_g = 3 - (-3) = 6$.\n\n"
-            "Tuần 2 có R_g lớn hơn nên biến động mạnh hơn — dù số phiên hai tuần "
-            "như nhau. Với s_g cũng vậy: mẫu nào s_g lớn hơn, mức dao động quanh "
+            "$R = 3 - (-3) = 6$.\n\n"
+            "Tuần 2 có R lớn hơn nên biến động mạnh hơn — dù số phiên hai tuần "
+            "như nhau. Với s cũng vậy: mẫu nào s lớn hơn, mức dao động quanh "
             "trung tâm lớn hơn."
         ),
         interactive=(
             "Nhập hai dãy lợi suất của hai giai đoạn (cách nhau bằng dấu chấm "
-            "phẩy hai dãy) để xem s_g của từng giai đoạn và nhận xét giai đoạn "
+            "phẩy hai dãy) để xem s của từng giai đoạn và nhận xét giai đoạn "
             "nào biến động mạnh hơn."
         ),
         interactive_kind=INTERACTIVE_PHAN_TAN,
         questions=(
             Question(
                 qid="s4_q1",
-                prompt="Mẫu ghép nhóm có nhóm đầu là [−2; 0) và nhóm cuối là [1; 3]. Khoảng biến thiên ước lượng R_g bằng bao nhiêu?",
+                prompt="Mẫu ghép nhóm có nhóm đầu là [−2; 0) và nhóm cuối là [1; 3]. Khoảng biến thiên R của mẫu ghép nhóm bằng bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=5.0,
                 tolerance=0.001,
-                explanation="$R_g = 3 - (-2) = 5$ (biên trên nhóm cuối trừ biên dưới nhóm đầu).",
+                explanation="$R = 3 - (-2) = 5$ (biên trên nhóm cuối trừ biên dưới nhóm đầu).",
             ),
             Question(
                 qid="s4_q2",
-                prompt="Mẫu ghép nhóm N = 20: n = 6 với c = −1; n = 14 với c = 1; $\\bar{x}_g = 0{,}4$. Phương sai $s^2_g$ bằng bao nhiêu?",
+                prompt="Mẫu ghép nhóm N = 20: n = 6 với c = −1; n = 14 với c = 1; $\\bar{x} = 0{,}4$. Phương sai $s^2$ bằng bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=0.84,
                 tolerance=0.005,
-                explanation="$s^2_g = \\frac{6 \\times (-1{,}4)^2 + 14 \\times (0{,}6)^2}{20} = \\frac{11{,}76 + 5{,}04}{20} = \\frac{16{,}8}{20} = 0{,}84$.",
+                explanation="$s^2 = \\frac{6 \\times (-1{,}4)^2 + 14 \\times (0{,}6)^2}{20} = \\frac{11{,}76 + 5{,}04}{20} = \\frac{16{,}8}{20} = 0{,}84$.",
             ),
             Question(
                 qid="s4_q3",
-                prompt="Độ lệch chuẩn s_g của mẫu trên (làm tròn hai chữ số thập phân) là bao nhiêu?",
+                prompt="Độ lệch chuẩn s của mẫu trên (làm tròn hai chữ số thập phân) là bao nhiêu?",
                 kind=QUESTION_NUMBER,
                 answer_value=0.92,
                 tolerance=0.01,
-                explanation="$s_g = \\sqrt{0{,}84} \\approx 0{,}92$.",
+                explanation="$s = \\sqrt{0{,}84} \\approx 0{,}92$.",
             ),
             Question(
                 qid="s4_q4",
-                prompt="Hai mẫu cùng số trung bình nhưng s_g của mẫu A nhỏ hơn mẫu B. Phát biểu đúng là gì?",
+                prompt="Hai mẫu cùng số trung bình nhưng s của mẫu A nhỏ hơn mẫu B. Phát biểu đúng là gì?",
                 kind=QUESTION_SINGLE,
                 options=(
                     "Mẫu A phân tán mạnh hơn mẫu B",
@@ -1025,17 +1025,17 @@ LESSONS: tuple[Lesson, ...] = (
                     "Hai mẫu phân tán như nhau vì cùng trung bình",
                 ),
                 answer_index=1,
-                explanation="s_g nhỏ nghĩa là các giá trị đại diện nằm gần $\\bar{x}_g$ hơn: ít dao động, 'đều' hơn.",
+                explanation="s nhỏ nghĩa là các giá trị đại diện nằm gần $\\bar{x}$ hơn: ít dao động, 'đều' hơn.",
             ),
         ),
         misconceptions=(
             (
-                "R_g tính từ trung điểm của nhóm đầu và cuối",
-                "R_g dùng biên ngoài cùng: biên trên của nhóm cuối trừ biên dưới "
+                "R tính từ trung điểm của nhóm đầu và cuối",
+                "R dùng biên ngoài cùng: biên trên của nhóm cuối trừ biên dưới "
                 "của nhóm đầu, không phải hai trung điểm.",
             ),
             (
-                "s_g càng lớn càng tốt",
+                "s càng lớn càng tốt",
                 "Phân tán lớn nghĩa là biến động mạnh — với điểm số là 'học không "
                 "đều', với lợi suất là rủi ro lớn hơn. Lớn không mang nghĩa tốt/xấu "
                 "tuyệt đối, mà là mức dao động.",
@@ -1043,7 +1043,7 @@ LESSONS: tuple[Lesson, ...] = (
             (
                 "So sánh phân tán của hai mẫu khác đơn vị",
                 "Chỉ so sánh trực tiếp khi hai mẫu cùng đơn vị (cùng %, cùng nghìn "
-                "đồng); khác đơn vị thì con số s_g không thể đem ra so.",
+                "đồng); khác đơn vị thì con số s không thể đem ra so.",
             ),
         ),
         resources=(

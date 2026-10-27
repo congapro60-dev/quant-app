@@ -102,13 +102,13 @@ GUIDES: dict[str, FeatureGuide] = {
         steps=(
             "Chọn nguồn dữ liệu: nhập tay hoặc lợi suất ngày của một mã đã nạp.",
             "Kéo thanh **Số nhóm k** nhỏ dần rồi lớn dần (2 đến 10 nhóm).",
-            "Tự tính x̄g trên giấy theo công thức và nhập vào ô dự đoán để đối chiếu.",
+            "Tự tính x̄ trên giấy theo công thức và nhập vào ô dự đoán để đối chiếu.",
             "Viết ý nghĩa từ bảng so sánh với tính trực tiếp, rồi mở khối phản tư đào sâu.",
         ),
         read_result=(
-            "Bảng bên trái là nhóm - giá trị đại diện - tần số. Bên phải là x̄g, "
-            "trung vị, mốt, s_g cùng khoảng biến thiên và khoảng tứ phân vị ước "
-            "lượng. Bảng so sánh có cột sai số tương đối (%): càng ít nhóm, sai số "
+            "Bảng bên trái là nhóm - giá trị đại diện - tần số. Bên phải là x̄ "
+            "tính từ bảng ghép nhóm, trung vị, mốt, s cùng khoảng biến thiên và "
+            "khoảng tứ phân vị ước lượng. Bảng so sánh có cột sai số tương đối (%): càng ít nhóm, sai số "
             "càng lớn."
         ),
         caution=(

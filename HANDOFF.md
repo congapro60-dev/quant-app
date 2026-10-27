@@ -18,14 +18,20 @@
   `SHIFT` → `MENU` (SETUP) → `Statistics` → `On`). Bảng ký hiệu SGK ↔ máy:
   x̄=`x̄`; s² (chia n)=`σ²x`; s′² (chia n−1)=`s²x`; Me=`Med`; Q₁/Q₃=`Q1`/`Q3`;
   Mo=không có; x_max/minX=`maxX`/`minX`.
+- Ký hiệu thống nhất theo SGK phổ thông: SGK không dùng chỉ số "g" — trung
+  bình/phương sai/độ lệch chuẩn/khoảng biến thiên/tứ phân vị của mẫu ghép nhóm
+  viết x̄, s², s, R, ΔQ, Q₁/Q₃ (phân biệt bằng lời "của mẫu ghép nhóm"). Đã
+  sửa cả stats_classroom, stats_tools (công thức + metric "Meg/Mog/sg"),
+  curriculum, learning_ui, feature_guides; các câu so sánh diễn đạt lại thành
+  "x̄ ghép nhóm" vs "x̄ dãy thô".
 - Hai cảnh báo dạy đúng SGK: (1) máy chia `σ²x` cho n (khớp SGK Toán 10),
   dòng `s²x` chia n−1 là phương sai hiệu chỉnh Toán 12 — đừng nhầm;
-  (2) mẫu ghép nhóm máy chỉ tính được x̄g, s_g từ trung điểm + tần số; `Med`/
+  (2) mẫu ghép nhóm máy chỉ tính được x̄, s từ trung điểm + tần số; `Med`/
   `Q1`/`Q3` trên màn hình khi có Freq là số từ dãy trung điểm lặp, KHÔNG phải
   nội suy theo biên nhóm — bước Me/Mo/Q làm tay; quy tắc tứ phân vị nội suy
   của Casio không công bố trong tài liệu → số máy chỉ tham khảo.
 - Verify production `9dc0492` đã live: phòng 10 `.katex`=7, bảng ký hiệu bước 1
-  đủ; phòng 11 `.katex`=9, Me/Q₁Q₃/s²g gathered + cảnh báo "không nội suy";
+  đủ; phòng 11 `.katex`=9, Me/Q₁Q₃/s² gathered + cảnh báo "không nội suy";
   phòng 12 `.katex`=5, bước 4 latex quy đổi tiền. Seed localStorage đã dọn
   (removeItem `quantapp.progress.v1`).
 - Kỹ thuật browser mới (dùng lại được): browser tích hợp lỗi

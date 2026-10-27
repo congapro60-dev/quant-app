@@ -340,7 +340,7 @@ _CASIO_R10_STEP1 = (
 )
 
 _CASIO_R11_STEP1 = (
-    "**Cảnh báo quan trọng:** với mẫu ghép nhóm, máy chỉ tính được x̄g và s_g "
+    "**Cảnh báo quan trọng:** với mẫu ghép nhóm, máy chỉ tính được x̄ và s "
     "(bước 1 và bước 5). Máy **không** nội suy được Me, Mo, Q₁, Q₃ theo công "
     "thức SGK — các bước 2, 3, 4 phải làm tay. Trên màn hình vẫn hiện `Med`, "
     "`Q1`, `Q3`, nhưng đó là số tính từ dãy trung điểm lặp theo tần số, không "
@@ -348,9 +348,9 @@ _CASIO_R11_STEP1 = (
     "**Ký hiệu SGK và ký hiệu trên máy** (mẫu ghép nhóm):\n\n"
     "| SGK | Trên máy | Lưu ý |\n"
     "|---|---|---|\n"
-    "| x̄g | `x̄` | nhập trung điểm + tần số, máy chia N |\n"
-    "| s²g (chia N) | `σ²x` | đúng công thức SGK |\n"
-    "| s_g | `σx` | |\n"
+    "| x̄ | `x̄` | nhập trung điểm + tần số, máy chia N |\n"
+    "| s² (chia N) | `σ²x` | đúng công thức SGK |\n"
+    "| s | `σx` | |\n"
     "| s′² (chia N − 1) | `s²x` | phương sai hiệu chỉnh — đừng dùng |\n"
     "| Me, Mo, Q₁, Q₃ nội suy | — | máy không tính được: làm tay |\n\n"
     "**Bấm máy cho bộ A:**\n\n"
@@ -361,7 +361,7 @@ _CASIO_R11_STEP1 = (
     "3. Nhập `5, 10, 25, 35, 20, 5` vào cột `Freq`.\n"
     "4. `AC` → `OPTN` → `1-Variable Calc` (fx-880BTG: `AC` → `TOOLS` → "
     "`1-Var Results`); kiểm tra `n` = 100.\n\n"
-    "**Đọc ở bước này:** dòng `x̄` là x̄g của A. Sang bộ B: quay về bảng dữ "
+    "**Đọc ở bước này:** dòng `x̄` là x̄ của A. Sang bộ B: quay về bảng dữ "
     "liệu, sửa cột `Freq` thành `5, 10, 40, 10, 25, 10`."
 )
 
@@ -488,8 +488,8 @@ def room10_steps() -> tuple[StepSpec, ...]:
 
 def _r11_reveal_mean(sa: dict, sb: dict) -> str:
     return (
-        f"**Đối chiếu:** x̄g của A = **{fmt(sa['mean'])}**%/phiên; x̄g của B = "
-        f"**{fmt(sb['mean'])}**%/phiên — tính từ bảng: x̄g = (n₁c₁ + … + nₖcₖ)/N.\n\n"
+        f"**Đối chiếu:** x̄ của A = **{fmt(sa['mean'])}**%/phiên; x̄ của B = "
+        f"**{fmt(sb['mean'])}**%/phiên — tính từ bảng: x̄ = (n₁c₁ + … + nₖcₖ)/N.\n\n"
         "**Chốt:** ghép nhóm vẫn giữ được trung tâm. Hai mẫu cùng trung bình "
         "— câu chuyện tiếp tục ở các số còn lại."
     )
@@ -526,9 +526,9 @@ def _r11_reveal_iqr(sa: dict, sb: dict) -> str:
 
 def _r11_reveal_std(sa: dict, sb: dict) -> str:
     return (
-        f"**Đối chiếu:** s²g của A = **{fmt(sa['variance'])}** (s_g ≈ {fmt(sa['std'])}); "
-        f"s²g của B = **{fmt(sb['variance'])}** (s_g ≈ {fmt(sb['std'])}).\n\n"
-        "**Chốt:** s_g của B lớn hơn A — cùng trung bình, B rủi ro hơn. "
+        f"**Đối chiếu:** s² của A = **{fmt(sa['variance'])}** (s ≈ {fmt(sa['std'])}); "
+        f"s² của B = **{fmt(sb['variance'])}** (s ≈ {fmt(sb['std'])}).\n\n"
+        "**Chốt:** s của B lớn hơn A — cùng trung bình, B rủi ro hơn. "
         "Đây là số nối thẳng sang Toán 12 và nhãn “Biến động” ở tab Đầu tư."
     )
 
@@ -539,16 +539,16 @@ def room11_steps() -> tuple[StepSpec, ...]:
     return (
         StepSpec(
             step_id="mean",
-            title="Bước 1 — Trung bình cộng có trọng số x̄g",
+            title="Bước 1 — Trung bình cộng có trọng số x̄",
             question=(
                 "Nhân tần số với giá trị đại diện c (trung điểm) của từng nhóm, "
-                "cộng lại rồi chia cho N = 100. Tính x̄g của A và của B."
+                "cộng lại rồi chia cho N = 100. Tính x̄ của A và của B."
             ),
             hint="Làm trên bảng tần số: 5·(−2,5) + 10·(−1,5) + … rồi chia 100.",
-            fields=(PredictField("x̄g của A", "mean", "a"),
-                    PredictField("x̄g của B", "mean", "b")),
+            fields=(PredictField("x̄ của A", "mean", "a"),
+                    PredictField("x̄ của B", "mean", "b")),
             reveal=_r11_reveal_mean,
-            latex=(r"\bar{x}_g = \frac{n_1 c_1 + n_2 c_2 + \dots + n_k c_k}{N}"
+            latex=(r"\bar{x} = \frac{n_1 c_1 + n_2 c_2 + \dots + n_k c_k}{N}"
                    r" = \frac{1}{N}\sum_{i=1}^{k} n_i c_i"),
             latex_note=(
                 "cᵢ là trung điểm nhóm i; nᵢ là tần số nhóm i; N = n₁ + … + nₖ "
@@ -636,26 +636,26 @@ def room11_steps() -> tuple[StepSpec, ...]:
             step_id="std",
             title="Bước 5 — Phương sai và độ lệch chuẩn của mẫu ghép nhóm",
             question=(
-                r"Tính $s_g^2 = \frac{1}{N}\sum n_i (c_i - \bar{x}_g)^2$ rồi "
-                r"$s_g = \sqrt{s_g^2}$ cho A và B. Bộ nào phân tán mạnh hơn?"
+                r"Tính $s^2 = \frac{1}{N}\sum n_i (c_i - \bar{x})^2$ rồi "
+                r"$s = \sqrt{s^2}$ cho A và B. Bộ nào phân tán mạnh hơn?"
             ),
             hint="Dùng trung điểm c và tần số n của từng nhóm; chia cho N = 100.",
-            fields=(PredictField("s²g của A", "variance", "a"),
-                    PredictField("s²g của B", "variance", "b"),
-                    PredictField("s_g của A", "std", "a"),
-                    PredictField("s_g của B", "std", "b")),
+            fields=(PredictField("s² của A", "variance", "a"),
+                    PredictField("s² của B", "variance", "b"),
+                    PredictField("s của A", "std", "a"),
+                    PredictField("s của B", "std", "b")),
             reveal=_r11_reveal_std,
             latex=(r"\begin{gathered}"
-                   r"s_g^2 = \frac{1}{N}\sum_{i=1}^{k} n_i \left(c_i - \bar{x}_g\right)^2 \\"
-                   r"s_g = \sqrt{s_g^2}"
+                   r"s^2 = \frac{1}{N}\sum_{i=1}^{k} n_i \left(c_i - \bar{x}\right)^2 \\"
+                   r"s = \sqrt{s^2}"
                    r"\end{gathered}"),
             latex_note=(
                 "Thay xᵢ bằng trung điểm cᵢ, thêm trọng số tần số nᵢ và chia "
-                "cho N. s²g mất đơn vị % (bị bình phương); s_g giữ lại đơn vị %."
+                "cho N. s² mất đơn vị % (bị bình phương); s giữ lại đơn vị %."
             ),
             casio=(
                 "**Đọc ở bước này** (đã nhập trung điểm + tần số như bước 1): "
-                "`σ²x` là s²g và `σx` là s_g; kiểm tra `n` = 100.\n\n"
+                "`σ²x` là s² và `σx` là s; kiểm tra `n` = 100.\n\n"
                 "**Đừng nhầm:** dòng `s²x`, `sx` chia cho N − 1 (phương sai "
                 "hiệu chỉnh, Toán 12) — không phải công thức SGK."
             ),
@@ -675,18 +675,18 @@ def _r12_reveal_iqr(sa: dict, sb: dict) -> str:
 
 def _r12_reveal_variance(sa: dict, sb: dict) -> str:
     return (
-        f"**Đối chiếu:** s²g của A = **{fmt(sa['variance'])}**; s²g của B = "
+        f"**Đối chiếu:** s² của A = **{fmt(sa['variance'])}**; s² của B = "
         f"**{fmt(sb['variance'])}**.\n\n"
         "**Chốt:** phương sai lớn nghĩa là các phiên rải xa trung bình hơn. "
-        "Vì đã bình phương, đơn vị của s²g không còn là % — đó là lý do cần s_g."
+        "Vì đã bình phương, đơn vị của s² không còn là % — đó là lý do cần s."
     )
 
 
 def _r12_reveal_std(sa: dict, sb: dict) -> str:
     return (
-        f"**Đối chiếu:** s_g của A ≈ **{fmt(sa['std'])}**; s_g của B ≈ "
+        f"**Đối chiếu:** s của A ≈ **{fmt(sa['std'])}**; s của B ≈ "
         f"**{fmt(sb['std'])}**.\n\n"
-        "**Chốt:** s_g cùng đơn vị với lợi suất (%), đọc trực tiếp: mỗi phiên "
+        "**Chốt:** s cùng đơn vị với lợi suất (%), đọc trực tiếp: mỗi phiên "
         "của B thường lệch khỏi trung bình cỡ 1,35 điểm %, của A cỡ 1,19."
     )
 
@@ -733,33 +733,33 @@ def room12_steps() -> tuple[StepSpec, ...]:
         ),
         StepSpec(
             step_id="variance",
-            title="Bước 2 — Phương sai s²g của mẫu ghép nhóm",
+            title="Bước 2 — Phương sai s² của mẫu ghép nhóm",
             question=(
                 "Dùng trung điểm c và tần số n của từng nhóm, tính "
-                r"$s_g^2 = \frac{1}{N}\sum n_i (c_i - \bar{x}_g)^2$ cho A và B."
+                r"$s^2 = \frac{1}{N}\sum n_i (c_i - \bar{x})^2$ cho A và B."
             ),
-            hint="x̄g đã tính ở phòng Toán 11: cả hai bộ đều là 0,2.",
-            fields=(PredictField("s²g của A", "variance", "a"),
-                    PredictField("s²g của B", "variance", "b")),
+            hint="x̄ đã tính ở phòng Toán 11: cả hai bộ đều là 0,2.",
+            fields=(PredictField("s² của A", "variance", "a"),
+                    PredictField("s² của B", "variance", "b")),
             reveal=_r12_reveal_variance,
-            latex=r"s_g^2 = \frac{1}{N}\sum_{i=1}^{k} n_i \left(c_i - \bar{x}_g\right)^2",
-            latex_note="x̄g lấy từ phòng Toán 11 (cả hai bộ đều bằng 0,2); chia cho N = 100.",
+            latex=r"s^2 = \frac{1}{N}\sum_{i=1}^{k} n_i \left(c_i - \bar{x}\right)^2",
+            latex_note="x̄ lấy từ phòng Toán 11 (cả hai bộ đều bằng 0,2); chia cho N = 100.",
             casio=(
-                "Đã nhập trung điểm + tần số vào máy: dòng `σ²x` là s²g. Đừng "
+                "Đã nhập trung điểm + tần số vào máy: dòng `σ²x` là s². Đừng "
                 "lấy dòng `s²x` (máy chia cho N − 1)."
             ),
         ),
         StepSpec(
             step_id="std",
-            title="Bước 3 — Độ lệch chuẩn s_g",
-            question="Lấy căn s²g để có s_g của A và B. Cùng đơn vị với gì?",
-            hint="s_g = √s²g; cùng đơn vị với lợi suất (%) nên đọc trực tiếp được.",
-            fields=(PredictField("s_g của A", "std", "a"),
-                    PredictField("s_g của B", "std", "b")),
+            title="Bước 3 — Độ lệch chuẩn s",
+            question="Lấy căn s² để có s của A và B. Cùng đơn vị với gì?",
+            hint="s = √s²; cùng đơn vị với lợi suất (%) nên đọc trực tiếp được.",
+            fields=(PredictField("s của A", "std", "a"),
+                    PredictField("s của B", "std", "b")),
             reveal=_r12_reveal_std,
-            latex=r"s_g = \sqrt{s_g^2}",
-            latex_note="s_g cùng đơn vị với lợi suất (%) nên đọc trực tiếp được.",
-            casio="Đọc dòng `σx` — đó là s_g, cùng đơn vị %. Dùng số này cho bước 4.",
+            latex=r"s = \sqrt{s^2}",
+            latex_note="s cùng đơn vị với lợi suất (%) nên đọc trực tiếp được.",
+            casio="Đọc dòng `σx` — đó là s, cùng đơn vị %. Dùng số này cho bước 4.",
         ),
         StepSpec(
             step_id="money",
@@ -767,16 +767,16 @@ def room12_steps() -> tuple[StepSpec, ...]:
             question=(
                 "Giả định vốn 100 triệu đồng, quy đổi 1 điểm % = 1 triệu đồng. "
                 "Một phiên của B thường lệch khỏi trung bình khoảng bao nhiêu "
-                "triệu đồng (dùng s_g của B)?"
+                "triệu đồng (dùng s của B)?"
             ),
-            hint="Nhân s_g của B với 1 triệu đồng/1 điểm %.",
+            hint="Nhân s của B với 1 triệu đồng/1 điểm %.",
             fields=(PredictField("số triệu đồng/phiên của B", "std", "b"),),
             reveal=_r12_reveal_money,
-            latex=(r"\text{tiền lệch mỗi phiên} = s_g \times "
+            latex=(r"\text{tiền lệch mỗi phiên} = s \times "
                    r"\frac{1\ \text{triệu đồng}}{1\ \text{điểm \%}}"),
             latex_note="Chỉ đúng khi vốn 100 triệu đồng: 1 điểm % của 100 triệu = 1 triệu đồng.",
             casio=(
-                "Bước này chỉ là phép nhân sau khi đọc s_g: dòng `σx` × 1 "
+                "Bước này chỉ là phép nhân sau khi đọc s: dòng `σx` × 1 "
                 "(triệu đồng/điểm %). Ví dụ `σx` = 1.35 → mỗi phiên thường lệch "
                 "khoảng 1,35 triệu đồng."
             ),
@@ -872,15 +872,15 @@ def summary_table(data: RoomData, sa: dict, sb: dict) -> pd.DataFrame:
     if data.is_grouped:
         rows = [
             ("Số phiên N", sa["n_total"], sb["n_total"]),
-            ("Trung bình x̄g", sa["mean"], sb["mean"]),
+            ("Trung bình x̄", sa["mean"], sb["mean"]),
             ("Trung vị Me (nội suy)", sa["median"], sb["median"]),
             ("Mốt Mo (nội suy)", sa["mode"], sb["mode"]),
             ("Tứ phân vị Q₁", sa["q1"], sb["q1"]),
             ("Tứ phân vị Q₃", sa["q3"], sb["q3"]),
             ("Khoảng tứ phân vị ΔQ", sa["iqr"], sb["iqr"]),
             ("Khoảng biến thiên R (biên)", sa["range"], sb["range"]),
-            ("Phương sai s²g", sa["variance"], sb["variance"]),
-            ("Độ lệch chuẩn s_g", sa["std"], sb["std"]),
+            ("Phương sai s²", sa["variance"], sb["variance"]),
+            ("Độ lệch chuẩn s", sa["std"], sb["std"]),
         ]
     else:
         def _outliers(summary: dict) -> str:
@@ -1001,28 +1001,28 @@ def exit_questions(room: str) -> tuple[ExitQuestion, ...]:
     return (
         ExitQuestion(
             qid="q1", kind=KIND_SINGLE,
-            prompt="s_g của B lớn hơn s_g của A. Điều đó nói lên điều gì?",
+            prompt="s của B lớn hơn s của A. Điều đó nói lên điều gì?",
             options=(
                 "B chắc chắn lãi nhiều hơn A trong phiên sau",
                 "Lợi suất của B rải xa trung bình hơn — biến động cao hơn",
-                "A không đáng mua vì s_g nhỏ",
+                "A không đáng mua vì s nhỏ",
             ),
             correct_index=1,
             explanation=(
-                "s_g đo mức rải quanh trung bình, không dự báo phiên sau và "
+                "s đo mức rải quanh trung bình, không dự báo phiên sau và "
                 "không xếp hạng “đáng mua”."
             ),
         ),
         ExitQuestion(
             qid="q2", kind=KIND_NUMBER, answer_key="std", series="a",
-            prompt="Độ lệch chuẩn s_g của bộ A bằng bao nhiêu (%/phiên)?",
-            explanation="s_g = √s²g của bộ A.",
+            prompt="Độ lệch chuẩn s của bộ A bằng bao nhiêu (%/phiên)?",
+            explanation="s = √s² của bộ A.",
         ),
         ExitQuestion(
             qid="q3", kind=KIND_NUMBER, answer_key="std", series="b",
             prompt="Trên vốn 100 triệu (1 điểm % = 1 triệu đồng), một phiên của "
                    "B thường lệch khỏi trung bình khoảng bao nhiêu triệu đồng?",
-            explanation="Quy đổi thẳng: số triệu ≈ s_g của B (không cộng lãi kép).",
+            explanation="Quy đổi thẳng: số triệu ≈ s của B (không cộng lãi kép).",
         ),
     )
 
@@ -1223,34 +1223,34 @@ def _render_summary_and_meaning(room: str, data: RoomData, sa: dict, sb: dict) -
                  "A là ___, đáng dò tin tức.”")
     elif room == ROOM_11:
         question = ("Viết 2–3 câu so sánh trung tâm của hai mẫu ghép nhóm: vì "
-                    "sao cùng x̄g mà trung vị và mốt lại lệch dấu?")
+                    "sao cùng x̄ mà trung vị và mốt lại lệch dấu?")
         model = (
-            f"Khung tham khảo: “Hai mẫu cùng có x̄g = {fmt(sa['mean'])}%/phiên, "
+            f"Khung tham khảo: “Hai mẫu cùng có x̄ = {fmt(sa['mean'])}%/phiên, "
             f"nhưng Me của {data.names[0]} là {fmt(sa['median'])} còn của "
             f"{data.names[1]} là {fmt(sb['median'])}, và Mo lần lượt {fmt(sa['mode'])} "
             f"và {fmt(sb['mode'])}. Điều đó cho thấy {data.names[1]} dồn phiên về "
             "phía lỗ nhiều hơn dù trung bình giống nhau. Mọi số ghép nhóm đều là "
             "ước lượng vì chi tiết trong từng khoảng đã bị bỏ.”"
         )
-        hint = ("Đọc cả ba số trung tâm (x̄g, Me, Mo); nói rõ vì sao Me/Mo lệch "
+        hint = ("Đọc cả ba số trung tâm (x̄, Me, Mo); nói rõ vì sao Me/Mo lệch "
                 "dấu (tần số dồn về nhóm nào).")
-        frame = ("“Câu 1: x̄g của hai bộ đều ___. Câu 2: Me của A ≈ ___, của B ≈ "
+        frame = ("“Câu 1: x̄ của hai bộ đều ___. Câu 2: Me của A ≈ ___, của B ≈ "
                  "___ nên ___. Câu 3: Mo của A ≈ ___, của B ≈ ___, nhóm dày nhất "
                  "lần lượt là ___ và ___.”")
     else:
         question = ("Viết 2–3 câu về độ phân tán của hai mẫu ghép nhóm và ý "
                     "nghĩa rủi ro khi quy đổi ra tiền.")
         model = (
-            f"Khung tham khảo: “s_g của {data.names[0]} là {fmt(sa['std'])} và "
+            f"Khung tham khảo: “s của {data.names[0]} là {fmt(sa['std'])} và "
             f"của {data.names[1]} là {fmt(sb['std'])} điểm %; quy đổi trên vốn "
             f"100 triệu thì một phiên lệch khỏi trung bình cỡ "
             f"{float(sa['std']):,.2f} và {float(sb['std']):,.2f} triệu đồng. "
-            "s_g nói về cỡ dao động, không nói phiên sau lên hay xuống; quy đổi "
+            "s nói về cỡ dao động, không nói phiên sau lên hay xuống; quy đổi "
             "không cộng lãi kép nên không thể hiểu là lãi đều hàng phiên.”"
         )
-        hint = ("Tách rõ: s_g nói gì (cỡ dao động) và không nói gì (hướng, dự "
+        hint = ("Tách rõ: s nói gì (cỡ dao động) và không nói gì (hướng, dự "
                 "báo, lãi đều).")
-        frame = ("“Câu 1: s_g của A ≈ ___, của B ≈ ___. Câu 2: Quy đổi ra tiền, "
+        frame = ("“Câu 1: s của A ≈ ___, của B ≈ ___. Câu 2: Quy đổi ra tiền, "
                  "một phiên lệch cỡ ___ và ___ triệu. Câu 3: Không thể hiểu là "
                  "lãi đều vì ___.”")
     stt.meaning_block(f"{_KEY_PREFIX}_{room}", question, model, hint=hint, frame=frame)
@@ -1270,7 +1270,7 @@ def _render_reflection(room: str, data: RoomData, sa: dict, sb: dict) -> None:
         ]
     elif room == ROOM_11:
         items = [
-            ("Vì sao Me của B âm trong khi x̄g của B là +0,2?",
+            ("Vì sao Me của B âm trong khi x̄ của B là +0,2?",
              "Tần số của B dồn về các nhóm trái (n=40 ở [−1;0)) nên nửa “giữa” của "
              "dãy nằm dưới 0; tổng trung bình được kéo lên nhờ nhóm phải. Dãy lệch "
              "trái: trung bình và trung vị kể hai câu chuyện khác nhau."),
@@ -1281,14 +1281,14 @@ def _render_reflection(room: str, data: RoomData, sa: dict, sb: dict) -> None:
         ]
     else:
         items = [
-            ("s_g nói gì và KHÔNG nói gì về phiên kế tiếp?",
+            ("s nói gì và KHÔNG nói gì về phiên kế tiếp?",
              "Nói: cỡ dao động quanh trung bình. Không nói: hướng phiên sau, xác "
              "suất lãi/lỗ cụ thể, mức lỗ tối đa. Muốn đo mức lỗ cần học thêm bài "
              "Rủi ro và đa dạng hóa."),
             ("Quy đổi 1 điểm % = 1 triệu đồng trên vốn 100 triệu — sai lầm nếu đọc "
              "thành “lãi đều 1,35 triệu mỗi phiên”?",
              "Dao động là hai chiều: có phiên lệch dương, có phiên lệch âm, và có "
-             "phiên lệch xa hơn s_g nhiều. Cộng dồn theo kiểu lãi đều là hiểu sai "
+             "phiên lệch xa hơn s nhiều. Cộng dồn theo kiểu lãi đều là hiểu sai "
              "cả đơn vị lẫn bản chất của độ lệch chuẩn."),
         ]
     stt.reflection_block(items)
@@ -1313,7 +1313,7 @@ def _render_advice_board(room: str, data: RoomData, sa: dict, sb: dict) -> None:
         )
     else:
         spread_note = (
-            f"s_g của {data.names[0]} là {fmt(sa['std'])} và của {data.names[1]} là "
+            f"s của {data.names[0]} là {fmt(sa['std'])} và của {data.names[1]} là "
             f"{fmt(sb['std'])}"
         )
     with st.expander("Đối chiếu khuyến nghị mẫu"):

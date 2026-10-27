@@ -369,15 +369,15 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ.")
         stt.meaning_block(
             f"{key_prefix}_grouped",
-            "So sánh trung bình ước lượng từ bảng ghép nhóm (x̄g) với trung bình tính "
-            "trực tiếp từ từng số (x̄): lệch nhau bao nhiêu phần trăm? Mẫu ghép nhóm "
+            "So sánh trung bình ước lượng từ bảng ghép nhóm với trung bình tính "
+            "trực tiếp từ từng số: lệch nhau bao nhiêu phần trăm? Mẫu ghép nhóm "
             "còn đáng tin không?",
-            "Khung tham khảo: “Ghép k = … nhóm, x̄g lệch x̄ trực tiếp khoảng …%. Lệch "
+            "Khung tham khảo: “Ghép k = … nhóm, x̄ ghép nhóm lệch x̄ dãy thô khoảng …%. Lệch "
             "nhỏ nên kết luận về xu thế vẫn có giá trị; cần số chính xác từng ngày thì "
             "dùng mẫu chưa ghép.”",
             hint="Cột 'Sai số tương đối (%)' — cho biết lệch bao nhiêu phần trăm — "
                  "trong bảng so sánh vừa in là số liệu để trích vào câu trả lời.",
-            frame="“Ghép k = ___ nhóm, x̄g lệch x̄ trực tiếp khoảng ___%. Lệch như vậy "
+            frame="“Ghép k = ___ nhóm, x̄ ghép nhóm lệch x̄ dãy thô khoảng ___%. Lệch như vậy "
                   "là nhỏ/lớn nên kết luận về xu thế vẫn có giá trị/không dùng được; "
                   "cần chính xác từng ngày thì dùng mẫu chưa ghép.”",
         )
@@ -411,34 +411,34 @@ def _render_thpt_practice(lesson, *, key_prefix: str) -> None:
                 s_b = stt.summarize_grouped(stt.parse_values(raw_b), 4)
                 wider = "Giai đoạn 2" if s_b["std"] > s_a["std"] else "Giai đoạn 1"
                 st.success(
-                    f"s_g giai đoạn 1: **{s_a['std']:.3f}**, giai đoạn 2: "
+                    f"s giai đoạn 1: **{s_a['std']:.3f}**, giai đoạn 2: "
                     f"**{s_b['std']:.3f}**. {wider} biến động mạnh hơn."
                 )
-                st.caption("Cùng đơn vị mới so được s_g; phân tán lớn nghĩa là "
+                st.caption("Cùng đơn vị mới so được hai số s; phân tán lớn nghĩa là "
                            "mẫu dao động quanh trung tâm mạnh hơn.")
             except (TypeError, ValueError) as exc:
                 st.warning(str(exc) or "Cần ít nhất hai số hợp lệ cho mỗi giai đoạn.")
         stt.meaning_block(
             f"{key_prefix}_ptan",
-            "Giai đoạn nào biến động mạnh hơn (s_g nào lớn hơn)? Con số này đổi cách "
+            "Giai đoạn nào biến động mạnh hơn (s nào lớn hơn)? Con số này đổi cách "
             "chia tiền của dự án ra sao?",
-            "Khung tham khảo: “Giai đoạn 2 có s_g… lớn hơn giai đoạn 1 (…) nên rủi ro "
+            "Khung tham khảo: “Giai đoạn 2 có s… lớn hơn giai đoạn 1 (…) nên rủi ro "
             "cao hơn. Muốn đi êm thì phần lớn tiền theo phong cách giai đoạn 1; nếu vẫn "
             "giữ tiền theo giai đoạn 2 thì phải đặt điểm cắt lỗ.”",
-            hint="Hai mẫu phải cùng đơn vị (% lợi suất/ngày) thì s_g mới so được.",
-            frame="“Giai đoạn ___ có s_g = ___ lớn hơn giai đoạn ___ (___ so với ___) "
+            hint="Hai mẫu phải cùng đơn vị (% lợi suất/ngày) thì s mới so được.",
+            frame="“Giai đoạn ___ có s = ___ lớn hơn giai đoạn ___ (___ so với ___) "
                   "nên rủi ro cao hơn. Muốn đi êm thì phần lớn tiền theo phong cách "
                   "giai đoạn ___; nếu vẫn giữ thì phải đặt điểm cắt lỗ.”",
         )
         stt.reflection_block([
-            ("Hai mẫu có s_g bằng nhau nhưng trung tâm (trung bình/trung vị) khác "
+            ("Hai mẫu có s bằng nhau nhưng trung tâm (trung bình/trung vị) khác "
              "nhau — coi là “giống nhau” được không?",
              "Không: cùng phân tán nhưng vị trí trung tâm khác. Đối chiếu cả trung tâm "
              "(trung vị/trung bình) lẫn phân tán mới đủ cặp mô tả một mẫu."),
             ("So một mẫu bằng hiệu trung bình (x̄ B − x̄ A) có đủ để kết luận giai "
              "đoạn nào tốt hơn?",
              "Chưa đủ: hiệu trung bình bỏ qua phân tán. Giai đoạn trung bình cao hơn nhưng "
-             "s_g lớn hơn nhiều vẫn là lựa chọn tồi với người sợ rủi ro."),
+             "s lớn hơn nhiều vẫn là lựa chọn tồi với người sợ rủi ro."),
         ])
     elif kind == cur.INTERACTIVE_AI_LINK:
         st.link_button("Mở demo Kronos (mở tab mới)", url=cur.KRONOS_DEMO_URL)

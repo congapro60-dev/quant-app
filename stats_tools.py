@@ -333,10 +333,10 @@ R = x_{\max} - x_{\min} \qquad \Delta_Q = Q_3 - Q_1
 """
 
 FORMULA_GROUPED = r"""
-\bar{x}_g = \frac{n_1 c_1 + n_2 c_2 + \dots + n_k c_k}{N} \\
-s^2_g = \frac{1}{N}\sum_{i=1}^{k} n_i\,(c_i - \bar{x}_g)^2 \qquad s_g = \sqrt{s^2_g} \\
+\bar{x} = \frac{n_1 c_1 + n_2 c_2 + \dots + n_k c_k}{N} \\
+s^2 = \frac{1}{N}\sum_{i=1}^{k} n_i\,(c_i - \bar{x})^2 \qquad s = \sqrt{s^2} \\
 M_e = u_{M_e} + \frac{\frac{N}{2} - cf}{n_{M_e}} \cdot w \\
-R_g \approx u_{\max} - u_{\min} \qquad \Delta_{Q,g} = Q_{3,g} - Q_{1,g}
+R = u_{\max} - u_{\min} \qquad \Delta_Q = Q_3 - Q_1
 """
 
 
@@ -600,8 +600,8 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     _, grouped, table = compare_grouping(values, num_groups)
 
     st.markdown("**Bước 1 — tự tính trên giấy.** Hình dung từ bảng tần số phía dưới: "
-                "x̄g = (n₁·c₁ + … + nₖ·cₖ)/N. Tính ra rồi nhập để đối chiếu.")
-    pred_grouped = st.number_input("Dự đoán x̄g của em", value=0.0,
+                "x̄ = (n₁·c₁ + … + nₖ·cₖ)/N. Tính ra rồi nhập để đối chiếu.")
+    pred_grouped = st.number_input("Dự đoán x̄ của em", value=0.0,
                                    key="grouping_lab_pred_mean",
                                    help="Gợi ý: nhân tần số với giá trị đại diện của từng "
                                         "nhóm, cộng lại rồi chia cho N.")
@@ -610,9 +610,9 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
         gap = abs(pred_grouped - grouped_mean)
         tol = max(0.05 * abs(grouped_mean), 0.05)
         if gap <= tol:
-            st.success(f"x̄g tự tính khớp ước lượng của máy (lệch {gap:,.4g}).")
+            st.success(f"x̄ tự tính khớp ước lượng của máy (lệch {gap:,.4g}).")
         else:
-            st.info(f"x̄g tự tính lệch {gap:,.4g} (máy ước lượng {grouped_mean:,.4g}). "
+            st.info(f"x̄ tự tính lệch {gap:,.4g} (máy ước lượng {grouped_mean:,.4g}). "
                     "Kiểm tra lại: mỗi nhóm nhân đúng giá trị đại diện chưa, có chia "
                     "cho tổng tần số N chưa?")
 
@@ -641,13 +641,13 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     with right:
         st.markdown("**Số đặc trưng ước lượng của mẫu ghép nhóm**")
         grid = st.columns(2)
-        grid[0].metric("Số trung bình x̄g", f"{float(grouped['mean']):,.4g}")
-        grid[1].metric("Trung vị Meg (nội suy)", f"{float(grouped['median']):,.4g}")
-        grid[0].metric("Mốt Mog", f"{float(grouped['mode']):,.4g}")
-        grid[1].metric("Độ lệch chuẩn sg", f"{float(grouped['std']):,.4g}")
+        grid[0].metric("Số trung bình x̄", f"{float(grouped['mean']):,.4g}")
+        grid[1].metric("Trung vị Me (nội suy)", f"{float(grouped['median']):,.4g}")
+        grid[0].metric("Mốt Mo", f"{float(grouped['mode']):,.4g}")
+        grid[1].metric("Độ lệch chuẩn s", f"{float(grouped['std']):,.4g}")
         grid2 = st.columns(2)
-        grid2[0].metric("Khoảng biến thiên g", f"{float(grouped['range']):,.4g}")
-        grid2[1].metric("Khoảng tứ phân vị g", f"{float(grouped['iqr']):,.4g}")
+        grid2[0].metric("Khoảng biến thiên R", f"{float(grouped['range']):,.4g}")
+        grid2[1].metric("Khoảng tứ phân vị ΔQ", f"{float(grouped['iqr']):,.4g}")
     with st.expander("Công thức ghép nhóm (SGK Toán 11 và 12)"):
         st.latex(FORMULA_GROUPED)
         st.caption("Một số bộ SGK gọi giá trị đại diện của nhóm là 'tổ trọng tâm' — ý nghĩa giống nhau.")
@@ -678,17 +678,17 @@ def render_grouping_lab(prices: pd.DataFrame, market: str) -> None:
     rel_error = float(table.iloc[0]["Sai số tương đối (%)"])
     meaning_block(
         "grouping_lab",
-        "So sánh trung bình ước lượng x̄g (tính từ bảng ghép nhóm) với trung bình x̄ "
+        "So sánh trung bình ước lượng từ bảng ghép nhóm với trung bình x̄ "
         "tính trực tiếp từ từng số: lệch nhau bao nhiêu phần trăm? Mẫu ghép nhóm còn "
         "đáng tin để nói xu thế (hướng đi chung) không?",
-        f"Khung tham khảo: “Ghép {num_groups} nhóm, x̄g = {float(grouped['mean']):,.4g} "
+        f"Khung tham khảo: “Ghép {num_groups} nhóm, x̄ ghép nhóm = {float(grouped['mean']):,.4g} "
         f"trong khi tính trực tiếp x̄ = {direct_mean:,.4g}, lệch khoảng {rel_error:,.2f}%. "
         "Sai số nhỏ nên vẫn dùng số ghép nhóm để nói xu thế; cần chính xác từng ngày thì "
         "phải quay về mẫu chưa ghép.”",
         hint="Đọc cột 'Sai số tương đối (%)' ở bảng so sánh — cột này cho biết lệch "
              "bao nhiêu % so với số tính trực tiếp; lệch dưới khoảng 5% thường được coi "
              "là chấp nhận được.",
-        frame="“x̄g ≈ ___ còn x̄ = ___, lệch khoảng ___%. Sai số nhỏ nên dùng bảng ghép "
+        frame="“x̄ ghép nhóm ≈ ___ còn x̄ dãy thô = ___, lệch khoảng ___%. Sai số nhỏ nên dùng bảng ghép "
               "nhóm để nói xu thế là chấp nhận được/không nên.”",
     )
     reflection_block([
@@ -811,7 +811,7 @@ def render_frequency_table(prices: pd.DataFrame, market: str) -> None:
          "em, khi chỉ đếm như vậy thì thông tin gì về giá bị bỏ qua?",
          "Bị bỏ là độ lớn biến động: hai mã cùng tăng 5 phiên nhưng “tăng nhẹ” và “tăng "
          "vọt” khác nhau rõ. Muốn thấy độ lớn phải tính thêm độ lệch chuẩn s của lợi "
-         "suất (dùng công cụ Máy tính số đặc trưng — Toán 10) hoặc s_g của mẫu ghép "
+         "suất (dùng công cụ Máy tính số đặc trưng — Toán 10) hoặc s của mẫu ghép "
          "nhóm (Toán 12)."),
         ("Nếu đổi tiêu chí đếm — phiên tăng thêm hơn 2% mới tính là Tăng, giảm dưới "
          "−2% mới tính là Giảm, còn lại là “khác” — thì kết luận về mã dẫn đầu có thể "
