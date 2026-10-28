@@ -52,6 +52,7 @@ from learning_ui import (
     render_readiness_gate,
 )
 import account_ui
+import sticky_bar
 try:
     from streamlit_autorefresh import st_autorefresh
 except Exception:
@@ -140,6 +141,7 @@ st.markdown("""
 # không dựng các khu vực bên dưới.
 account_ui.bootstrap()
 account_ui.render_account_bar()
+sticky_bar.stick_account_bar()
 if account_ui.render_account_page():
     st.stop()
 
