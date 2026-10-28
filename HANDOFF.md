@@ -35,10 +35,21 @@
   trùng khoá là `StreamlitDuplicateElementKey` và trắng trang. Khách đang mở trang
   tài khoản thì nút chỉ hiện lối đi, không vẽ lại form (tránh trùng khoá).
 - Test: `tests/test_account_store.py` (7 test dấu/hạn dùng) +
-  `tests/test_account_ui.py` (16 test: nút khoá theo vai trò, đăng xuất, ghi dấu
-  khi đăng nhập, khôi phục/hết hạn/lỗi mạng, 4 trang riêng, chống trùng khoá,
-  app.py boot, và chốt "tab Gói lớp học không còn mount khối cũ").
-  Full pytest **954 passed, 2 skipped**.
+  `tests/test_account_ui.py` (17 test: nút khoá theo vai trò, đăng xuất, xếp hàng
+  dấu khi đăng nhập rồi ghi ở lượt kế tiếp, khôi phục/hết hạn/lỗi mạng, 4 trang
+  riêng, chống trùng khoá, app.py boot, và chốt "tab Gói lớp học không còn mount
+  khối cũ"). Full pytest **956 passed, 2 skipped**.
+- Bẫy đã dính và đã sửa: ghi dấu **ngay trong lượt đăng nhập** thì component
+  localStorage không bao giờ tới trình duyệt, vì ngay sau đó là `st.rerun()`.
+  Cách đúng: `_remember()` chỉ xếp vào `_account_pending_marker`, `flush_marker()`
+  (gọi đầu `render_account_bar`) ghi ở lượt kế tiếp. Đã kiểm trên production:
+  đăng nhập → localStorage có `quantapp.account.v1` → **mở tab mới vẫn tự hiện
+  `👤 HS Nhớ ... · HS`** → đăng xuất xoá sạch dấu, về `👤 Khách`.
+- Verify browser production (auto-deploy tự kéo, không cần Reboot): nút ghim
+  `position: fixed`, cách phải 16px, `top 54.4px`, đứng yên khi cuộn 1123px;
+  popover khách chỉ có 2 lối "Đăng nhập"/"Đăng ký tài khoản"; `?account=login`
+  và `?account=student` dựng đúng trang riêng có nút quay lại. Tài khoản thử
+  đã xoá sau khi kiểm.
 - Chưa verify browser production trong bản này (cần Reboot, xin phép riêng):
   việc cần nhìn tận mắt là vị trí nút ở góc phải trên và luồng nhớ đăng nhập
   (đăng nhập → F5/mở tab mới → vẫn còn tên tài khoản).
