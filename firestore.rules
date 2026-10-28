@@ -135,6 +135,63 @@ service cloud.firestore {
       allow delete: if signed() && (request.auth.uid == suid || request.auth.uid == tuid);
       allow update: if false;
     }
+    // Bài nộp của HS tự đăng ký, gắn với danh sách GV đã chọn. Điểm lệ thuộc
+    // thành viên: rút khỏi danh sách hoặc bị GV xóa thì không nộp thêm được.
+    match /rosters/{tuid}/submissions/{receipt} {
+      function is_member() {
+        return signed()
+          && exists(/databases/$(database)/documents/rosters/$(tuid)/members/$(request.auth.uid));
+      }
+      function roster_summary() {
+        let incoming = request.resource.data.summary;
+        return incoming.keys().hasOnly(
+                 ['schema_version','class_code','student_code','assignment_id',
+                  'diagnostics','journal_count'])
+          && incoming.schema_version == 1
+          && incoming.class_code == 'SELF'
+          && incoming.student_code == request.auth.uid
+          && code(incoming.assignment_id)
+          && incoming.diagnostics is map
+          && incoming.diagnostics.keys().hasOnly(['pre_test','post_test'])
+          && diagnostic(incoming.diagnostics.pre_test)
+          && diagnostic(incoming.diagnostics.post_test)
+          && incoming.journal_count is int
+          && incoming.journal_count >= 0 && incoming.journal_count <= 500;
+      }
+      function valid() {
+        let data = request.resource.data;
+        let incoming = data.summary;
+        return is_member()
+          && data.keys().hasOnly(['owner_uid','summary','received_at','lesson_count'])
+          && data.lesson_count is int && data.lesson_count >= 1 && data.lesson_count <= 200
+          && data.owner_uid == request.auth.uid
+          && data.received_at == request.time
+          && roster_summary()
+          && (!exists(/databases/$(database)/documents/rosters/$(tuid)/submissions/$(receipt))
+              || (resource.data.owner_uid == request.auth.uid
+                  && resource.data.summary.assignment_id == incoming.assignment_id
+                  && resource.data.summary.student_code == incoming.student_code));
+      }
+      allow get: if signed() && (request.auth.uid == tuid || request.auth.uid == resource.data.owner_uid);
+      allow list: if signed() && request.auth.uid == tuid;
+      allow create, update: if valid();
+      allow delete: if false;
+      match /lessons/{row} {
+        function parent() {
+          return getAfter(/databases/$(database)/documents/rosters/$(tuid)/submissions/$(receipt)).data;
+        }
+        allow read: if signed()
+          && (request.auth.uid == tuid
+              || request.auth.uid == get(/databases/$(database)/documents/rosters/$(tuid)/submissions/$(receipt)).data.owner_uid);
+        allow create, update: if signed() && parent().owner_uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['index','lesson'])
+          && request.resource.data.index is int && request.resource.data.index >= 0
+          && request.resource.data.index < parent().lesson_count
+          && row == string(request.resource.data.index)
+          && lesson(request.resource.data.lesson);
+        allow delete: if false;
+      }
+    }
     match /{path=**} { allow read, write: if false; }
   }
 }

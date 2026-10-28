@@ -62,7 +62,8 @@ def _check_summary(value):
         packages._scan_text(value)
 
 
-def build_submission(profile, assignment, class_code, student_code) -> dict:
+def build_submission(profile, assignment, class_code, student_code, *,
+                     student_code_check=None) -> dict:
     """Project actual local records onto a bounded, code-only summary.
 
     Only assigned lessons are included. Unattempted lessons retain null scores;
@@ -78,7 +79,7 @@ def build_submission(profile, assignment, class_code, student_code) -> dict:
         packages._encode(dict(profile))
         clean_assignment = packages.import_assignment(packages.export_assignment(assignment))
         class_code = packages._id(class_code, "class_code")
-        student_code = packages._student_code(student_code)
+        (student_code_check or packages._student_code)(student_code)
         latest = _mapping(profile.get("lesson_scores"))
         attempts = _mapping(profile.get("lesson_attempts"))
         lessons = []
@@ -119,7 +120,7 @@ def build_submission(profile, assignment, class_code, student_code) -> dict:
         raise SubmissionValidationError(message) from None
 
 
-def validate_submission(submission) -> None:
+def validate_submission(submission, *, student_code_check=None) -> None:
     """Recheck the outbound trust boundary, including edited client payloads."""
     try:
         packages._encode(submission)
@@ -128,7 +129,7 @@ def validate_submission(submission) -> None:
         if not isinstance(submission, dict) or set(submission) != keys or type(submission["schema_version"]) is not int or submission["schema_version"] != 1:
             raise SubmissionValidationError("Cấu trúc bài nộp không hợp lệ.")
         packages._id(submission["class_code"], "class_code")
-        packages._student_code(submission["student_code"])
+        (student_code_check or packages._student_code)(submission["student_code"])
         packages._id(submission["assignment_id"], "assignment_id")
         lessons = _list(submission["lesson_results"])
         if not 1 <= len(lessons) <= MAX_ONLINE_LESSONS:
@@ -170,3 +171,29 @@ def submit(submission, *, client=None, session=None) -> dict:
         )
     validate_submission(submission)
     return client.submit(session, submission)
+
+
+def _uid_code(value):
+    """Mã học sinh của luồng tự đăng ký là Firebase uid (chữ+số, không bắt buộc có chữ số)."""
+    return packages._id(value, "student_code")
+
+
+def build_roster_submission(profile, assignment, learner_uid) -> dict:
+    """Bản tổng hợp cho HS tự đăng ký nộp thẳng cho GV đã chọn.
+
+    Khác kênh mã-cấp-sẵn: mã lớp cố định ``SELF`` (chỉ là dấu kênh), mã học
+    sinh là uid tài khoản của chính em — không tên, không lớp trong bản tổng
+    hợp; tên/lớp GV nhìn được nằm ở danh sách thành viên.
+    """
+    return build_submission(profile, assignment, "SELF", learner_uid,
+                            student_code_check=_uid_code)
+
+
+def submit_roster(submission, *, client=None, session=None) -> dict:
+    """Gửi bản tổng hợp vào danh sách GV mà HS đang theo (xem ``submit``)."""
+    if client is None or session is None:
+        raise SubmissionNotConfiguredError(
+            "Kênh nộp Firebase chưa được cấu hình; chưa có dữ liệu nào được gửi."
+        )
+    validate_submission(submission, student_code_check=_uid_code)
+    return client.submit_roster(session, submission)

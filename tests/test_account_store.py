@@ -51,10 +51,10 @@ def test_payload_from_session_requires_full_identity():
 
 
 def test_marker_expires_after_max_age():
-    assert store.MAX_AGE_DAYS == 30
+    assert store.MAX_AGE_DAYS == 90
     now = time.time()
     assert store.is_fresh(_valid(saved_at=now), now=now)
-    assert store.is_fresh(_valid(saved_at=now - 29 * 24 * 3600), now=now)
-    assert not store.is_fresh(_valid(saved_at=now - 31 * 24 * 3600), now=now)
+    assert store.is_fresh(_valid(saved_at=now - 89 * 24 * 3600), now=now)
+    assert not store.is_fresh(_valid(saved_at=now - 91 * 24 * 3600), now=now)
     assert not store.is_fresh(_valid(saved_at=now + 600), now=now)   # mốc ở tương lai
     assert not store.is_fresh({"saved_at": None}, now=now)

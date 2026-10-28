@@ -171,3 +171,50 @@ def test_rules_self_service_registration_roster_and_denials(sandbox):
                                  create=True, timestamp=True, timestamp_field="joined_at")]
     with pytest.raises(fc.ClassroomConnectionError):
         client._commit(s2, writes)
+
+
+def test_rules_roster_submissions_flow_and_denials(sandbox):
+    client, _teacher = sandbox
+    t1 = client.register_teacher("giao-vien-nop", "mat-khau-gv-1", "Cô Nộp")
+    s1 = client.register_student("hs-nop-1", "mat-khau-hs-1", "Nguyễn An", "11", "11A1")
+    client.join_teacher(s1, t1.uid)
+    # HS nộp thẳng vào danh sách: mã lớp SELF, mã HS là uid của chính em.
+    assignment = cp.make_assignment(assignment_id="QA-02", title="QA nộp",
+                                    instructions="Giả lập", lesson_ids=["m1"])
+    profile = pp.empty_profile()
+    profile["lesson_scores"]["m1"] = 0.85
+    data = cs.build_roster_submission(profile, assignment, s1.uid)
+    receipt = client.submit_roster(s1, data)
+    assert receipt["teacher_uid"] == t1.uid
+    # GV đọc lại bài nộp của học sinh trong danh sách mình.
+    docs = client.roster_submissions(t1)
+    assert len(docs) == 1
+    hydrated = docs[0]
+    assert hydrated["summary"]["student_code"] == s1.uid
+    assert hydrated["summary"]["lesson_results"][0]["latest_score"] == 0.85
+    # Nộp lại cùng bài là ghi đè có kiểm soát (cùng assignment + cùng người gửi).
+    assert client.submit_roster(s1, data)["receipt_id"] == receipt["receipt_id"]
+    # HS chưa vào danh sách thì không nộp được.
+    s2 = client.register_student("hs-nop-2", "mat-khau-hs-2", "Trần Bình", "11", "11A1")
+    data2 = cs.build_roster_submission(pp.empty_profile(), assignment, s2.uid)
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.submit_roster(s2, data2)
+    # GV thứ hai không đọc được bài nộp trong danh sách của GV này.
+    t2 = client.register_teacher("giao-vien-nop-b", "mat-khau-gv-4", "Thầy Nộp B")
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.get(t2, f"rosters/{t1.uid}/submissions/{receipt['receipt_id']}")
+    # HS tự sửa student_code thành uid người khác bị rules chặn.
+    tampered = {**data, "student_code": s2.uid}
+    bad = [client._make_write(f"rosters/{t1.uid}/submissions/fake{secrets.token_hex(4)}",
+                              {"owner_uid": s1.uid, "summary": tampered,
+                               "lesson_count": 1}, timestamp=True)]
+    with pytest.raises(fc.ClassroomConnectionError):
+        client._commit(s1, bad)
+    # Rút khỏi danh sách rồi nộp: bị chặn ngay ở rules (không còn là thành viên).
+    client.leave_teacher(s1)
+    orphan = [client._make_write(f"rosters/{t1.uid}/submissions/orphan{secrets.token_hex(4)}",
+                                 {"owner_uid": s1.uid, "summary": {k: v for k, v in data.items()
+                                                                   if k != "lesson_results"},
+                                  "lesson_count": 1}, timestamp=True)]
+    with pytest.raises(fc.ClassroomConnectionError):
+        client._commit(s1, orphan)

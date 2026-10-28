@@ -62,6 +62,90 @@ def test_submit_rejects_edited_outbound_payload_before_network():
         cs.validate_submission(data)
 
 
+def test_roster_submission_uses_uid_and_self_marker():
+    """HS tự đăng ký: mã lớp cố định SELF, mã học sinh là uid (không cần chữ số)."""
+    profile = pp.empty_profile()
+    profile["lesson_scores"]["m1"] = 0.85
+    assignment = cp.make_assignment(assignment_id="QA-01", title="QA",
+                                    instructions="Giả lập", lesson_ids=["m1"])
+    data = cs.build_roster_submission(profile, assignment, "AbCdEfGhIj")
+    assert data["class_code"] == "SELF"
+    assert data["student_code"] == "AbCdEfGhIj"   # uid không có chữ số vẫn hợp lệ
+    cs.validate_submission(data, student_code_check=cs._uid_code)
+    # Kênh cũ vẫn từ chối uid này (thiếu chữ số): hai luồng không trộn nhau
+    with pytest.raises(cs.SubmissionValidationError):
+        cs.validate_submission(data)
+
+
+def test_submit_roster_requires_membership_and_teacher(monkeypatch):
+    client = fc.FirebaseClassroom({"project_id": fc.PROJECT_ID, "api_key": "fake"})
+    session = fc.ClassroomSession("uidS", "fake", "fake", time.time() + 3600)
+    assignment = cp.make_assignment(assignment_id="QA-01", title="QA",
+                                    instructions="Giả lập", lesson_ids=["m1"])
+    data = cs.build_roster_submission(pp.empty_profile(), assignment, "uidS")
+
+    # Chưa chọn GV: chặn trước khi gọi mạng
+    monkeypatch.setattr(client, "get", lambda _s, path: {"teacher_uid": None})
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.submit_roster(session, data)
+
+    # Đã chọn GV nhưng vừa bị xóa khỏi danh sách (404): chặn trước khi nộp
+    def _get_removed(_s, path):
+        if path.startswith("student_state"):
+            return {"teacher_uid": "uidT"}
+        raise fc.ClassroomNotFoundError()
+
+    monkeypatch.setattr(client, "get", _get_removed)
+    with pytest.raises(fc.ClassroomNotFoundError):
+        client.submit_roster(session, data)
+
+    # Còn thành viên: 1 commit gồm header + lessons, biên nhận đủ
+    commits = []
+
+    def _get_ok(_s, path):
+        if path.startswith("student_state"):
+            return {"teacher_uid": "uidT"}
+        return {"display_name": "An", "block": "11", "class_name": "11A1"}
+
+    monkeypatch.setattr(client, "get", _get_ok)
+    monkeypatch.setattr(client, "_commit",
+                        lambda _s, writes: commits.append(writes)
+                        or {"commitTime": "2026-10-28T01:00:00Z", "writeResults": [{}]})
+    receipt = client.submit_roster(session, data)
+    assert receipt["receipt_id"] and receipt["teacher_uid"] == "uidT"
+    header = commits[0][0]["update"]["fields"]
+    assert header["summary"]["mapValue"]["fields"]["class_code"]["stringValue"] == "SELF"
+    assert len(commits[0]) == 2  # header + 1 lesson
+
+
+def test_roster_submissions_hydrates_like_old_channel(monkeypatch):
+    client = fc.FirebaseClassroom({"project_id": fc.PROJECT_ID, "api_key": "fake"})
+    session = fc.ClassroomSession("uidT", "fake", "fake", time.time() + 3600)
+    base = "projects/p/databases/(default)/documents"
+    page = {"documents": [{
+        "name": f"{base}/rosters/uidT/submissions/doc1",
+        "fields": {"owner_uid": fc._value("uidS"),
+                   "summary": fc._value({"schema_version": 1, "class_code": "SELF",
+                                         "student_code": "uidS", "assignment_id": "QA-01",
+                                         "diagnostics": {"pre_test": {"score": None, "attempt_count": 0},
+                                                         "post_test": {"score": None, "attempt_count": 0}},
+                                         "journal_count": 0}),
+                   "lesson_count": fc._value(1),
+                   "received_at": fc._value("2026-10-28T01:00:00Z")},
+    }]}
+    lessons_page = {"documents": [{
+        "name": f"{base}/rosters/uidT/submissions/doc1/lessons/0",
+        "fields": {"index": fc._value(0),
+                   "lesson": fc._value({"lesson_id": "m1", "latest_score": 0.85,
+                                        "best_score": 0.85, "attempt_count": 1})},
+    }]}
+    pages = [page, lessons_page]
+
+    monkeypatch.setattr(fc, "_json_request", lambda *a, **k: pages.pop(0))
+    docs = client.roster_submissions(session)
+    assert docs[0]["summary"]["lesson_results"][0]["latest_score"] == 0.85
+
+
 def test_online_limit_matches_existing_package_limit():
     assert cs.MAX_ONLINE_LESSONS == cp.MAX_LESSONS
 

@@ -122,7 +122,7 @@ def test_bar_member_shows_who_is_signed_in_and_role_tools():
     assert not at.exception and not at.error
     assert any("Cô Hồng" in m.value for m in at.markdown)
     labels = [b.label for b in at.button]
-    assert "Trang giáo viên" in labels and "Đăng xuất" in labels
+    assert "Lớp học của tôi" in labels and "Đăng xuất" in labels
 
 
 def test_bar_and_account_page_do_not_share_widget_keys():
@@ -187,7 +187,7 @@ def test_bootstrap_drops_expired_marker(monkeypatch):
     monkeypatch.setattr(store, "read_remembered", lambda: {
         "version": 1, "username": "co-hong", "uid": "uid-t", "kind": "teacher",
         "display_name": "Cô Hồng", "refresh_token": "t" * 40,
-        "saved_at": time.time() - 40 * 24 * 3600})
+        "saved_at": time.time() - (store.MAX_AGE_DAYS + 10) * 24 * 3600})
     at = _run("import account_ui as a\na.bootstrap(config=" + ENABLED_LITERAL + ")")
     assert not at.exception and forgotten
     assert "self_session" not in at.session_state
@@ -255,6 +255,87 @@ def test_student_page_warns_when_wrong_role_is_signed_in():
     at.run()
     assert not at.exception
     assert any("không mở được" in w.value for w in at.warning)
+
+
+def test_student_page_submit_section_guides_without_assignment():
+    at = _run("import streamlit as st, account_ui as a\n"
+              "from firebase_classroom import ClassroomSession\n"
+              "st.session_state.update("
+              " self_session=ClassroomSession('uid-s','it','rt',9e9),"
+              " self_profile={'kind':'student','display_name':'An','block':'11',"
+              " 'class_name':'11A1','teacher_uid':'uid-t'}, self_username='hs-01')\n"
+              "a.render_account_page(config=" + ENABLED_LITERAL + ")\n")
+    at.query_params["account"] = "student"
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert any("Nộp bài cho giáo viên hướng dẫn" in h.value for h in at.subheader)
+    assert any("Chưa có bài giao" in i.value for i in at.info)
+
+
+def test_student_page_submit_flow(monkeypatch):
+    import classroom_packages as cp
+
+    receipts = []
+
+    def _fake_submit_roster(self, session, submission):
+        assert submission["class_code"] == "SELF"
+        assert submission["student_code"] == session.uid
+        receipts.append(submission)
+        return {"receipt_id": "a" * 64, "received_at": "2026-10-28T01:00:00Z",
+                "teacher_uid": "uid-t"}
+
+    monkeypatch.setattr(fc.FirebaseClassroom, "submit_roster", _fake_submit_roster)
+    script = ("import streamlit as st, account_ui as a\n"
+              "from firebase_classroom import ClassroomSession\n"
+              "import classroom_packages as cp\n"
+              "import progress_profile as pp\n"
+              "st.session_state.update("
+              " self_session=ClassroomSession('uid-s','it','rt',9e9),"
+              " self_profile={'kind':'student','display_name':'An','block':'11',"
+              " 'class_name':'11A1','teacher_uid':'uid-t'}, self_username='hs-01',"
+              " progress_profile=pp.empty_profile(),"
+              " classroom_assignment=cp.make_assignment(assignment_id='QA-01',"
+              " title='QA', instructions='Giả lập', lesson_ids=['m1']))\n"
+              "a.render_account_page(config=" + ENABLED_LITERAL + ")\n")
+    at = _run(script)
+    at.query_params["account"] = "student"
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert any("Bài giao: **QA**" in m.value for m in at.markdown)
+    submit_btn = _button(at, "Nộp bài lên Firebase")
+    assert submit_btn.disabled, "chưa tick đồng ý thì không nộp được"
+    at.checkbox[0].check().run()
+    _button(at, "Nộp bài lên Firebase").click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert len(receipts) == 1
+    assert any("Đã lưu bài" in s.value for s in at.success)
+
+
+def test_teacher_page_submissions_section(monkeypatch):
+    docs = [{"owner_uid": "uid-s",
+             "summary": {"class_code": "SELF", "student_code": "uid-s",
+                         "assignment_id": "QA-01",
+                         "lesson_results": [{"lesson_id": "m1", "latest_score": 85.0,
+                                             "best_score": 85.0, "attempt_count": 1}],
+                         "diagnostics": {"pre_test": {"score": None, "attempt_count": 0},
+                                         "post_test": {"score": None, "attempt_count": 0}},
+                         "journal_count": 0},
+             "lesson_count": 1, "received_at": "2026-10-28T01:00:00Z"}]
+    monkeypatch.setattr(fc.FirebaseClassroom, "roster",
+                        lambda self, s: [{"uid": "uid-s", "display_name": "An",
+                                          "block": "11", "class_name": "11A1"}])
+    monkeypatch.setattr(fc.FirebaseClassroom, "roster_submissions", lambda self, s: docs)
+    at = _run("import streamlit as st, account_ui as a\n"
+              "from firebase_classroom import ClassroomSession\n" + _member_state()
+              + "a.render_account_page(config=" + ENABLED_LITERAL + ")\n")
+    at.query_params["account"] = "teacher"
+    at.run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert any("Bài nộp của học sinh" in h.value for h in at.subheader)
+    _button(at, "Tải danh sách và bài nộp").click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    downloads = [d.label for d in at.get("download_button")]
+    assert "Xuất tổng hợp (CSV)" in downloads and "Xuất đầy đủ bài nộp (JSON)" in downloads
 
 
 # ---------------- nối vào app ----------------

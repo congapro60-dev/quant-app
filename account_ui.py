@@ -18,10 +18,16 @@ module này chỉ bọc lấy, không viết lại, để chỉ có một nguồ
 
 from __future__ import annotations
 
+import csv
+import hashlib
+import io
+import json
+
 import streamlit as st
 
 import account_store as store
 import classroom_packages as cp
+import classroom_submit as cs
 import classroom_self_ui as panels
 from firebase_classroom import ClassroomConnectionError, FirebaseClassroom
 
@@ -33,14 +39,15 @@ REMEMBER_KEY = "_account_remembered"
 PENDING_KEY = "_account_pending_marker"
 
 PAGES = {
-    "student": ("Trang học sinh", "Chọn, đổi hoặc rút giáo viên hướng dẫn của em."),
-    "teacher": ("Trang giáo viên", "Danh sách học sinh đã chọn thầy/cô, xếp theo lớp."),
+    "student": ("Lớp học của em", "Chọn, đổi hoặc rút giáo viên hướng dẫn; nộp bài cho giáo viên."),
+    "teacher": ("Lớp học của tôi", "Danh sách học sinh đã chọn thầy/cô và bài nộp của các em."),
     "login": ("Đăng nhập", "Đăng nhập tài khoản tự đăng ký."),
     "register": ("Đăng ký tài khoản", "Tự chọn tên đăng nhập và mật khẩu, không cần email."),
 }
 
 SESSION_KEYS = ("self_session", "self_profile", "self_teachers", "self_roster",
-                "self_status", "self_pick", "self_username", "self_login_open")
+                "self_status", "self_pick", "self_username", "self_login_open",
+                "self_receipt", "self_subs")
 
 
 def config_from_secrets() -> dict:
@@ -198,10 +205,10 @@ def _member_tools(profile: dict, scope: str = "bar") -> None:
     """
     kind = profile.get("kind")
     if kind == "teacher":
-        st.button("Trang giáo viên", key=f"account_{scope}_open_teacher", width="stretch",
+        st.button("Lớp học của tôi", key=f"account_{scope}_open_teacher", width="stretch",
                   type="primary", on_click=_goto("teacher"))
     elif kind == "student":
-        st.button("Trang học sinh", key=f"account_{scope}_open_student", width="stretch",
+        st.button("Lớp học của em", key=f"account_{scope}_open_student", width="stretch",
                   type="primary", on_click=_goto("student"))
     if st.session_state.get(REMEMBER_KEY):
         st.caption("🔓 Đang nhớ đăng nhập trên máy này. Chỉ bật khi dùng máy của em.")
@@ -276,8 +283,12 @@ def render_account_page(config=None) -> bool:
     try:
         if page == "student" and kind == "student":
             panels.student_panel(client, st.session_state.self_session, profile)
+            st.divider()
+            _student_submit_section(client, st.session_state.self_session)
         elif page == "teacher" and kind == "teacher":
             panels.teacher_panel(client, st.session_state.self_session)
+            st.divider()
+            _teacher_submissions_section(client, st.session_state.self_session)
         else:
             st.warning(f"Tài khoản đang đăng nhập là **{_role_label(profile)}**, "
                        f"không mở được {title.lower()}. Đăng xuất rồi đăng nhập đúng vai trò.")
@@ -286,3 +297,86 @@ def render_account_page(config=None) -> bool:
     st.divider()
     _member_tools(profile, "page")
     return True
+
+
+def _student_submit_section(client, session) -> None:
+    """HS nộp bài thẳng cho GV đã chọn, dùng gói giao bài đã nạp trong phiên."""
+    st.subheader("Nộp bài cho giáo viên hướng dẫn")
+    st.caption("Điểm do hồ sơ học trên máy cung cấp, chưa phải kết quả được giáo viên xác minh. "
+               "Chỉ gửi mã bài, điểm, số lần làm và số mục nhật ký; không gửi nội dung nhật ký.")
+    assignment = st.session_state.get("classroom_assignment")
+    if assignment is None:
+        st.info("Chưa có bài giao. Em nạp gói giao bài (.json) ở tab **Nhật ký và tiến độ → "
+                "Gói lớp học** (phần \"Học sinh: nạp gói và xuất kết quả\"), làm bài trong "
+                "Lộ trình học rồi quay lại đây để nộp.")
+        return
+    profile = st.session_state.get("progress_profile") or {}
+    try:
+        summary = cs.build_roster_submission(profile, assignment, session.uid)
+    except (cs.SubmissionValidationError, cp.ClassroomPackageError) as exc:
+        st.warning(str(exc))
+        return
+    st.write(f"Bài giao: **{assignment['title']}** · {len(summary['lesson_results'])} mô-đun")
+    with st.expander("Xem dữ liệu sẽ gửi"):
+        st.json(summary)
+    signature = hashlib.sha256(json.dumps(summary, sort_keys=True).encode()).hexdigest()
+    consent = st.checkbox("Em đồng ý gửi bản tổng hợp đang hiển thị cho giáo viên của mình.",
+                          key=f"self_submit_consent_{signature}")
+    if st.button("Nộp bài lên Firebase", disabled=not consent, type="primary",
+                 key="self_submit_button"):
+        st.session_state.pop("self_receipt", None)
+        with st.spinner("Đang gửi và chờ xác nhận lưu..."):
+            receipt = cs.submit_roster(summary, client=client, session=session)
+        st.session_state.self_receipt = {"signature": signature, "receipt": receipt}
+    saved = st.session_state.get("self_receipt", {})
+    receipt = saved.get("receipt")
+    if receipt and saved.get("signature") == signature:
+        st.success(f"Đã lưu bài · {receipt['received_at']}")
+        st.code(receipt["receipt_id"], language=None)
+        st.caption("Biên nhận xác nhận đã lưu dữ liệu, không xác nhận điểm đã được giáo viên chấm.")
+
+
+def _teacher_submissions_section(client, session) -> None:
+    """GV xem bài nộp của HS tự đăng ký trong danh sách của mình, kèm tên đã ghép."""
+    st.subheader("Bài nộp của học sinh")
+    st.caption("Chỉ gồm bài các em tự đăng ký nộp cho thầy/cô. Điểm do hồ sơ học trên máy "
+               "cung cấp, chưa phải kết quả được giáo viên xác minh.")
+    if st.button("Tải danh sách và bài nộp", key="self_subs_reload", type="primary"):
+        st.session_state.self_roster = client.roster(session)
+        st.session_state.self_subs = client.roster_submissions(session)
+    docs = st.session_state.get("self_subs")
+    if docs is None:
+        st.caption("Bấm tải để xem bài nộp.")
+        return
+    names = {r["uid"]: r.get("display_name", "") for r in (st.session_state.get("self_roster") or [])}
+    rows = []
+    for d in docs:
+        marks = " · ".join(
+            f"{r['lesson_id']}: {r['latest_score'] if r['latest_score'] is not None else '—'}"
+            for r in d["summary"].get("lesson_results", []))
+        rows.append({
+            "Học sinh": names.get(d["summary"]["student_code"], "(không còn trong danh sách)"),
+            "Bài giao": d["summary"]["assignment_id"],
+            "Số mô-đun": len(d["summary"].get("lesson_results", [])),
+            "Điểm các mô-đun": marks,
+            "Thời điểm nộp": d.get("received_at", ""),
+        })
+    if not rows:
+        st.info("Chưa có bài nộp nào.")
+        return
+    st.dataframe(rows, width="stretch")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+    st.download_button("Xuất tổng hợp (CSV)", output.getvalue().encode("utf-8-sig"),
+                       file_name="bai_nop_tu_dang_ky.csv", mime="text/csv",
+                       key="self_subs_csv")
+    st.download_button("Xuất đầy đủ bài nộp (JSON)",
+                       json.dumps(docs, ensure_ascii=False).encode(),
+                       file_name="bai_nop_tu_dang_ky.json", mime="application/json",
+                       key="self_subs_json")
+    chosen = st.selectbox("Đọc bài nộp", range(len(docs)),
+                          format_func=lambda i: f"{rows[i]['Học sinh']} · {rows[i]['Bài giao']}",
+                          key="self_subs_choice")
+    st.json(docs[chosen])

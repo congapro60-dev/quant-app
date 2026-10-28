@@ -281,6 +281,51 @@ class FirebaseClassroom:
             raise ClassroomConnectionError("Chọn học sinh cần xóa.")
         self._commit(session, [self._delete_write(f"rosters/{session.uid}/members/{student_uid}")])
 
+    def submit_roster(self, session, submission):
+        """HS tự đăng ký nộp bài thẳng vào danh sách GV đã chọn.
+
+        Khác ``submit`` (kênh mã-cấp-sẵn): không cần mã lớp/mã HS do GV cấp —
+        bài nộp gắn với thành viên danh sách, mã lớp chỉ là dấu ``SELF``, mã
+        học sinh là uid của chính em. Rules phía máy chủ kiểm lại toàn bộ:
+        phải còn là thành viên, ``student_code`` phải đúng uid người gửi.
+        """
+        cs.validate_submission(submission, student_code_check=cs._uid_code)
+        state = self.get(session, f"student_state/{session.uid}")
+        tuid = state.get("teacher_uid")
+        if not isinstance(tuid, str) or not tuid:
+            raise ClassroomConnectionError("Em chưa chọn giáo viên hướng dẫn.")
+        # Kiểm ràng buộc phía client: còn là thành viên (404 nếu vừa bị xóa).
+        self.get(session, f"rosters/{tuid}/members/{session.uid}")
+        doc_id = hashlib.sha256(f"{submission['assignment_id']}:{session.uid}".encode()).hexdigest()
+        path = f"rosters/{tuid}/submissions/{doc_id}"
+        lessons = submission['lesson_results']
+        header = {k: v for k, v in submission.items() if k != 'lesson_results'}
+        # Một commit nguyên tử: không có biên nhận nào xác nhận bài nửa vời.
+        writes = [self._make_write(path, {"owner_uid": session.uid, "summary": header,
+                                          "lesson_count": len(lessons)}, timestamp=True)]
+        writes.extend(self._make_write(f"{path}/lessons/{i}", {"index": i, "lesson": row})
+                      for i, row in enumerate(lessons))
+        result = self._commit(session, writes)
+        stamp = result.get("commitTime")
+        if not stamp or not result.get("writeResults"):
+            raise ClassroomConnectionError("Chưa nhận xác nhận lưu. Hãy giữ JSON và kiểm tra lại.")
+        return {"receipt_id": doc_id, "received_at": stamp, "teacher_uid": tuid}
+
+    def roster_submissions(self, session):
+        """GV đọc bài nộp của HS tự đăng ký trong danh sách của mình."""
+        docs, page_token = [], ""
+        for _ in range(20):
+            query = urlencode({"pageSize": 100, **({"pageToken": page_token} if page_token else {})})
+            page = _json_request(f"{self.base}/rosters/{session.uid}/submissions?{query}",
+                                 token=self._token(session))
+            for doc in page.get("documents", []):
+                path = doc['name'].split('/documents/', 1)[1]
+                docs.append(self._hydrate(session, path, document_data(doc)))
+            page_token = page.get("nextPageToken", "")
+            if not page_token:
+                return docs
+        raise ClassroomConnectionError("Danh sách có hơn 2.000 bài; hãy chia thành nhóm nhỏ.")
+
     def _token(self, session):
         if session.expires_at <= time.time():
             key = urlencode({"key": self.config["api_key"]})

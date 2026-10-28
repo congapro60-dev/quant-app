@@ -26,8 +26,8 @@ import streamlit.components.v1 as components
 ACCOUNT_KEY = "quantapp.account.v1"
 
 # Dấu cũ hơn ngần này thì buộc đăng nhập lại: máy dùng chung ở lớp không giữ
-# quyền truy cập tài khoản của người học trước mãi mãi.
-MAX_AGE_DAYS = 30
+# quyền truy cập tài khoản của người học trước mãi mãi. Người dùng chọn 90 ngày.
+MAX_AGE_DAYS = 90
 MAX_AGE_SECONDS = MAX_AGE_DAYS * 24 * 3600
 
 MAX_TOKEN_LEN = 4096
