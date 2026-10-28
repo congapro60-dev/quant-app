@@ -110,11 +110,15 @@ class ClassroomSession:
 
 
 class FirebaseClassroom:
-    def __init__(self, config):
+    def __init__(self, config, on_refresh=None):
         if config.get("project_id") != PROJECT_ID or not config.get("api_key"):
             raise cs.SubmissionNotConfiguredError("Chưa cấu hình project nộp bài.")
         self.config = dict(config)
         self.base = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents"
+        # Gọi sau mỗi lần làm mới phiên, để nơi nhớ đăng nhập ghi lại refresh
+        # token vừa được Firebase luân chuyển. Lỗi ở đây không được làm hỏng
+        # luồng đăng nhập.
+        self.on_refresh = on_refresh
 
     def _auth(self, action, data):
         key = urlencode({"key": self.config["api_key"]})
@@ -139,6 +143,21 @@ class FirebaseClassroom:
         })
         return ClassroomSession(result["localId"], result["idToken"], result["refreshToken"],
                                 time.time() + int(result["expiresIn"]) - 60)
+
+    def session_from_refresh(self, refresh_token):
+        """Đổi refresh token lấy phiên mới — dùng cho "nhớ đăng nhập trên máy này".
+
+        Refresh token là bằng chứng đăng nhập dài hạn của Firebase; hết hiệu
+        lực hoặc bị thu hồi thì Firebase trả 400 và người học phải đăng nhập lại.
+        """
+        if not isinstance(refresh_token, str) or len(refresh_token) < 10:
+            raise ClassroomConnectionError("Dấu đăng nhập trên máy này không hợp lệ.")
+        key = urlencode({"key": self.config["api_key"]})
+        result = _json_request(f"https://securetoken.googleapis.com/v1/token?{key}", {
+            "grant_type": "refresh_token", "refresh_token": refresh_token,
+        })
+        return ClassroomSession(result["user_id"], result["id_token"], result["refresh_token"],
+                                time.time() + int(result["expires_in"]) - 60)
 
     def _register(self, username, password, doc_path, doc_data, timestamp_field):
         """Tạo tài khoản Auth rồi viết hồ sơ; hủy tài khoản mồ côi nếu viết hỏng."""
@@ -271,6 +290,11 @@ class FirebaseClassroom:
             session.id_token = result["id_token"]
             session.refresh_token = result["refresh_token"]
             session.expires_at = time.time() + int(result["expires_in"]) - 60
+            if self.on_refresh is not None:
+                try:
+                    self.on_refresh(session)
+                except Exception:
+                    pass
         return session.id_token
 
     def get(self, session, path):

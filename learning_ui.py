@@ -886,14 +886,12 @@ def _render_journal(profile: dict[str, Any]) -> None:
 
 
 def _render_classroom_packages(profile: dict[str, Any]) -> None:
-    """Tự đăng ký tài khoản (tùy chọn) + bàn giao bài bằng tệp, không máy chủ.
+    """Bàn giao bài bằng tệp (không máy chủ) + kênh nộp bài mã cấp sẵn.
 
-    Luồng chính vẫn là gói JSON cục bộ. Ở trên có mục tài khoản tự đăng ký
-    (HS/GV tự tạo tài khoản, chọn GV hướng dẫn) khi kênh Firebase được bật.
+    Tài khoản tự đăng ký đã chuyển ra nút tài khoản ở góc phải trên của
+    ``app.py`` (xem ``account_ui``); tab này không còn entry đăng nhập thứ hai.
     """
 
-    from classroom_self_ui import render_self_service
-    render_self_service()
     from classroom_ui import render_online_classroom
     render_online_classroom(profile, st.session_state.get("classroom_assignment"))
     st.subheader("Giao bài và nộp kết quả bằng tệp")

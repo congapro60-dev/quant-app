@@ -2,6 +2,47 @@
 
 **Cập nhật**: 2026-10-27 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
+## 0z15. 28/10/2026 — Nút tài khoản góc phải trên + trang HS/GV riêng + nhớ đăng nhập
+
+- Vấn đề: khối "Tài khoản tự đăng ký" nằm lẫn trong tab **Nhật ký và tiến độ →
+  Gói lớp học** nên bị ẩn, không thấy ai đang đăng nhập.
+- Nút tài khoản: `account_ui.render_account_bar()` — `st.container(key="qa_account_bar")`
+  ghim `position: fixed; top: 3.4rem; right: 1rem; z-index: 999980` (dưới thanh
+  công cụ Streamlit, dưới lớp hộp thoại để tour/dialog vẫn che đúng thứ tự; màn
+  ≤900px trả về dòng thường). Nhãn hiện người đang đăng nhập: `👤 Khách` /
+  `👤 Cô Hồng · GV` / `👤 Nguyễn An · HS`. Bấm ra popover theo vai trò: khách →
+  form đăng nhập + đăng ký; học sinh → **Trang học sinh**; giáo viên →
+  **Trang giáo viên**; luôn có **Đăng xuất**.
+- Trang riêng: `account_ui.render_account_page()` gọi trong `app.py` trước hero;
+  có yêu cầu trang thì vẽ trang tài khoản rồi `st.stop()` (không dựng tab).
+  Điều hướng bằng `st.query_params["account"]` = `student|teacher|login|register`
+  + `st.session_state["_account_page"]`; có nút "← Quay lại ứng dụng".
+- Nhớ đăng nhập (kiểu Gmail, có kiểm soát): `account_store.py` +
+  `components/qa_account_store/index.html` — cầu nối localStorage key
+  `quantapp.account.v1` (cùng khuôn `qa_progress_store`, không thêm gói pip).
+  Lưu `username, uid, kind, display_name, refresh_token, saved_at`; đọc lại thì
+  `session_from_refresh` đổi refresh token lấy phiên mới. Hạn 30 ngày
+  (`MAX_AGE_DAYS`), `sanitize` từ chối mọi dấu sai khoá/kiểu/độ dài. Refresh
+  token được Firebase luân chuyển nên `FirebaseClassroom(on_refresh=...)` ghi
+  lại sau mỗi lần làm mới. Nút **Đăng xuất** xoá dấu; **Quên tài khoản trên máy
+  này** chỉ xoá dấu, giữ phiên. Lỗi mạng khi khôi phục thì **giữ** dấu để thử lại.
+- Bỏ `render_self_service()` khỏi `learning_ui._render_classroom_packages` (một
+  cửa duy nhất); các hàm panel tách công khai
+  (`classroom_self_ui.entry/student_panel/teacher_panel`) để `account_ui` bọc lại,
+  không viết lại giao diện. Móc `on_login(session, profile, username)` để lưu dấu.
+- Bài học khi test: nút tài khoản và trang tài khoản **cùng hiện một màn hình**,
+  nên mọi khoá widget phải tách phạm vi (`account_bar_*` vs `account_page_*`) —
+  trùng khoá là `StreamlitDuplicateElementKey` và trắng trang. Khách đang mở trang
+  tài khoản thì nút chỉ hiện lối đi, không vẽ lại form (tránh trùng khoá).
+- Test: `tests/test_account_store.py` (7 test dấu/hạn dùng) +
+  `tests/test_account_ui.py` (16 test: nút khoá theo vai trò, đăng xuất, ghi dấu
+  khi đăng nhập, khôi phục/hết hạn/lỗi mạng, 4 trang riêng, chống trùng khoá,
+  app.py boot, và chốt "tab Gói lớp học không còn mount khối cũ").
+  Full pytest **954 passed, 2 skipped**.
+- Chưa verify browser production trong bản này (cần Reboot, xin phép riêng):
+  việc cần nhìn tận mắt là vị trí nút ở góc phải trên và luồng nhớ đăng nhập
+  (đăng nhập → F5/mở tab mới → vẫn còn tên tài khoản).
+
 ## 0z14. 27/10/2026 — HS/GV tự đăng ký tài khoản + chọn GV hướng dẫn
 
 - Feature mới cạnh kênh "mã cấp sẵn" (giữ nguyên 100%): HS tự đăng ký

@@ -51,6 +51,7 @@ from learning_ui import (
     render_provider_directory,
     render_readiness_gate,
 )
+import account_ui
 try:
     from streamlit_autorefresh import st_autorefresh
 except Exception:
@@ -117,8 +118,30 @@ st.markdown("""
         .qa-hero { animation: qa-reveal .35s ease-out; }
         @keyframes qa-reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
     }
+    /* Nút tài khoản: ghim góc phải trên, đặt ngay dưới thanh công cụ của
+       Streamlit để không đè lên nút Fork/GitHub/menu. z-index cố ý nằm DƯỚI
+       lớp hộp thoại (tour, st.dialog) để hộp thoại vẫn che trên đúng thứ tự.
+       Màn hẹp thì trả về dòng thường cho khỏi che nội dung. */
+    .st-key-qa_account_bar {
+        position: fixed; top: 3.4rem; right: 1rem; z-index: 999980;
+        width: fit-content; max-width: calc(100vw - 2rem);
+    }
+    .st-key-qa_account_bar [data-testid="stPopover"] button {
+        background: rgba(17, 24, 39, .92); border: 1px solid var(--qa-border);
+        box-shadow: 0 6px 18px rgba(0,0,0,.35); min-width: 10rem;
+    }
+    [data-testid="stPopoverBody"] { min-width: 17rem; }
+    @media (max-width: 640px) { .st-key-qa_account_bar { position: static; } }
 </style>
 """, unsafe_allow_html=True)
+
+# Nút tài khoản toàn cục: khôi phục phiên nhớ máy (nếu có), vẽ nút ở góc phải
+# trên, rồi nếu đang yêu cầu một trang tài khoản thì chỉ vẽ trang đó và dừng —
+# không dựng các khu vực bên dưới.
+account_ui.bootstrap()
+account_ui.render_account_bar()
+if account_ui.render_account_page():
+    st.stop()
 
 st.markdown("""
 <div class="qa-hero">

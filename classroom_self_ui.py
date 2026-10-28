@@ -55,7 +55,7 @@ def render_self_service(config=None):
         st.warning(str(exc))
 
 
-def _entry(client):
+def _entry(client, on_login=None):
     login_tab, register_tab = st.tabs(["Đăng nhập", "Đăng ký tài khoản mới"])
     with login_tab:
         with st.form("self_login_form"):
@@ -65,20 +65,22 @@ def _entry(client):
         if login:
             try:
                 session = client.login_self(username, password)
-                st.session_state.update(self_session=session,
-                                        self_profile=client.self_profile(session))
+                profile = client.self_profile(session)
+                st.session_state.update(self_session=session, self_profile=profile)
+                if on_login is not None:
+                    on_login(session, profile, username)
                 st.rerun()
             except (ClassroomConnectionError, cp.ClassroomPackageError):
                 st.warning("Chưa đăng nhập được. Kiểm tra tên đăng nhập và mật khẩu.")
     with register_tab:
         student_tab, teacher_tab = st.tabs(["Em là học sinh", "Em là giáo viên"])
         with student_tab:
-            _register_student(client)
+            _register_student(client, on_login)
         with teacher_tab:
-            _register_teacher(client)
+            _register_teacher(client, on_login)
 
 
-def _register_student(client):
+def _register_student(client, on_login=None):
     st.caption("Sau khi đăng ký, em chọn giáo viên hướng dẫn; tên hiển thị và lớp của em sẽ hiện "
                "trong danh sách của giáo viên đó.")
     st.info("🔒 **Quyền riêng tư:** Em có thể dùng biệt danh hoặc tên viết tắt nếu không muốn để lộ họ tên thật. "
@@ -94,14 +96,16 @@ def _register_student(client):
     if submit:
         try:
             session = client.register_student(username, password, display, block, class_name)
-            st.session_state.update(self_session=session,
-                                    self_profile=client.self_profile(session))
+            profile = client.self_profile(session)
+            st.session_state.update(self_session=session, self_profile=profile)
+            if on_login is not None:
+                on_login(session, profile, username)
             st.rerun()
         except (ClassroomConnectionError, cp.ClassroomPackageError) as exc:
             st.warning(str(exc))
 
 
-def _register_teacher(client):
+def _register_teacher(client, on_login=None):
     st.caption("Sau khi đăng ký, tên của thầy/cô sẽ hiện ngay trong danh sách giáo viên "
                "cho học sinh chọn.")
     with st.form("self_register_teacher"):
@@ -114,8 +118,10 @@ def _register_teacher(client):
     if submit:
         try:
             session = client.register_teacher(username, password, display)
-            st.session_state.update(self_session=session,
-                                    self_profile=client.self_profile(session))
+            profile = client.self_profile(session)
+            st.session_state.update(self_session=session, self_profile=profile)
+            if on_login is not None:
+                on_login(session, profile, username)
             st.rerun()
         except (ClassroomConnectionError, cp.ClassroomPackageError) as exc:
             st.warning(str(exc))
@@ -219,3 +225,11 @@ def _teacher_panel(client, session):
             st.success("Đã xóa khỏi danh sách. Học sinh sẽ thấy cảnh báo và có thể chọn lại.")
         except (ClassroomConnectionError, cp.ClassroomPackageError) as exc:
             st.warning(str(exc))
+
+
+# Tên công khai cho nút tài khoản toàn cục (``account_ui``) dùng lại: một nguồn
+# duy nhất cho giao diện đăng nhập/đăng ký và hai bảng quản lý. Tab "Gói lớp học"
+# không còn mount khối này nữa; ``render_self_service`` giữ lại cho test cũ.
+entry = _entry
+student_panel = _student_panel
+teacher_panel = _teacher_panel

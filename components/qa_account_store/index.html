@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Nhớ đăng nhập</title>
+  <script>
+    /*
+      Cầu nối localStorage cho phiên tài khoản (kiểu "duy trì đăng nhập"):
+        - mode "restore": đọc key và gửi lại cho Python qua setComponentValue.
+        - mode "save":    ghi đè key khi nội dung thực sự thay đổi.
+        - mode "clear":   xoá key (đăng xuất / quên máy này).
+      Chạy ẩn (height 0). Giao thức postMessage chuẩn của Streamlit Components,
+      mọi message đi lên phải mang cờ isStreamlitMessage.
+    */
+    (function () {
+      "use strict";
+      var KEY = "quantapp.account.v1";
+
+      function sendToHost(type, args) {
+        var msg = Object.assign({ isStreamlitMessage: true, type: type }, args || {});
+        window.parent.postMessage(msg, "*");
+      }
+
+      var lastPosted = null;
+
+      function post(value) {
+        var text = JSON.stringify(value === undefined ? null : value);
+        if (text !== lastPosted) {
+          lastPosted = text;
+          sendToHost("streamlit:setComponentValue", { value: value, dataType: "json" });
+        }
+      }
+
+      function onRender(event) {
+        var data = event && event.data;
+        if (!data || data.type !== "streamlit:render") return;
+        var args = data.args || {};
+        if (args.mode === "restore") {
+          var parsed = null;
+          try {
+            var raw = localStorage.getItem(KEY);
+            if (raw) parsed = JSON.parse(raw);
+          } catch (err) {
+            parsed = null;
+          }
+          post(parsed);
+        } else if (args.mode === "save") {
+          try {
+            var payload = args.payload;
+            if (payload && typeof payload === "object") {
+              var text2 = JSON.stringify(payload);
+              if (localStorage.getItem(KEY) !== text2) localStorage.setItem(KEY, text2);
+            }
+          } catch (err) {
+            /* Trình duyệt chặn hoặc hết chỗ: bỏ qua, người dùng đăng nhập lại. */
+          }
+          post(null);
+        } else if (args.mode === "clear") {
+          try {
+            localStorage.removeItem(KEY);
+          } catch (err) {
+            /* bỏ qua */
+          }
+          post(null);
+        }
+        sendToHost("streamlit:setFrameHeight", { height: 0 });
+      }
+
+      window.addEventListener("message", onRender);
+      sendToHost("streamlit:componentReady", { apiVersion: 1 });
+    })();
+  </script>
+  <style>
+    html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
+  </style>
+</head>
+<body></body>
+</html>
