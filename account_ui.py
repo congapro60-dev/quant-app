@@ -30,6 +30,7 @@ PAGE_PARAM = "account"
 PAGE_KEY = "_account_page"
 RESTORE_KEY = "_account_restore_done"
 REMEMBER_KEY = "_account_remembered"
+PENDING_KEY = "_account_pending_marker"
 
 PAGES = {
     "student": ("Trang học sinh", "Chọn, đổi hoặc rút giáo viên hướng dẫn của em."),
@@ -54,12 +55,28 @@ def _resolved(config) -> dict:
 
 
 def _remember(session, profile, username: str) -> None:
-    """Ghi dấu nhớ đăng nhập; hỏng thì bỏ qua, không chặn đăng nhập."""
+    """Xếp dấu nhớ đăng nhập vào hàng đợi.
+
+    Không ghi ngay: component localStorage chỉ tới được trình duyệt khi lượt
+    chạy kết thúc, mà ngay sau khi đăng nhập lại có ``st.rerun()``. Vì vậy chỉ
+    ghi dấu ở lượt kế tiếp (xem ``flush_marker``).
+    """
 
     payload = store.payload_from_session(session, profile, username)
-    if payload and store.remember(payload):
+    if payload is None:
+        return
+    st.session_state[PENDING_KEY] = payload
+    st.session_state["self_username"] = payload["username"]
+
+
+def flush_marker() -> None:
+    """Ghi dấu đang chờ xuống trình duyệt, đúng một lần mỗi lượt."""
+
+    payload = st.session_state.pop(PENDING_KEY, None)
+    if not isinstance(payload, dict):
+        return
+    if store.remember(payload):
         st.session_state[REMEMBER_KEY] = True
-        st.session_state["self_username"] = payload["username"]
 
 
 def client_for(config: dict, username: str | None = None) -> FirebaseClassroom:
@@ -199,6 +216,7 @@ def render_account_bar(config=None) -> None:
     cfg = _resolved(config)
     profile = st.session_state.get("self_profile") or {}
     logged_in = st.session_state.get("self_session") is not None and bool(profile.get("kind"))
+    flush_marker()
     with st.container(key=BAR_KEY):
         with st.popover(_label(profile, logged_in)):
             if cfg.get("enabled") is not True:

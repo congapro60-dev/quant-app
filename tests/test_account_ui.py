@@ -65,7 +65,7 @@ def test_bar_guest_buttons_open_the_dedicated_pages():
     assert at.session_state["_account_page"] == "login"
 
 
-def test_login_page_has_the_forms_and_remembers_after_success(monkeypatch):
+def test_login_page_has_the_forms_and_queues_the_marker(monkeypatch):
     saved = []
     monkeypatch.setattr(store, "remember", lambda payload: saved.append(payload) or True)
     monkeypatch.setattr(fc.FirebaseClassroom, "login_self",
@@ -85,9 +85,36 @@ def test_login_page_has_the_forms_and_remembers_after_success(monkeypatch):
     at.text_input[1].set_value("mat-khau-8")
     _button(at, "Đăng nhập").click().run()
     assert not at.exception, [str(e) for e in at.exception]
-    assert [(p["username"], p["kind"]) for p in saved] == [("hoc-sinh-01", "student")]
     assert at.session_state["self_session"].uid == "uid-me"
+    # Dấu được xếp hàng ở lượt đăng nhập (chưa kịp ghi: có st.rerun ngay sau đó).
+    pending = at.session_state["_account_pending_marker"]
+    assert (pending["username"], pending["kind"]) == ("hoc-sinh-01", "student")
+
+
+def test_marker_is_written_on_the_next_run_after_login(monkeypatch):
+    """Component localStorage chỉ tới được trình duyệt khi lượt chạy kết thúc.
+
+    Đăng nhập xong là ``st.rerun()`` ngay, nên dấu phải được ghi ở lượt kế tiếp
+    — nếu ghi ngay trong lượt đăng nhập thì trình duyệt không bao giờ nhận.
+    """
+
+    saved = []
+    monkeypatch.setattr(store, "remember", lambda payload: saved.append(payload) or True)
+    at = _run("import streamlit as st, account_ui as a\n"
+              "from firebase_classroom import ClassroomSession\n"
+              "if 'seeded' not in st.session_state:\n"
+              "    st.session_state.seeded = True\n"
+              "    st.session_state.update(self_session=ClassroomSession('uid-me','it','t'*40,9e9),"
+              " self_profile={'kind':'student','display_name':'An','block':'11',"
+              "'class_name':'11A1','teacher_uid':None}, self_username='hoc-sinh-01',"
+              " _account_pending_marker={'version':1,'username':'hoc-sinh-01','uid':'uid-me',"
+              "'kind':'student','display_name':'An','refresh_token':'t'*40,'saved_at':" 
+              + str(time.time()) + "})\n"
+              "a.render_account_bar(config=" + ENABLED_LITERAL + ")\n")
+    assert not at.exception, [str(e) for e in at.exception]
+    assert [p["username"] for p in saved] == ["hoc-sinh-01"]
     assert at.session_state["_account_remembered"] is True
+    assert "_account_pending_marker" not in at.session_state
 
 
 def test_bar_member_shows_who_is_signed_in_and_role_tools():
