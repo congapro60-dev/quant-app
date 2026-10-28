@@ -34,11 +34,23 @@
   nên mọi khoá widget phải tách phạm vi (`account_bar_*` vs `account_page_*`) —
   trùng khoá là `StreamlitDuplicateElementKey` và trắng trang. Khách đang mở trang
   tài khoản thì nút chỉ hiện lối đi, không vẽ lại form (tránh trùng khoá).
+- Ghim hai lớp (đã kiểm trên production): CSS `.st-key-qa_account_bar` trong
+  `app.py` **và** `sticky_bar.py` + `components/qa_sticky_bar/index.html` —
+  component ẩn tìm phần tử bằng khớp **một phần** class (`[class*="st-key-..."]`),
+  đặt style **trực tiếp** (`!important`) nên thắng stylesheet và không phụ thuộc
+  thứ tự CSS, đo chiều cao thanh công cụ thật (`stAppToolbar`/`stHeader`/`header`)
+  để không đè nút Fork/GitHub, và `MutationObserver` ghim lại sau mỗi lần
+  Streamlit rerun. Nhờ vậy đổi tiền tố class / đổi chiều cao header / khối cha có
+  `transform` đều không làm nút rơi khỏi góc. CSS vẫn là lớp dự phòng nếu
+  component không mount được.
 - Test: `tests/test_account_store.py` (7 test dấu/hạn dùng) +
   `tests/test_account_ui.py` (17 test: nút khoá theo vai trò, đăng xuất, xếp hàng
   dấu khi đăng nhập rồi ghi ở lượt kế tiếp, khôi phục/hết hạn/lỗi mạng, 4 trang
   riêng, chống trùng khoá, app.py boot, và chốt "tab Gói lớp học không còn mount
-  khối cũ"). Full pytest **956 passed, 2 skipped**.
+  khối cũ"). `tests/test_sticky_bar.py` (7 test: component tồn tại, payload,
+  không ném lỗi khi component chết, khoá hợp đồng khớp-một-phần-class + style
+  trực tiếp + MutationObserver, thứ tự gọi trong app.py). Full pytest
+  **963 passed, 2 skipped**.
 - Bẫy đã dính và đã sửa: ghi dấu **ngay trong lượt đăng nhập** thì component
   localStorage không bao giờ tới trình duyệt, vì ngay sau đó là `st.rerun()`.
   Cách đúng: `_remember()` chỉ xếp vào `_account_pending_marker`, `flush_marker()`
