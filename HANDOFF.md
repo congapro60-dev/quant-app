@@ -1,6 +1,46 @@
 # HANDOFF — Quant App
 
-**Cập nhật**: 2026-10-27 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+**Cập nhật**: 2026-10-29 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+
+## 0z16. 29/10/2026 — GV xem điểm HS tự đăng ký + đổi tên trang + nhớ 90 ngày
+
+- Người dùng chọn làm mục 2/3/4, bỏ mục 1 (chặn GV giả danh — chấp nhận rủi ro
+  như đã duyệt; giảm nhẹ hiện có: mã UID rút gọn trong dropdown).
+- **GV xem điểm** (chỉ thêm đường mới, kênh mã-cấp-sẵn không đụng):
+  `cs.build_roster_submission` (mã lớp cố định `SELF`, mã HS = uid —
+  `validate_submission` nhận `student_code_check` để bỏ quy định "phải có chữ số"
+  của kênh cũ), `cs.submit_roster`, `fc.submit_roster` (kiểm còn là thành viên →
+  1 commit header + lessons, idempotent: nộp lại cùng bài ghi đè có kiểm soát),
+  `fc.roster_submissions` (hydrate như kênh cũ). Rules mới
+  `rosters/{tuid}/submissions/{receipt}` (+`lessons`): nộp chỉ khi **còn là
+  thành viên** (`exists(rosters/tuid/members/auth.uid)`), `student_code == auth.uid`,
+  `class_code == 'SELF'`; GV đọc/list riêng mình; rút khỏi danh sách hoặc bị xóa
+  thì không nộp thêm được. Rules đã deploy lên production.
+- UI: trang HS thêm mục **"Nộp bài cho giáo viên hướng dẫn"** (dùng gói đã nạp
+  trong phiên ở Gói lớp học; consent + biên nhận như kênh cũ; chưa có gói thì
+  hướng dẫn nạp). Trang GV thêm mục **"Bài nộp của học sinh"** (bảng ghép tên từ
+  roster + điểm từng mô-đun + CSV/JSON + xem JSON từng bài).
+- Đổi tên trang: "Trang học sinh" → **"Lớp học của em"**; "Trang giáo viên" →
+  **"Lớp học của tôi"** (kể cả nhãn nút trong popover).
+- Nhớ đăng nhập 30 → **90 ngày** (`account_store.MAX_AGE_DAYS`).
+- Test: 969 passed, 3 skipped. Mới: build/validate roster submission (uid không
+  cần chữ số; kênh cũ vẫn từ chối uid đó — hai luồng không trộn), binding
+  submit_roster (chưa chọn GV / bị xóa / OK), hydrate bài nộp, AppTest luồng nộp
+  của HS và bảng bài nộp của GV, emulator flow + phủ định (skip khi không có
+  emulator).
+- Verify production (smoke Firebase thật, 7 bước **100%**): đăng ký → chọn GV →
+  nộp bài có điểm 0.9 → nộp lại idempotent → GV đọc đúng điểm của đúng HS →
+  GV khác đọc bị chặn 403 → giả `student_code` bị chặn → rút khỏi danh sách thì
+  nộp tiếp bị chặn. Rules thật đã kiểm trọn.
+- Verify browser UI: trang HS render đúng mục nộp bài với bài giao trong phiên
+  (đã quan sát trực tiếp); luồng click nộp chưa chạy trọn trên browser vì môi
+  trường browser bất ổn — phiên Streamlit tự reset giữa chừng làm mất gói đã
+  nạp (session_state), tài khoản/phiên tự khôi phục từ localStorage đúng thiết
+  kế. Lưu ý vận hành: HS bị reset phiên thì **nạp lại gói** là nộp tiếp được;
+  nếu muốn chịu reset tốt hơn, phiên sau có thể lưu gói đã nạp vào localStorage.
+- Dọn production: xoá 14 doc thử (directory/state/member/submission) + 2 tài
+  khoản Auth thử bằng REST với token IAM (vượt rules). **Giữ nguyên dữ liệu
+  thật**: GV "Thầy Vũ Việt Cường" (đã tự đăng ký thử) và HS "Vũ Cẩm Vân".
 
 ## 0z15. 28/10/2026 — Nút tài khoản góc phải trên + trang HS/GV riêng + nhớ đăng nhập
 
