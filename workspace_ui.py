@@ -205,32 +205,50 @@ def _mark_tour_seen() -> None:
 PROGRESS_TAB_LABEL = "Tiến độ và tiêu chí đánh giá (rubric)"
 
 
+PENDING_NAV_KEY = "_pending_nav"
+
+
+def request_navigation(area: str, feature: str | None = None) -> None:
+    """Hẹn chuyển khu ở lần chạy kế tiếp, khi thanh tab chưa được dựng.
+
+    Dùng cho nút nằm trong ``st.dialog``: dialog chạy như fragment nên lúc nút
+    được bấm, thanh tab của lần chạy trước đã dựng xong; ghi thẳng khóa tab lúc
+    đó không có tác dụng. ``apply_pending_navigation`` trong ``app.py`` sẽ áp
+    điểm đến trước khi dựng tab.
+    """
+
+    st.session_state[PENDING_NAV_KEY] = (area, feature)
+
+
+def apply_pending_navigation() -> None:
+    """Gọi ở đầu ``app.py``, trước mọi ``workspace_tabs``."""
+
+    pending = st.session_state.pop(PENDING_NAV_KEY, None)
+    if pending:
+        navigate_to(*pending)
+
+
 def _finish_tour() -> None:
-    """Kết thúc tour: đánh dấu đã xem, mở đúng tab bài chẩn đoán, rerun toàn app.
+    """Kết thúc tour: đánh dấu đã xem, hẹn mở tab bài chẩn đoán, rerun toàn app.
 
-    Hai lỗi từng làm nút này "kẹt":
-    1. Cờ ``seen_tour`` sửa tại chỗ nên không lưu → dialog mở lại. Đã sửa trong
-       ``_mark_tour_seen``.
-    2. ``navigate_to`` chỉ tự chọn tab con cho khu Lộ trình học. Khu Nhật ký thì
-       không, nên người dùng rơi vào tab mặc định và không thấy form chẩn đoán.
-       Vì vậy phải truyền feature chỉ đúng tab.
-
-    st.dialog chạy như fragment: bấm nút trong dialog chỉ rerun riêng dialog,
-    thanh tab phía sau không được dựng lại. Thiếu st.rerun() thì cờ và
-    NAV_KEY đổi đúng mà màn hình vẫn đứng ở Tổng quan.
+    PHẢI gọi trong thân dialog (nhánh ``if st.button(...)``), KHÔNG dùng làm
+    ``on_click``. Streamlit bỏ qua ``st.rerun()`` trong callback ("Calling
+    st.rerun() within a callback is a no-op"), nên khi còn là callback, nút
+    chỉ làm rerun riêng dialog: dialog đứng nguyên ở bước 4/4 và tab phía sau
+    không đổi. Lỗi này đã được tái lập trên trình duyệt thật ngày 01/11/2026.
     """
 
     _mark_tour_seen()
     # Chỉ thẳng vào tab có form chẩn đoán, không thả vào tab mặc định.
-    navigate_to(lmode.AREA_JOURNAL, PROGRESS_TAB_LABEL)
+    request_navigation(lmode.AREA_JOURNAL, PROGRESS_TAB_LABEL)
     st.rerun()
 
 
 def _defer_tour() -> None:
     """"Để sau": ghi cờ rồi rerun toàn app để dialog đóng hẳn.
 
-    Cùng lý do như _finish_tour: không rerun thì dialog vẫn nằm trên màn hình
-    dù cờ đã bật, người dùng tưởng ứng dụng bị treo.
+    Cùng ràng buộc như ``_finish_tour``: gọi trong thân dialog, không làm
+    ``on_click``, nếu không ``st.rerun()`` bị bỏ qua.
     """
 
     _mark_tour_seen()
@@ -247,7 +265,8 @@ def _tour_dialog() -> None:
 
     left, right = st.columns([0.4, 0.6])
     with left:
-        st.button("Để sau", key="tour_defer", on_click=_defer_tour)
+        if st.button("Để sau", key="tour_defer"):
+            _defer_tour()
     with right:
         nav = st.columns(2)
         if st.session_state.get(TOUR_STEP_KEY, 0) > 0:
@@ -257,8 +276,9 @@ def _tour_dialog() -> None:
                               {TOUR_STEP_KEY: step - 1}))
         with nav[1]:
             if step == len(_TOUR_STEPS) - 1:
-                st.button("Đi làm bài Đầu vào", key="tour_finish", type="primary",
-                          on_click=_finish_tour)
+                if st.button("Đi làm bài Đầu vào", key="tour_finish",
+                             type="primary"):
+                    _finish_tour()
             else:
                 st.button("Tiếp →", key="tour_next", type="primary",
                           on_click=lambda: st.session_state.update(

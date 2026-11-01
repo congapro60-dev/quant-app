@@ -153,6 +153,9 @@ def test_first_tour_opens_then_defer_marks_seen_for_good():
 
     at.button(key="tour_defer").click().run()
     assert at.session_state["progress_profile"]["seen_tour"] is True
+    # Nút giờ chạy trong thân dialog nên lượt bấm vẫn vẽ dialog; lần chạy kế
+    # tiếp (rerun thật trên trình duyệt) mới không còn tour.
+    at.run()
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
 
 
@@ -178,6 +181,10 @@ def test_first_tour_finish_marks_seen_and_navigates(monkeypatch):
 
     assert reruns == [1], "Nút cuối tour phải gọi st.rerun để dựng lại thanh tab."
     assert at.session_state["progress_profile"]["seen_tour"] is True
+    # rerun bị thay bằng hàm giả nên điểm đến mới chỉ được hẹn; lần chạy kế
+    # tiếp (chính là lần rerun thật) mới áp vào thanh tab.
+    assert at.session_state[wu.PENDING_NAV_KEY] == (lm.AREA_JOURNAL, wu.PROGRESS_TAB_LABEL)
+    at.run()
     assert at.session_state[NAV_KEY] == lm.AREA_LABELS[lm.AREA_JOURNAL]
     # Phải chỉ đúng tab có form chẩn đoán, không thả vào tab mặc định.
     assert at.session_state[f"tools_{lm.AREA_JOURNAL}"] == wu.PROGRESS_TAB_LABEL
@@ -206,6 +213,45 @@ def test_tour_finish_lands_on_the_tab_that_has_the_diagnostic_form():
     assert "Đầu vào (pre-test)" in body
 
 
+def test_tour_exit_buttons_are_not_callbacks():
+    """Nút thoát tour không được gắn on_click.
+
+    Streamlit bỏ qua st.rerun() trong callback ("is a no-op"). Khi còn là
+    callback, bấm nút cuối chỉ rerun riêng dialog: hộp vẫn ở bước 4/4, không
+    sang bài Đầu vào. AppTest luôn chạy lại cả app nên không bắt được lỗi này,
+    và test cũ thay st.rerun bằng hàm giả nên vẫn xanh trong khi production
+    hỏng. Lỗi đã tái lập trên trình duyệt thật ngày 01/11/2026.
+    """
+
+    import ast
+    import inspect
+
+    import workspace_ui as wu
+
+    tree = ast.parse(inspect.getsource(wu._tour_dialog))
+    offenders = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        keys = {kw.arg: kw.value for kw in node.keywords}
+        key = keys.get("key")
+        if isinstance(key, ast.Constant) and key.value in ("tour_finish", "tour_defer") \
+                and "on_click" in keys:
+            offenders.append(key.value)
+    assert offenders == [], f"Nút dùng on_click sẽ không rerun được: {offenders}"
+
+
+def test_pending_navigation_is_applied_once_then_cleared():
+    import workspace_ui as wu
+
+    at = AppTest.from_file(APP, default_timeout=120)
+    at.session_state[wu.PENDING_NAV_KEY] = (lm.AREA_JOURNAL, wu.PROGRESS_TAB_LABEL)
+    at.run()
+    assert not at.exception
+    assert at.session_state[NAV_KEY] == lm.AREA_LABELS[lm.AREA_JOURNAL]
+    assert wu.PENDING_NAV_KEY not in at.session_state
+
+
 def test_progress_tab_label_matches_the_real_tab_title():
     """Nhãn dùng để điều hướng phải trùng tiêu đề tab thật trong learning_ui."""
 
@@ -229,6 +275,7 @@ def test_first_tour_defer_reruns_to_close_dialog(monkeypatch):
 
     assert reruns == [1]
     assert at.session_state["progress_profile"]["seen_tour"] is True
+    at.run()  # chính là lần rerun thật mà hàm giả đã chặn
     assert not [b for b in at.button if b.key and b.key.startswith("tour_")]
 
 

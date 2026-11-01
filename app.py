@@ -41,6 +41,7 @@ import stats_classroom
 from feature_guides import render_guide
 from workspace_ui import (
     HOME_LABEL, NAV_KEY, HISTORY_LABEL, MUSE_LABEL, navigate_to,
+    apply_pending_navigation,
     workspace_tabs, render_overview, render_history,
 )
 from muse_brief import render_muse_workshop
@@ -439,6 +440,8 @@ with st.sidebar.expander("Kết nối trí tuệ nhân tạo (AI) — tùy chọ
 # Dựng đích đến trước biểu mẫu; kết quả phân tích được ghi vào đúng khu dữ liệu.
 _visible_features = lmode.visible_features(st.session_state)
 _shown_areas = lmode.visible_areas(st.session_state, _visible_features)
+# Áp điểm đến do nút trong dialog hẹn trước, khi các khóa tab chưa bị dựng.
+apply_pending_navigation()
 _all_tabs = workspace_tabs([HOME_LABEL] + [lmode.AREA_LABELS[a] for a in _shown_areas], NAV_KEY)
 overview_tab = _all_tabs[0]
 _area_tabs = dict(zip(_shown_areas, _all_tabs[1:]))
