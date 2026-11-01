@@ -303,9 +303,10 @@ LEGAL_WARNINGS = (
         "title": "Thứ tự đúng: học — mô phỏng — rồi mới tiền thật",
         "body": (
             "Trong ứng dụng này, hãy **hoàn thành bài học, luyện bằng danh mục mô "
-            "phỏng, rồi mới nghĩ đến tiền thật**. Nếu em chưa làm được điều đó "
-            "với tiền ảo 500 triệu đồng trong vài tháng, thì với 2 triệu đồng thật "
-            "em cũng sẽ mắc đúng lỗi đó — chỉ khác là mất tiền thật."
+            "phỏng, rồi mới nghĩ đến tiền thật**. Hãy đặt vốn ảo đúng bằng số tiền "
+            "em định dùng thật, ví dụ 2 triệu đồng. Nếu em chưa giữ được kỷ luật "
+            "với 2 triệu đồng ảo trong vài tháng, thì với 2 triệu đồng thật em "
+            "cũng sẽ mắc đúng lỗi đó — chỉ khác là mất tiền thật."
         ),
     },
 )

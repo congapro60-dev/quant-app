@@ -427,3 +427,66 @@ def test_paper_portfolio_without_ledger_explains_backup_source():
     # The restore uploader and the init button stay present on this screen.
     assert len(at.get("file_uploader")) == 1
     assert at.button(key="init_ledger")
+
+
+# ---------------------------------------------------------------------------
+# Vốn ảo 0–500 triệu, mặc định nhỏ, mua được lô lẻ (yêu cầu 01/11/2026)
+# ---------------------------------------------------------------------------
+
+def _empty_paper_app():
+    from streamlit.testing.v1 import AppTest
+
+    return AppTest.from_string(
+        "import pandas as pd\n"
+        "from investment_ui import render_paper_portfolio\n"
+        "render_paper_portfolio(pd.DataFrame())",
+        default_timeout=30,
+    ).run()
+
+
+def test_paper_capital_ranges_from_zero_to_five_hundred_million():
+    at = _empty_paper_app()
+    box = next(n for n in at.number_input if "Vốn mô phỏng" in n.label)
+    assert box.min == 0
+    assert box.max == 500_000_000
+    # Mặc định nhỏ: đích dự án là đầu tư thật vài triệu đồng qua MoMo.
+    assert box.value == 5_000_000
+
+
+def test_zero_capital_cannot_create_a_ledger():
+    """PortfolioLedger từ chối vốn 0, nên nút khởi tạo phải tắt thay vì báo lỗi."""
+
+    at = _empty_paper_app()
+    box = next(n for n in at.number_input if "Vốn mô phỏng" in n.label)
+    box.set_value(0).run()
+    assert not at.exception
+    assert at.button(key="init_ledger").disabled
+
+
+def test_small_capital_sizes_with_odd_lots():
+    """Với 5 triệu đồng, lô chẵn 100 cổ cho ra 0 cổ; lô lẻ phải mua được."""
+
+    now = pd.Timestamp("2026-08-14 09:00:00").to_pydatetime()
+    plan = TradePlan(
+        plan_id="small-capital", symbol="CTG", direction="LONG",
+        created_at=now, expires_at=now + timedelta(days=5),
+        entry_zone_low=32.0, entry_zone_high=32.4,
+        trigger="Only enter inside the price zone", stop_price=30.0,
+        targets=(37.2,), confidence=0.5,
+    )
+    round_lot = _size_plan_in_vnd(plan, capital=5_000_000, risk_fraction=0.0075,
+                                  max_position_fraction=0.20)
+    odd_lot = _size_plan_in_vnd(plan, capital=5_000_000, risk_fraction=0.0075,
+                                max_position_fraction=0.20, lot_size=1)
+    assert round_lot.quantity == 0
+    assert odd_lot.quantity > 0
+    assert odd_lot.capital_required <= 5_000_000
+
+
+def test_paper_fill_quantity_accepts_odd_lots():
+    import inspect
+
+    import investment_ui
+
+    src = inspect.getsource(investment_ui)
+    assert '"Khối lượng", min_value=1,' in src

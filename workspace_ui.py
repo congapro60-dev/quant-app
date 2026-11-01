@@ -88,7 +88,7 @@ def _journey_steps(lessons, scores) -> list[dict]:
             "evidence": (f"{len(ledger.get('fills', []))} lệnh mô phỏng"
                          if ledger else ""),
             "title": "Tạo danh mục mô phỏng",
-            "detail": "500 triệu VND ảo ở tab Đầu tư — tiền thật không dính vào đây",
+            "detail": "Vốn ảo tự chọn 0–500 triệu ở tab Đầu tư — tiền thật không dính vào đây",
             "action": "Đến Đầu tư",
             "target": (lmode.AREA_INVEST, lmode.FEATURE_PAPER),
         },
@@ -167,7 +167,8 @@ _TOUR_STEPS = (
      "11 bài xếp theo trình độ lớp của em, mỗi bài có câu hỏi tự chấm. "
      "Điểm đạt 70 mới mở chương nâng cao."),
     ("Thực hành ra sao?", "Thực hành ở Đầu tư",
-     "Lấy 500 triệu VND ảo, mua bán như thật. Trước khi đặt lệnh, ghi 1 dòng "
+     "Tự chọn vốn ảo từ 0 đến 500 triệu đồng (mặc định 5 triệu), mua bán như "
+     "thật, mua được cả lô lẻ. Trước khi đặt lệnh, ghi 1 dòng "
      '"vì sao" vào Nhật ký quyết định — viết trước để không tự lừa mình sau.'),
     ("Giữ lại cái gì?", "Giữ bằng chứng học tập",
      "Nhật ký & tiến độ lưu điểm, hai bài chẩn đoán, và gói nộp cho giáo viên. "

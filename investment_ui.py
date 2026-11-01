@@ -36,6 +36,16 @@ from portfolio import (
 BOARD_PRICE_TO_VND = 1_000.0
 PAPER_LEDGER_MONEY_UNIT = "VND"
 PAPER_LEDGER_PRICE_UNIT = "VND_PER_SHARE"
+
+# Vốn ảo: học sinh tự chọn từ 0 tới 500 triệu đồng. Mặc định nhỏ vì đích của dự
+# án là đầu tư thật số vốn nhỏ qua MoMo; tập với 500 triệu dạy sai cách chia vốn.
+PAPER_CAPITAL_MAX_VND = 500_000_000.0
+PAPER_CAPITAL_DEFAULT_VND = 5_000_000.0
+PAPER_CAPITAL_STEP_VND = 500_000.0
+PAPER_CAPITAL_HELP = (
+    "Chọn từ 0 đến 500 triệu đồng. Nên tập đúng bằng số tiền em định dùng thật, "
+    "vì cách chia vốn với vài triệu khác hẳn với vài trăm triệu."
+)
 PAPER_LEDGER_BACKUP_MAX_BYTES = 1_000_000
 PAPER_LEDGER_BACKUP_MAX_FILLS = 5_000
 DEFAULT_PAPER_COMMISSION_BPS = 15.0
@@ -136,15 +146,20 @@ def _size_plan_in_vnd(
     capital: float,
     risk_fraction: float,
     max_position_fraction: float,
+    lot_size: int = 100,
 ):
-    """Size a board-unit trade plan against VND-denominated capital."""
+    """Size a board-unit trade plan against VND-denominated capital.
+
+    ``lot_size=1`` mô phỏng lô lẻ (1–99 cổ), cần cho vốn nhỏ: với vài triệu
+    đồng, một lô chẵn 100 cổ của nhiều mã đã vượt cả tổng vốn.
+    """
 
     return size_long_position_by_risk(
         capital=capital,
         risk_fraction=risk_fraction,
         entry_price=_board_price_to_vnd(plan.conservative_entry),
         stop_price=_board_price_to_vnd(plan.stop_price),
-        lot_size=100,
+        lot_size=lot_size,
         max_position_fraction=max_position_fraction,
         estimated_entry_cost_bps=15,
         estimated_exit_cost_bps=25,
@@ -636,14 +651,22 @@ def render_investment_desk(
         st.write(f"**Vô hiệu:** {plan.invalidation}")
 
         s1, s2, s3 = st.columns(3)
-        capital = s1.number_input("Tổng vốn (VND)", min_value=1_000_000.0, value=500_000_000.0, step=10_000_000.0)
+        capital = s1.number_input(
+            "Tổng vốn (VND)", min_value=0.0, max_value=PAPER_CAPITAL_MAX_VND,
+            value=PAPER_CAPITAL_DEFAULT_VND, step=PAPER_CAPITAL_STEP_VND,
+            help=PAPER_CAPITAL_HELP,
+        )
         risk_pct = s2.number_input("Rủi ro tối đa/kịch bản (%)", min_value=0.1, max_value=3.0, value=0.75, step=0.05)
         max_position_pct = s3.number_input("Tỷ trọng tối đa/mã (%)", min_value=5.0, max_value=40.0, value=20.0, step=1.0)
+        if capital <= 0:
+            st.caption("Nhập tổng vốn lớn hơn 0 đồng để tính khối lượng mua.")
+            return
         sizing = _size_plan_in_vnd(
             plan,
             capital=capital,
             risk_fraction=risk_pct / 100.0,
             max_position_fraction=max_position_pct / 100.0,
+            lot_size=1,
         )
         z1, z2, z3 = st.columns(3)
         z1.metric("Khối lượng tối đa", f"{sizing.quantity:,} cp")
@@ -710,9 +733,14 @@ def render_paper_portfolio(prices: pd.DataFrame) -> None:
             except PortfolioValidationError as exc:
                 st.error(str(exc))
         initial_cash = st.number_input(
-            "Vốn mô phỏng ban đầu (VND)", min_value=1_000_000.0, value=500_000_000.0, step=10_000_000.0
+            "Vốn mô phỏng ban đầu (VND)", min_value=0.0, max_value=PAPER_CAPITAL_MAX_VND,
+            value=PAPER_CAPITAL_DEFAULT_VND, step=PAPER_CAPITAL_STEP_VND,
+            help=PAPER_CAPITAL_HELP,
         )
-        if st.button("Khởi tạo danh mục mô phỏng (paper portfolio)", width="stretch", key="init_ledger"):
+        if initial_cash <= 0:
+            st.caption("Sổ cần vốn lớn hơn 0 đồng mới mua được cổ phiếu.")
+        if st.button("Khởi tạo danh mục mô phỏng (paper portfolio)", width="stretch",
+                     key="init_ledger", disabled=initial_cash <= 0):
             ledger = PortfolioLedger(initial_cash)
             st.session_state.paper_ledger = _ledger_payload(ledger)
             st.rerun()
@@ -739,7 +767,9 @@ def render_paper_portfolio(prices: pd.DataFrame) -> None:
             key="paper_fill_side",
         )
         quantity = c3.number_input(
-            "Khối lượng", min_value=100, value=100, step=100, key="paper_fill_quantity"
+            "Khối lượng", min_value=1, value=100, step=1, key="paper_fill_quantity",
+            help="Lô chẵn là bội số 100 cổ. Từ 1 đến 99 cổ là lô lẻ — cách mua "
+                 "khi vốn nhỏ; giá khớp lô lẻ có thể kém hơn lô chẵn.",
         )
         price = st.number_input(
             "Giá khớp (nghìn VND/cp)",
