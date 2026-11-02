@@ -6,6 +6,7 @@ nhiên không gọi mạng, nên AppTest với key giả vẫn chạy được.
 """
 import streamlit as st
 
+import account_help
 import classroom_packages as cp
 import classroom_self as cself
 from firebase_classroom import (
@@ -74,7 +75,7 @@ def _entry(client, on_login=None):
             except (ClassroomConnectionError, cp.ClassroomPackageError):
                 st.warning("Chưa đăng nhập được. Kiểm tra tên đăng nhập và mật khẩu.")
         with st.expander("Quên mật khẩu?"):
-            for number, step in enumerate(cself.FORGOT_PASSWORD_STEPS, start=1):
+            for number, step in enumerate(account_help.FORGOT_PASSWORD_STEPS, start=1):
                 st.markdown(f"{number}. {step}")
     with register_tab:
         student_tab, teacher_tab = st.tabs(["Em là học sinh", "Em là giáo viên"])

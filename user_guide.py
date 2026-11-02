@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-import classroom_self as cself
+import account_help
 import curriculum as cur
 import feature_guides as fg
 import learning_modes as lmode
@@ -94,7 +94,7 @@ FAQ = (
      "trình duyệt thì mất, nên hãy tải hồ sơ ở mục **Sao lưu hồ sơ** và dùng **Nạp lại hồ sơ đã "
      "lưu** khi cần."),
     ("Em quên mật khẩu thì sao?", "\n".join(
-        f"{i}. {step}" for i, step in enumerate(cself.FORGOT_PASSWORD_STEPS, start=1))),
+        f"{i}. {step}" for i, step in enumerate(account_help.FORGOT_PASSWORD_STEPS, start=1))),
     ("Thầy/cô quên mật khẩu thì sao?",
      "Xin quản trị viên một mã mời mới rồi đăng ký tài khoản khác. Học sinh cần chọn lại tên "
      "thầy/cô; bài nộp cũ nằm ở tài khoản cũ."),

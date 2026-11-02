@@ -6,7 +6,7 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
-import classroom_self as cself
+import account_help
 import feature_guides as fg
 import learning_modes as lmode
 import user_guide as ug
@@ -72,7 +72,7 @@ def test_teacher_steps_mention_the_invite_requirement():
 
 
 def test_forgot_password_is_honest_and_shown_at_login():
-    joined = " ".join(cself.FORGOT_PASSWORD_STEPS)
+    joined = " ".join(account_help.FORGOT_PASSWORD_STEPS)
     assert "Không ai lấy lại được" in joined
     assert "tài khoản mới" in joined
     at = AppTest.from_string(
