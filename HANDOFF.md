@@ -23,7 +23,7 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 
 ## 2. Đang dở / đừng đụng
 
-- **Trạng thái production 02/11:** thẻ Hướng dẫn `verified`. Mục "Quên mật khẩu?" ở form đăng nhập mới `deployed`, chưa hiện vì `classroom_self_ui` cũ còn trong bộ nhớ; hết sau khi Reboot (phải xin phép) hoặc khi app ngủ rồi thức lại.
+- **Trạng thái production 02/11:** thẻ Hướng dẫn, nền sáng, trọng số âm và "Quên mật khẩu?" đều `verified` trên UI production. Không Reboot; bản mới tự nạp hết.
 - `docs/thiet_ke_onboarding.html` chưa track, cố ý để đó.
 - Luồng bấm nút nộp bài của HS tự đăng ký chưa chạy trọn trên trình duyệt; đã phủ bằng AppTest và smoke Firebase thật ngày 29/10.
 
