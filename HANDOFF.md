@@ -18,6 +18,9 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **Thẻ Hướng dẫn** (`user_guide.py`): các bước cho HS, GV, bản đồ chức năng sinh từ `FEATURES`, câu hỏi thường gặp. Đổi tên nút mà quên sửa hướng dẫn thì `tests/test_user_guide.py` đỏ.
 - **Quên mật khẩu**: hướng dẫn ở form đăng nhập (`account_help.FORGOT_PASSWORD_STEPS`). Chủ dự án đã chọn KHÔNG đưa khoá quản trị lên app; không ai đặt lại được mật khẩu. Điểm nằm trong trình duyệt nên đăng ký lại trên cùng máy không mất.
 
+- **Giao diện sáng/tối** (`theme_ui.py`, `[theme.light]`/`[theme.dark]` trong config): theo thiết bị, đổi ở menu ⋮ → Settings → Theme.
+- **Trọng số âm** (bán khống) được nhận ở công cụ danh mục trong thẻ Ôn thi, cần cho đề có W âm. Trợ lý học tập `safe_ai_tools.py` vẫn từ chối W âm.
+
 ## 2. Đang dở / đừng đụng
 
 - **Trạng thái production 02/11:** thẻ Hướng dẫn `verified`. Mục "Quên mật khẩu?" ở form đăng nhập mới `deployed`, chưa hiện vì `classroom_self_ui` cũ còn trong bộ nhớ; hết sau khi Reboot (phải xin phép) hoặc khi app ngủ rồi thức lại.

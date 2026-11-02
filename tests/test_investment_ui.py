@@ -490,3 +490,56 @@ def test_paper_fill_quantity_accepts_odd_lots():
 
     src = inspect.getsource(investment_ui)
     assert '"Khối lượng", min_value=1,' in src
+
+
+# ---------------------------------------------------------------------------
+# Trọng số âm (bán khống) trong bài danh mục, ví dụ W=(0,5; -0,2; 0,7)
+# ---------------------------------------------------------------------------
+
+def _app_functions():
+    import ast
+    from pathlib import Path
+
+    import statsmodels.api as sm
+
+    tree = ast.parse((Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8"))
+    ns = {"np": np, "pd": pd, "sm": sm}
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and (
+                node.name.startswith("_") or node.name.startswith("compute_")):
+            exec(compile(ast.Module([node], []), "app.py", "exec"), ns)
+    return ns
+
+
+def _short_sale_prices(n=150):
+    rng = np.random.default_rng(7)
+    market = rng.normal(0, 0.01, n)
+    data = {"MKT": 500 * np.exp(np.cumsum(market))}
+    for name, beta in (("A", 1.1), ("B", 0.8), ("C", 0.9)):
+        data[name] = 20 * np.exp(np.cumsum(beta * market + rng.normal(0, 0.01, n)))
+    return pd.DataFrame(data)
+
+
+def test_portfolio_accepts_short_weight_and_matches_quadratic_form():
+    ns = _app_functions()
+    prices = _short_sale_prices()
+    w = np.array([0.5, -0.2, 0.7])
+    res = ns["compute_portfolio"](prices, ["A", "B", "C"], list(w), nobs=150, normalize=False)
+    returns = np.log(prices[["A", "B", "C"]] / prices[["A", "B", "C"]].shift(1)).dropna()
+    assert res["variance"] == pytest.approx(w @ returns.cov().values @ w)
+    assert res["mean"] == pytest.approx(returns.mean().values @ w)
+
+
+def test_sim_risk_accepts_short_weight():
+    ns = _app_functions()
+    res = ns["compute_sim_portfolio_risk"](_short_sale_prices(), ["A", "B", "C"], "MKT", [0.5, -0.2, 0.7],
+                                           nobs=150, normalize=False)
+    assert res["beta_p"] > 0 and res["unsystematic"] > 0
+
+
+@pytest.mark.parametrize("bad", [[float("nan"), 0.5, 0.5], [float("inf"), 0.0, 0.0], [-1.0, 0.5, 0.5]])
+def test_bad_weights_are_still_rejected(bad):
+    """Số không hữu hạn, hoặc tổng trọng số không dương, vẫn bị từ chối."""
+    ns = _app_functions()
+    with pytest.raises(ValueError):
+        ns["compute_portfolio"](_short_sale_prices(), ["A", "B", "C"], bad, nobs=150)

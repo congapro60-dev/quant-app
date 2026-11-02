@@ -105,6 +105,8 @@ FAQ = (
      "Nguồn giá có lúc không phản hồi. Lộ trình học và danh mục mô phỏng vẫn dùng được; thử lại sau."),
     ("Mở link thấy màn hình \"Zzzz\" là lỗi à?",
      "Không. Trang tự ngủ khi lâu không có ai vào. Bấm nút xanh, đợi khoảng nửa phút là trang mở lại."),
+    ("Đổi sang giao diện nền sáng hoặc nền tối ở đâu?",
+     "Bấm dấu ba chấm ở góc phải trên → Settings → Theme. Mặc định web theo cài đặt của thiết bị."),
     ("Web này có đặt lệnh mua bán thật không?",
      "Không. Mọi giao dịch trong web đều bằng tiền ảo. Kết quả ở đây không cam kết lợi nhuận và "
      "không phải lời khuyên đầu tư."),

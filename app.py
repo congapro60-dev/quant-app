@@ -38,6 +38,7 @@ import learning_modes as lmode
 import progress_store
 import stats_tools
 import stats_classroom
+from theme_ui import apply_theme
 from feature_guides import render_guide
 from user_guide import GUIDE_LABEL, render_user_guide
 from workspace_ui import (
@@ -63,80 +64,7 @@ except Exception:
 # ==================== CẤU HÌNH TRANG ====================
 st.set_page_config(page_title="Quant App - Phân tích Thị trường", page_icon="📈", layout="wide")
 
-st.markdown("""
-<style>
-    :root {
-        --qa-primary: #1D4ED8;
-        --qa-primary-soft: #172554;
-        --qa-accent: #D97706;
-        --qa-surface: #111827;
-        --qa-border: #334155;
-        --qa-text: #F8FAFC;
-        --qa-muted: #CBD5E1;
-        --qa-danger: #EF4444;
-        --qa-success: #10B981;
-    }
-    .stApp { background: radial-gradient(ellipse at 90% 0%, #142d3b 0%, transparent 45%), #0B1220; }
-    .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1320px; }
-    h1, h2, h3 { letter-spacing: -0.02em; }
-    h2 { font-size: 1.9rem !important; }
-    h3 { font-size: 1.2rem !important; }
-    .qa-eyebrow { color: #5EEAD4; font-size: .75rem; letter-spacing: .13em; font-weight: 700; }
-    [data-testid="stSidebar"] { border-right: 1px solid #273547; }
-    [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px; }
-    button { min-height: 44px; }
-    p, label { overflow-wrap: anywhere; }
-    div[data-testid="stMetric"] {
-        background: linear-gradient(145deg, #111827 0%, #172033 100%);
-        border: 1px solid var(--qa-border); border-radius: 12px; padding: 14px 16px;
-        box-shadow: 0 8px 24px rgba(0,0,0,.16);
-    }
-    div[data-testid="stMetricValue"] { font-size: 1.6rem; }
-    .stTabs [role="tablist"] { gap: 6px; flex-wrap: wrap; height: auto; overflow: visible; }
-    .stTabs [role="tab"] {
-        background-color: var(--qa-surface); border: 1px solid var(--qa-border);
-        border-radius: 8px; padding: 10px 14px; min-height: 44px; height: auto; white-space: normal;
-    }
-    .stTabs [aria-selected="true"] { background-color: #134E4A; border-color: #5EEAD4; color: #F0FDFA; }
-    .stTabs .react-aria-SelectionIndicator { display: none; }
-    .stTabs [role="tab"]:focus-visible,
-    button:focus-visible, input:focus-visible, textarea:focus-visible {
-        outline: 3px solid #F59E0B !important; outline-offset: 2px;
-    }
-    .qa-hero {
-        padding: 8px 0 18px; border-bottom: 1px solid var(--qa-border); margin-bottom: 4px;
-    }
-    .qa-hero h1 { font-size: 2rem; line-height: 1.16; }
-    .qa-hero strong { color: #BFDBFE; }
-    .qa-safety {
-        padding: 8px 0; color: var(--qa-muted); font-size: .86rem;
-    }
-    @media (max-width: 768px) {
-        .block-container { padding-left: 1rem; padding-right: 1rem; }
-        .stTabs [role="tab"] { padding: 8px 10px; flex: 1 1 40%; }
-        .qa-hero { padding: 8px 0 14px; }
-        .qa-hero h1 { font-size: 1.75rem; line-height: 1.2; }
-    }
-    @media (prefers-reduced-motion: no-preference) {
-        .qa-hero { animation: qa-reveal .35s ease-out; }
-        @keyframes qa-reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
-    }
-    /* Nút tài khoản: ghim góc phải trên, đặt ngay dưới thanh công cụ của
-       Streamlit để không đè lên nút Fork/GitHub/menu. z-index cố ý nằm DƯỚI
-       lớp hộp thoại (tour, st.dialog) để hộp thoại vẫn che trên đúng thứ tự.
-       Màn hẹp thì trả về dòng thường cho khỏi che nội dung. */
-    .st-key-qa_account_bar {
-        position: fixed; top: 3.4rem; right: 1rem; z-index: 999980;
-        width: fit-content; max-width: calc(100vw - 2rem);
-    }
-    .st-key-qa_account_bar [data-testid="stPopover"] button {
-        background: rgba(17, 24, 39, .92); border: 1px solid var(--qa-border);
-        box-shadow: 0 6px 18px rgba(0,0,0,.35); min-width: 10rem;
-    }
-    [data-testid="stPopoverBody"] { min-width: 17rem; }
-    @media (max-width: 640px) { .st-key-qa_account_bar { position: static; } }
-</style>
-""", unsafe_allow_html=True)
+apply_theme()
 
 # Nút tài khoản toàn cục: khôi phục phiên nhớ máy (nếu có), vẽ nút ở góc phải
 # trên, rồi nếu đang yêu cầu một trang tài khoản thì chỉ vẽ trang đó và dừng —
@@ -901,8 +829,9 @@ def _validated_weights(assets, weights, normalize):
     w = np.asarray(weights, dtype=float)
     if len(w) != len(assets):
         raise ValueError("Số trọng số không khớp số tài sản.")
-    if not np.isfinite(w).all() or (w < 0).any():
-        raise ValueError("Trọng số phải hữu hạn và không âm.")
+    # Trọng số âm là bán khống, hợp lệ trong bài danh mục của giáo trình.
+    if not np.isfinite(w).all():
+        raise ValueError("Trọng số phải là số hữu hạn.")
     total = float(w.sum())
     if total <= 0:
         raise ValueError("Tổng trọng số phải lớn hơn 0.")
@@ -1235,8 +1164,8 @@ if tab1 is not None:
 
             def _hl_beta(v):
                 if v > 1:
-                    return 'color:#ff6b6b; font-weight:600'
-                return 'color:#00c48c; font-weight:600'
+                    return 'color:#EF4444; font-weight:600'
+                return 'color:#059669; font-weight:600'
             sim_display = sim_df.rename(
                 columns={
                     "Alpha": "Alpha (lợi suất riêng)",
@@ -1355,11 +1284,11 @@ if tab2 is not None:
                                                     showscale=True, size=6, colorbar=dict(title="Chỉ số Sharpe")),
                                         name='Danh mục rủi ro mô phỏng'))
             ef_fig.add_trace(go.Scatter(x=[mv_std], y=[mv_ret], mode='markers',
-                                        marker=dict(color='#4dd0e1', size=18, symbol='star',
+                                        marker=dict(color='#0891B2', size=18, symbol='star',
                                                     line=dict(color='white', width=1)),
                                         name='🛡️ Biến động tối thiểu (Min Volatility)'))
             ef_fig.add_trace(go.Scatter(x=[ms_std], y=[ms_ret], mode='markers',
-                                        marker=dict(color='#ffd166', size=18, symbol='star',
+                                        marker=dict(color='#D97706', size=18, symbol='star',
                                                     line=dict(color='white', width=1)),
                                         name='🚀 Sharpe tối đa (Max Sharpe)'))
             ef_fig.update_layout(title='Không gian danh mục rủi ro và phương án tiền mặt',
@@ -1701,7 +1630,7 @@ if tab5 is not None:
                                      key="pf_ddof", horizontal=True,
                                      help="Bảng Excel của giảng viên thường dùng Tổng thể ÷n; EViews dùng Mẫu ÷(n−1).")
                 if pf_assets:
-                    st.caption("Nhập trọng số W cho từng mã:")
+                    st.caption("Nhập trọng số W cho từng mã. Trọng số âm nghĩa là bán khống mã đó.")
                     wcols = st.columns(len(pf_assets))
                     pf_weights = []
                     for i, a in enumerate(pf_assets):
@@ -1749,7 +1678,7 @@ if tab5 is not None:
             s_isret = sc3.checkbox("Dữ liệu đã là lợi suất", key="sim_isret")
             s_order = sc4.radio("Thứ tự ngày:", ["Giữ nguyên", "Đảo ngược"], key="sim_order", horizontal=True)
             if s_assets and s_market:
-                st.caption("Nhập trọng số W cho từng mã:")
+                st.caption("Nhập trọng số W cho từng mã. Trọng số âm nghĩa là bán khống mã đó.")
                 swcols = st.columns(len(s_assets))
                 s_weights = []
                 for i, a in enumerate(s_assets):

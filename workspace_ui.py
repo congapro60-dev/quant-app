@@ -425,7 +425,7 @@ def render_history() -> None:
         if data.empty:
             continue
         fig = px.line(data.rename_axis("Phiên"), labels={"value": unit, "variable": "Mã"},
-                      color_discrete_sequence=["#5EEAD4", "#93C5FD", "#FBBF24", "#FDA4AF"])
+                      color_discrete_sequence=["#0D9488", "#2563EB", "#D97706", "#E11D48"])
         fig.update_layout(height=330, margin=dict(l=8, r=8, t=16, b=8),
                           legend=dict(orientation="h", y=1.12), hovermode="x unified")
         st.plotly_chart(fig, width="stretch", key=f"history_chart_{idx}")

@@ -344,7 +344,7 @@ R = u_{\max} - u_{\min} \qquad \Delta_Q = Q_3 - Q_1
 # Phần hiển thị (Streamlit)
 # ---------------------------------------------------------------------------
 
-CHART_COLORS = ["#5EEAD4", "#93C5FD", "#FBBF24", "#FDA4AF", "#A5B4FC", "#86EFAC"]
+CHART_COLORS = ["#0D9488", "#2563EB", "#D97706", "#E11D48", "#4F46E5", "#16A34A"]
 DEFAULT_VALUES = "-2, 1, 0.5, 3, -1, 1, -0.5, 2"
 
 
