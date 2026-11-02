@@ -16,10 +16,11 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **Test Rules chạy thật lần đầu**: `tools/run_rules_tests.py`.
 - **Rules production đã deploy 02/11/2026**; smoke trên Firebase thật 7/7 (mã bịa bị chặn, dùng lại bị chặn, HS không đọc được mã), dữ liệu thử đã dọn. 3 mã mời đầu tiên nằm trong `~/.quant-app-classroom/teacher-invites-20261102-085158.json`.
 - **Thẻ Hướng dẫn** (`user_guide.py`): các bước cho HS, GV, bản đồ chức năng sinh từ `FEATURES`, câu hỏi thường gặp. Đổi tên nút mà quên sửa hướng dẫn thì `tests/test_user_guide.py` đỏ.
-- **Quên mật khẩu**: hướng dẫn ở form đăng nhập (`cself.FORGOT_PASSWORD_STEPS`). Chủ dự án đã chọn KHÔNG đưa khoá quản trị lên app; không ai đặt lại được mật khẩu. Điểm nằm trong trình duyệt nên đăng ký lại trên cùng máy không mất.
+- **Quên mật khẩu**: hướng dẫn ở form đăng nhập (`account_help.FORGOT_PASSWORD_STEPS`). Chủ dự án đã chọn KHÔNG đưa khoá quản trị lên app; không ai đặt lại được mật khẩu. Điểm nằm trong trình duyệt nên đăng ký lại trên cùng máy không mất.
 
 ## 2. Đang dở / đừng đụng
 
+- **Trạng thái production 02/11:** thẻ Hướng dẫn `verified`. Mục "Quên mật khẩu?" ở form đăng nhập mới `deployed`, chưa hiện vì `classroom_self_ui` cũ còn trong bộ nhớ; hết sau khi Reboot (phải xin phép) hoặc khi app ngủ rồi thức lại.
 - `docs/thiet_ke_onboarding.html` chưa track, cố ý để đó.
 - Luồng bấm nút nộp bài của HS tự đăng ký chưa chạy trọn trên trình duyệt; đã phủ bằng AppTest và smoke Firebase thật ngày 29/10.
 
@@ -27,6 +28,7 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 
 - **Java không đọc được đường dẫn tiếng Việt**: `firebase emulators:exec` chạy thẳng trong repo sẽ chết lúc khởi động. Luôn dùng `tools/run_rules_tests.py`.
 - **`pytest` thường tự bỏ qua test Rules** (skip khi thiếu `FIRESTORE_EMULATOR_HOST`). Xanh không có nghĩa Rules đúng. Đổi `firestore.rules` thì phải chạy công cụ trên. Có một lần đỏ không rõ nguyên nhân trong 6 lần chạy ngày 01/11 (log bị ghi đè), chưa tái hiện được.
+- **Streamlit Cloud kéo code mới mà KHÔNG khởi động lại tiến trình; module cũ vẫn trong bộ nhớ.** Module mới đọc hằng số vừa thêm vào module cũ ngay lúc import sẽ làm sập cả trang tới khi Reboot (đã xảy ra 02/11, `dce3183`, sửa bằng `4ec46c0`). Test local không bắt được vì luôn khởi động mới. Hằng số dùng lúc import thì đặt trong module mới.
 - **Không gọi `st.rerun()` trong `on_click`**: Streamlit bỏ qua và test giả lập `st.rerun` vẫn xanh. Nút trong `st.dialog` cần rerun toàn app thì viết `if st.button(...)`. `test_tour_exit_buttons_are_not_callbacks` chặn việc này cho nút tour.
 - **AI dùng chung bật mặc định, không giới hạn lượt, không cần đăng nhập** (`app.py`, `SHARED_PROVIDER_OPTION`). Chủ dự án chủ động chọn mở cho mọi người; tiêu hao hạn mức thì xem lại đây.
 - **Tour đôi khi không hiện ở phiên đầu trên server vừa bật** (gặp 2 lần local khi máy tải nặng, tour thường hiện sau khoảng 30 giây). Chưa rõ nguyên nhân, không chặn việc dùng app.
