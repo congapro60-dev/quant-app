@@ -36,7 +36,9 @@ def sandbox(monkeypatch):
     admin_base = f"http://{firestore}/v1/projects/demo-quant-app/databases/(default)/documents"
 
     def new_teacher():
-        code = "GV-" + secrets.token_hex(5)
+        # Chỉ dùng chữ cái: chuỗi hex ngẫu nhiên đôi khi toàn chữ số, trông như số
+        # điện thoại và bị bộ lọc dữ liệu định danh chặn, làm test chập chờn.
+        code = "GV-" + "".join(secrets.choice("ABCDEFGHJKMNPQRSTUVWXYZ") for _ in range(10))
         password = secrets.token_urlsafe(20)
         data = client._auth("signUp", {"email": fc.account_email("teacher", "", code),
                                       "password": password, "returnSecureToken": True})
@@ -45,6 +47,25 @@ def sandbox(monkeypatch):
         return client.login("teacher", "", code, password)
 
     return client, new_teacher
+
+
+@pytest.fixture
+def make_invite():
+    """Chủ project tạo mã mời bằng quyền quản trị (emulator chấp nhận token "owner")."""
+    firestore = os.environ["FIRESTORE_EMULATOR_HOST"]
+    admin_base = f"http://{firestore}/v1/projects/demo-quant-app/databases/(default)/documents"
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+
+    def create():
+        code = "".join(secrets.choice(alphabet) for _ in range(20))
+        fc_real(f"{admin_base}/teacher_invites/{code}", {"fields": {"note": {"stringValue": "qa"}}},
+                token="owner", method="PATCH")
+        return code
+
+    return create
+
+
+fc_real = fc._json_request
 
 
 def test_rules_full_teaching_flow_and_cross_account_denials(sandbox):
@@ -109,16 +130,16 @@ def test_rules_full_teaching_flow_and_cross_account_denials(sandbox):
     assert len(client.submissions(t1, code)) == 1
 
 
-def test_rules_self_service_registration_roster_and_denials(sandbox):
+def test_rules_self_service_registration_roster_and_denials(sandbox, make_invite):
     client, _teacher = sandbox
     # GV tự đăng ký; tên vào danh bạ công khai cho HS chọn.
-    t1 = client.register_teacher("giao-vien-qa", "mat-khau-gv-1", "Cô QA")
+    t1 = client.register_teacher("giao-vien-qa", "mat-khau-gv-1", "Cô QA", make_invite())
     prof_t = client.self_profile(t1)
     assert prof_t["kind"] == "teacher" and prof_t["display_name"] == "Cô QA"
     assert prof_t.get("created_at")
     # Trùng tên đăng nhập: Auth chặn, không ghi đè tài khoản cũ.
     with pytest.raises(fc.ClassroomConnectionError):
-        client.register_teacher("giao-vien-qa", "mat-khau-gv-2", "Cô QA Hai")
+        client.register_teacher("giao-vien-qa", "mat-khau-gv-2", "Cô QA Hai", make_invite())
     # HS tự đăng ký; khối + tên lớp chuẩn hoá trước khi lên cloud.
     s1 = client.register_student("hs-qa-1", "mat-khau-hs-1", "Nguyễn An", "11", "11a1")
     prof1 = client.self_profile(s1)
@@ -139,7 +160,7 @@ def test_rules_self_service_registration_roster_and_denials(sandbox):
     client.leave_teacher(s1)
     assert [r["display_name"] for r in client.roster(t1)] == ["Trần Bình"]
     # HS đổi GV trực tiếp; GV cũ mất HS, GV mới thấy.
-    t2 = client.register_teacher("giao-vien-qb", "mat-khau-gv-3", "Thầy QB")
+    t2 = client.register_teacher("giao-vien-qb", "mat-khau-gv-3", "Thầy QB", make_invite())
     client.join_teacher(s2, t2.uid)
     assert client.roster(t1) == []
     assert [r["display_name"] for r in client.roster(t2)] == ["Trần Bình"]
@@ -173,9 +194,9 @@ def test_rules_self_service_registration_roster_and_denials(sandbox):
         client._commit(s2, writes)
 
 
-def test_rules_roster_submissions_flow_and_denials(sandbox):
+def test_rules_roster_submissions_flow_and_denials(sandbox, make_invite):
     client, _teacher = sandbox
-    t1 = client.register_teacher("giao-vien-nop", "mat-khau-gv-1", "Cô Nộp")
+    t1 = client.register_teacher("giao-vien-nop", "mat-khau-gv-1", "Cô Nộp", make_invite())
     s1 = client.register_student("hs-nop-1", "mat-khau-hs-1", "Nguyễn An", "11", "11A1")
     client.join_teacher(s1, t1.uid)
     # HS nộp thẳng vào danh sách: mã lớp SELF, mã HS là uid của chính em.
@@ -200,7 +221,7 @@ def test_rules_roster_submissions_flow_and_denials(sandbox):
     with pytest.raises(fc.ClassroomConnectionError):
         client.submit_roster(s2, data2)
     # GV thứ hai không đọc được bài nộp trong danh sách của GV này.
-    t2 = client.register_teacher("giao-vien-nop-b", "mat-khau-gv-4", "Thầy Nộp B")
+    t2 = client.register_teacher("giao-vien-nop-b", "mat-khau-gv-4", "Thầy Nộp B", make_invite())
     with pytest.raises(fc.ClassroomConnectionError):
         client.get(t2, f"rosters/{t1.uid}/submissions/{receipt['receipt_id']}")
     # HS tự sửa student_code thành uid người khác bị rules chặn.
@@ -218,3 +239,48 @@ def test_rules_roster_submissions_flow_and_denials(sandbox):
                                   "lesson_count": 1}, timestamp=True)]
     with pytest.raises(fc.ClassroomConnectionError):
         client._commit(s1, orphan)
+
+
+def test_rules_teacher_invite_is_required_single_use_and_secret(sandbox, make_invite):
+    """Chống giả danh giáo viên: chỉ ai có mã mời còn hiệu lực mới vào danh bạ GV."""
+    client, _teacher = sandbox
+    invite = make_invite()
+
+    # Không đọc hay liệt kê được mã mời, kể cả khi đã đăng nhập.
+    s1 = client.register_student("hs-moi-1", "mat-khau-hs-1", "Lê Cường", "10", "10A2")
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.get(s1, f"teacher_invites/{invite}")
+    with pytest.raises(fc.ClassroomConnectionError):
+        fc._json_request(f"{client.base}/teacher_invites", token=client._token(s1))
+
+    # Mã bịa (đúng định dạng nhưng không tồn tại) bị từ chối; tài khoản Auth
+    # vừa tạo được dọn để tên đăng nhập không bị chiếm vô ích.
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.register_teacher("gv-gia-danh", "mat-khau-gv-9", "Cô Giả", "A" * 20)
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.login_self("gv-gia-danh", "mat-khau-gv-9")
+
+    # HS đã có tài khoản cũng không tự ghi được hồ sơ GV nếu không xóa mã cùng lượt.
+    no_consume = [client._make_write(f"teacher_directory/{s1.uid}",
+                                     {"display_name": "Cô Giả", "invite_code": invite},
+                                     create=True, timestamp=True, timestamp_field="created_at")]
+    with pytest.raises(fc.ClassroomConnectionError):
+        client._commit(s1, no_consume)
+
+    # Mã thật: đăng ký thành công và mã bị tiêu ngay.
+    t1 = client.register_teacher("gv-that", "mat-khau-gv-1", "Cô Thật", invite)
+    assert client.self_profile(t1)["kind"] == "teacher"
+    # Emulator dùng chung dữ liệu giữa các test, nên chỉ kiểm sự có mặt.
+    names = [t["display_name"] for t in client.list_teachers(s1)]
+    assert "Cô Thật" in names and "Cô Giả" not in names
+
+    # Dùng lại đúng mã đó: bị chặn.
+    with pytest.raises(fc.ClassroomConnectionError):
+        client.register_teacher("gv-that-2", "mat-khau-gv-2", "Cô Thứ Hai", invite)
+
+    # GV đã có hồ sơ không xóa được mã mời của người khác.
+    other = make_invite()
+    with pytest.raises(fc.ClassroomConnectionError):
+        client._commit(t1, [client._delete_write(f"teacher_invites/{other}")])
+    t2 = client.register_teacher("gv-that-3", "mat-khau-gv-3", "Thầy Ba", other)
+    assert client.self_profile(t2)["display_name"] == "Thầy Ba"

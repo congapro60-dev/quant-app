@@ -97,8 +97,38 @@ def student_state_payload(display_name, block, class_name, teacher_uid=None) -> 
     }
 
 
-def teacher_directory_payload(display_name) -> dict:
-    return {"display_name": normalize_display_name(display_name)}
+INVITE_CODE_LEN = 20
+_INVITE_RE = re.compile(r"^[A-Z2-7]{20}$")
+
+
+def normalize_invite_code(value) -> str:
+    """Mã mời giáo viên: 20 ký tự base32 (khoảng 100 bit), nhập có gạch hay không đều được.
+
+    Mã do chủ project tạo bằng ``tools/teacher_invites.py`` và chỉ dùng được
+    một lần; Firestore Rules mới là nơi quyết định mã còn hiệu lực hay không.
+    """
+    text = re.sub(r"[\s\-]", "", unicodedata.normalize("NFC", str(value or ""))).upper()
+    if not _INVITE_RE.fullmatch(text):
+        raise cp.ClassroomPackageError(
+            "Mã mời giáo viên gồm 20 ký tự (chữ A–Z và số 2–7). "
+            "Hãy chép đúng mã quản trị viên đã gửi.")
+    return text
+
+
+def format_invite_code(code: str) -> str:
+    """Hiển thị XXXXX-XXXXX-XXXXX-XXXXX cho dễ đọc, dễ chép."""
+    code = normalize_invite_code(code)
+    return "-".join(code[i:i + 5] for i in range(0, INVITE_CODE_LEN, 5))
+
+
+def teacher_directory_payload(display_name, invite_code) -> dict:
+    """Đúng bộ trường rules yêu cầu cho ``teacher_directory/{uid}``.
+
+    ``invite_code`` lưu lại để Rules đối chiếu với mã bị xóa trong cùng lượt
+    ghi. Mã đã dùng thì vô hiệu, nên để lộ trong danh bạ cũng không dùng lại được.
+    """
+    return {"display_name": normalize_display_name(display_name),
+            "invite_code": normalize_invite_code(invite_code)}
 
 
 def roster_member_payload(state: Mapping) -> dict:

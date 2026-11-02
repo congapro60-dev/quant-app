@@ -159,8 +159,13 @@ class FirebaseClassroom:
         return ClassroomSession(result["user_id"], result["id_token"], result["refresh_token"],
                                 time.time() + int(result["expires_in"]) - 60)
 
-    def _register(self, username, password, doc_path, doc_data, timestamp_field):
-        """Tạo tài khoản Auth rồi viết hồ sơ; hủy tài khoản mồ côi nếu viết hỏng."""
+    def _register(self, username, password, doc_path, doc_data, timestamp_field,
+                  extra_writes=()):
+        """Tạo tài khoản Auth rồi viết hồ sơ; hủy tài khoản mồ côi nếu viết hỏng.
+
+        ``extra_writes`` đi cùng commit với hồ sơ, ví dụ xóa mã mời giáo viên:
+        Rules chỉ cho tạo hồ sơ GV khi mã mời biến mất trong chính lượt ghi đó.
+        """
         username = cself.normalize_username(username)
         cself.validate_password(password)
         created = self._auth("signUp", {
@@ -169,8 +174,11 @@ class FirebaseClassroom:
         session = ClassroomSession(created["localId"], created["idToken"], created["refreshToken"],
                                    time.time() + int(created["expiresIn"]) - 60)
         try:
-            self._write(session, doc_path.format(uid=session.uid), doc_data,
-                        create=True, timestamp=True, timestamp_field=timestamp_field)
+            self._commit(session, [
+                self._make_write(doc_path.format(uid=session.uid), doc_data, create=True,
+                                 timestamp=True, timestamp_field=timestamp_field),
+                *extra_writes,
+            ])
         except ClassroomConnectionError as exc:
             # Chỉ dọn tài khoản Auth vừa tạo nếu là lỗi từ chối chắc chắn từ máy chủ (400, 403, 409).
             # Lỗi mạng không xác định không tự xóa để tránh mất đồng bộ.
@@ -182,10 +190,18 @@ class FirebaseClassroom:
             raise
         return session
 
-    def register_teacher(self, username, password, display_name):
-        """GV tự tạo tài khoản; tên hiển thị public để HS chọn trong danh bạ."""
-        return self._register(username, password, "teacher_directory/{uid}",
-                              cself.teacher_directory_payload(display_name), "created_at")
+    def register_teacher(self, username, password, display_name, invite_code):
+        """GV tự tạo tài khoản bằng mã mời dùng một lần; tên vào danh bạ cho HS chọn.
+
+        Không có mã mời thì ai cũng tự xưng là giáo viên được. Mã được kiểm và
+        đánh dấu đã dùng (xóa) ngay trong Rules, nên ứng dụng không cần quyền
+        quản trị nào.
+        """
+        payload = cself.teacher_directory_payload(display_name, invite_code)
+        return self._register(
+            username, password, "teacher_directory/{uid}", payload, "created_at",
+            extra_writes=[self._delete_write(f"teacher_invites/{payload['invite_code']}")],
+        )
 
     def register_student(self, username, password, display_name, block, class_name):
         """HS tự tạo tài khoản; chưa theo GV nào cho tới khi chọn."""

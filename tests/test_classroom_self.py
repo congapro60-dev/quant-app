@@ -107,14 +107,14 @@ def test_register_cleans_orphan_auth_account_when_profile_write_fails(monkeypatc
         {"localId": "uidNew", "idToken": "tok", "refreshToken": "r", "expiresIn": "3600"}
         if action == "signUp" else (deleted.append(data["idToken"]), {})[1]))
     # 1. Lỗi từ chối chắc chắn (ví dụ 400 do rules/schema): phải dọn tài khoản Auth mồ côi
-    monkeypatch.setattr(c, "_write",
+    monkeypatch.setattr(c, "_commit",
                         lambda *a, **k: (_ for _ in ()).throw(fc.ClassroomConnectionError("Lỗi", status_code=400)))
     with pytest.raises(fc.ClassroomConnectionError):
         c.register_student("hoc-sinh-01", "mat-khau-8", "An", "11", "11A1")
     assert deleted == ["tok"]
     # 2. Lỗi mạng không xác định (không có status_code client 4xx): không vội xóa
     deleted.clear()
-    monkeypatch.setattr(c, "_write",
+    monkeypatch.setattr(c, "_commit",
                         lambda *a, **k: (_ for _ in ()).throw(fc.ClassroomConnectionError("Mất mạng")))
     with pytest.raises(fc.ClassroomConnectionError):
         c.register_student("hoc-sinh-02", "mat-khau-8", "An", "11", "11A1")
@@ -217,7 +217,7 @@ def test_self_entry_boots_without_secrets_or_network():
     at = run_self("import classroom_self_ui as ui\n"
                   f"ui.render_self_service(config={ENABLED})")
     assert not at.exception and not at.error
-    assert len(at.text_input) == 9  # 2 đăng nhập + 4 HS + 3 GV, mọi tab đều render
+    assert len(at.text_input) == 10  # 2 đăng nhập + 4 HS + 4 GV (có mã mời), mọi tab đều render
     assert list(at.selectbox[0].options) == ["10", "11", "12"]
 
 
@@ -302,3 +302,42 @@ def test_student_register_form_logs_in_after_success(monkeypatch):
     assert at.session_state["self_session"].uid == "uidNew"
     labels = [b.label for b in at.button]
     assert any("Chọn giáo viên" in label for label in labels)
+
+
+# ---------------------------------------------------------------------------
+# Mã mời giáo viên (chống giả danh GV, 01/11/2026)
+# ---------------------------------------------------------------------------
+
+def test_invite_code_accepts_dashes_spaces_and_lowercase():
+    import classroom_self as cself
+
+    assert cself.normalize_invite_code("abcde-fghij klmno-pqrs7") == "ABCDEFGHIJKLMNOPQRS7"
+    assert cself.format_invite_code("ABCDEFGHIJKLMNOPQRS7") == "ABCDE-FGHIJ-KLMNO-PQRS7"
+
+
+@pytest.mark.parametrize("bad", ["", "ABC", "A" * 19, "A" * 21, "ABCDEFGHIJKLMNOPQRS1",
+                                 "ABCDEFGHIJKLMNOPQRS8", "ABCDEFGHIJKLMNOPQRS​"])
+def test_invite_code_rejects_wrong_shape(bad):
+    import classroom_self as cself
+
+    with pytest.raises(cp.ClassroomPackageError):
+        cself.normalize_invite_code(bad)
+
+
+def test_teacher_directory_payload_requires_invite():
+    import classroom_self as cself
+
+    payload = cself.teacher_directory_payload("Cô Lan", "abcde-fghij-klmno-pqrst")
+    assert payload == {"display_name": "Cô Lan", "invite_code": "ABCDEFGHIJKLMNOPQRST"}
+    with pytest.raises(cp.ClassroomPackageError):
+        cself.teacher_directory_payload("Cô Lan", "")
+
+
+def test_invite_tool_generates_valid_codes():
+    import classroom_self as cself
+    from tools.teacher_invites import new_code
+
+    codes = {new_code() for _ in range(200)}
+    assert len(codes) == 200
+    for code in codes:
+        assert cself.normalize_invite_code(code) == code

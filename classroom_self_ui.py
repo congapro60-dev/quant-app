@@ -7,6 +7,7 @@ nhiên không gọi mạng, nên AppTest với key giả vẫn chạy được.
 import streamlit as st
 
 import classroom_packages as cp
+import classroom_self as cself
 from firebase_classroom import (
     FirebaseClassroom,
     ClassroomConnectionError,
@@ -108,7 +109,12 @@ def _register_student(client, on_login=None):
 def _register_teacher(client, on_login=None):
     st.caption("Sau khi đăng ký, tên của thầy/cô sẽ hiện ngay trong danh sách giáo viên "
                "cho học sinh chọn.")
+    st.info("🔑 **Cần mã mời giáo viên.** Mỗi mã gồm 20 ký tự, dùng được một lần, do "
+            "quản trị viên của trang gửi riêng cho thầy/cô. Nhờ vậy không ai tự xưng là "
+            "giáo viên để học sinh chọn nhầm. Chưa có mã thì liên hệ quản trị viên.")
     with st.form("self_register_teacher"):
+        invite = st.text_input("Mã mời giáo viên (ví dụ ABCDE-FGHIJ-KLMNO-PQRST)",
+                               key="self_teacher_invite")
         username = st.text_input("Tên đăng nhập (4-32 ký tự, không khoảng trắng)",
                                  key="self_teacher_username")
         display = st.text_input("Tên hiển thị (học sinh sẽ thấy)", key="self_teacher_display")
@@ -117,7 +123,13 @@ def _register_teacher(client, on_login=None):
         submit = st.form_submit_button("Đăng ký giáo viên", type="primary")
     if submit:
         try:
-            session = client.register_teacher(username, password, display)
+            # Kiểm định dạng trước khi tạo tài khoản, đỡ một lượt gọi mạng vô ích.
+            cself.normalize_invite_code(invite)
+        except cp.ClassroomPackageError as exc:
+            st.warning(str(exc))
+            return
+        try:
+            session = client.register_teacher(username, password, display, invite)
             profile = client.self_profile(session)
             st.session_state.update(self_session=session, self_profile=profile)
             if on_login is not None:

@@ -92,12 +92,29 @@ service cloud.firestore {
         }
       }
     }
+    // Mã mời giáo viên: chỉ chủ project tạo (công cụ quản trị, vượt Rules).
+    // Không ai đọc, liệt kê hay sửa được. Mã chỉ bị xóa đúng một lần, trong
+    // cùng lượt ghi tạo hồ sơ giáo viên mang chính mã đó.
+    match /teacher_invites/{invite} {
+      allow get, list, create, update: if false;
+      allow delete: if signed()
+        && getAfter(/databases/$(database)/documents/teacher_directory/$(request.auth.uid))
+             .data.invite_code == invite;
+    }
     match /teacher_directory/{uid} {
+      function invite_ok() {
+        let invite = request.resource.data.invite_code;
+        return invite is string && invite.matches('^[A-Z2-7]{20}$')
+          && exists(/databases/$(database)/documents/teacher_invites/$(invite))
+          && !existsAfter(/databases/$(database)/documents/teacher_invites/$(invite));
+      }
       allow get, list: if signed();
+      // Hồ sơ cũ (trước khi có mã mời) giữ nguyên; chỉ tạo mới mới cần mã.
       allow create: if signed() && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['display_name', 'created_at'])
+        && request.resource.data.keys().hasOnly(['display_name', 'created_at', 'invite_code'])
         && self_name(request.resource.data.display_name)
-        && request.resource.data.created_at == request.time;
+        && request.resource.data.created_at == request.time
+        && invite_ok();
       allow update, delete: if false;
     }
     match /student_state/{uid} {
