@@ -14,10 +14,12 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **Vốn ảo 0–500 triệu, mặc định 5 triệu, mua được lô lẻ.** Vốn 0 thì tắt nút khởi tạo vì `PortfolioLedger` từ chối 0; `portfolio.py` không đổi.
 - **Mã mời giáo viên dùng một lần** chống giả danh, do Rules kiểm, không cần quyền quản trị. Tạo mã: `tools/teacher_invites.py`.
 - **Test Rules chạy thật lần đầu**: `tools/run_rules_tests.py`.
+- **Rules production đã deploy 02/11/2026**; smoke trên Firebase thật 7/7 (mã bịa bị chặn, dùng lại bị chặn, HS không đọc được mã), dữ liệu thử đã dọn. 3 mã mời đầu tiên nằm trong `~/.quant-app-classroom/teacher-invites-20261102-085158.json`.
+- **Thẻ Hướng dẫn** (`user_guide.py`): các bước cho HS, GV, bản đồ chức năng sinh từ `FEATURES`, câu hỏi thường gặp. Đổi tên nút mà quên sửa hướng dẫn thì `tests/test_user_guide.py` đỏ.
+- **Quên mật khẩu**: hướng dẫn ở form đăng nhập (`cself.FORGOT_PASSWORD_STEPS`). Chủ dự án đã chọn KHÔNG đưa khoá quản trị lên app; không ai đặt lại được mật khẩu. Điểm nằm trong trình duyệt nên đăng ký lại trên cùng máy không mất.
 
 ## 2. Đang dở / đừng đụng
 
-- **GV đặt lại mật khẩu cho HS: CHƯA làm, chờ chủ dự án quyết.** Chỉ làm được bằng khoá quản trị Firebase trong Secrets, trái nguyên tắc hiện có "ID tokens obey Rules, never Admin SDK". Hiện quên mật khẩu thì đăng ký tài khoản mới rồi chọn lại GV.
 - `docs/thiet_ke_onboarding.html` chưa track, cố ý để đó.
 - Luồng bấm nút nộp bài của HS tự đăng ký chưa chạy trọn trên trình duyệt; đã phủ bằng AppTest và smoke Firebase thật ngày 29/10.
 
@@ -27,6 +29,7 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **`pytest` thường tự bỏ qua test Rules** (skip khi thiếu `FIRESTORE_EMULATOR_HOST`). Xanh không có nghĩa Rules đúng. Đổi `firestore.rules` thì phải chạy công cụ trên. Có một lần đỏ không rõ nguyên nhân trong 6 lần chạy ngày 01/11 (log bị ghi đè), chưa tái hiện được.
 - **Không gọi `st.rerun()` trong `on_click`**: Streamlit bỏ qua và test giả lập `st.rerun` vẫn xanh. Nút trong `st.dialog` cần rerun toàn app thì viết `if st.button(...)`. `test_tour_exit_buttons_are_not_callbacks` chặn việc này cho nút tour.
 - **AI dùng chung bật mặc định, không giới hạn lượt, không cần đăng nhập** (`app.py`, `SHARED_PROVIDER_OPTION`). Chủ dự án chủ động chọn mở cho mọi người; tiêu hao hạn mức thì xem lại đây.
+- **Tour đôi khi không hiện ở phiên đầu trên server vừa bật** (gặp 2 lần local khi máy tải nặng, tour thường hiện sau khoảng 30 giây). Chưa rõ nguyên nhân, không chặn việc dùng app.
 - **App ngủ khi không có người vào**: màn hình "Zzzz" tiếng Anh, đánh thức khoảng 20 giây. Mở link 5–10 phút trước giờ học.
 - **Python của app khoá lúc deploy trên Cloud** (phải là 3.12). `vnstock_ezchart>=1.0.2` chặn `numpy<2.3`, không có wheel cho 3.14. Đừng nới ràng buộc numpy.
 - **Đường dẫn tiếng Việt**: dùng junction `C:\Users\ADMIN\quant-app-link` hoặc đường dẫn 8.3 khi thao tác file; PowerShell 5.1 và cmd đọc sai.

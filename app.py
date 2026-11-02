@@ -39,6 +39,7 @@ import progress_store
 import stats_tools
 import stats_classroom
 from feature_guides import render_guide
+from user_guide import GUIDE_LABEL, render_user_guide
 from workspace_ui import (
     HOME_LABEL, NAV_KEY, HISTORY_LABEL, MUSE_LABEL, navigate_to,
     apply_pending_navigation,
@@ -442,8 +443,11 @@ _visible_features = lmode.visible_features(st.session_state)
 _shown_areas = lmode.visible_areas(st.session_state, _visible_features)
 # Áp điểm đến do nút trong dialog hẹn trước, khi các khóa tab chưa bị dựng.
 apply_pending_navigation()
-_all_tabs = workspace_tabs([HOME_LABEL] + [lmode.AREA_LABELS[a] for a in _shown_areas], NAV_KEY)
+_all_tabs = workspace_tabs(
+    [HOME_LABEL] + [lmode.AREA_LABELS[a] for a in _shown_areas] + [GUIDE_LABEL], NAV_KEY
+)
 overview_tab = _all_tabs[0]
+guide_tab = _all_tabs[-1]
 _area_tabs = dict(zip(_shown_areas, _all_tabs[1:]))
 area_learning = _area_tabs.get(lmode.AREA_LEARNING)
 area_data = _area_tabs.get(lmode.AREA_DATA)
@@ -704,6 +708,9 @@ tab3 = _invest_tabs.get(lmode.FEATURE_ADVISOR)
 
 with overview_tab:
     render_overview()
+
+with guide_tab:
+    render_user_guide()
 
 if area_learning is not None:
     with area_learning:

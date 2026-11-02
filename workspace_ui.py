@@ -172,7 +172,8 @@ _TOUR_STEPS = (
      '"vì sao" vào Nhật ký quyết định — viết trước để không tự lừa mình sau.'),
     ("Giữ lại cái gì?", "Giữ bằng chứng học tập",
      "Nhật ký & tiến độ lưu điểm, hai bài chẩn đoán, và gói nộp cho giáo viên. "
-     "Xong lộ trình thì tải hồ sơ JSON về máy."))
+     "Xong lộ trình thì tải hồ sơ JSON về máy. Cần xem lại cách dùng thì mở thẻ "
+     "Hướng dẫn trên thanh thẻ."))
 
 
 def _profile_is_fresh(profile) -> bool:
