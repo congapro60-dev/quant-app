@@ -80,7 +80,7 @@ def test_login_page_has_the_forms_and_queues_the_marker(monkeypatch):
     at.query_params["account"] = "login"
     at.run()
     assert not at.exception, [str(e) for e in at.exception]
-    assert len(at.text_input) == 9
+    assert len(at.text_input) == 10  # 2 đăng nhập + 4 HS + 4 GV (có mã mời)
     at.text_input[0].set_value("hoc-sinh-01")
     at.text_input[1].set_value("mat-khau-8")
     _button(at, "Đăng nhập").click().run()
