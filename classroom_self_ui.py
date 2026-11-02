@@ -73,6 +73,9 @@ def _entry(client, on_login=None):
                 st.rerun()
             except (ClassroomConnectionError, cp.ClassroomPackageError):
                 st.warning("Chưa đăng nhập được. Kiểm tra tên đăng nhập và mật khẩu.")
+        with st.expander("Quên mật khẩu?"):
+            for number, step in enumerate(cself.FORGOT_PASSWORD_STEPS, start=1):
+                st.markdown(f"{number}. {step}")
     with register_tab:
         student_tab, teacher_tab = st.tabs(["Em là học sinh", "Em là giáo viên"])
         with student_tab:
