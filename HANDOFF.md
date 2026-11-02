@@ -21,6 +21,8 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **Giao diện sáng/tối** (`theme_ui.py`, `[theme.light]`/`[theme.dark]` trong config): theo thiết bị, đổi ở menu ⋮ → Settings → Theme.
 - **Trọng số âm** (bán khống) được nhận ở công cụ danh mục trong thẻ Ôn thi, cần cho đề có W âm. Trợ lý học tập `safe_ai_tools.py` vẫn từ chối W âm.
 
+- **Web khớp EViews 4:** `eviews_emulator.py` dùng ADF trễ 4 có hệ số chặn, giá trị tới hạn MacKinnon, AIC/SC theo quan sát, thêm `SMPL`, `COV`. `tests/test_eviews_parity.py` khoá theo số đọc từ EViews thật; đổi công thức mà lệch là đỏ.
+
 ## 2. Đang dở / đừng đụng
 
 - **Trạng thái production 02/11:** thẻ Hướng dẫn, nền sáng, trọng số âm và "Quên mật khẩu?" đều `verified` trên UI production. Không Reboot; bản mới tự nạp hết.

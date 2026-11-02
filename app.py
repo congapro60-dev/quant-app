@@ -1697,7 +1697,10 @@ if tab5 is not None:
                         sim_detail = pd.DataFrame(r['per_stock']).rename(
                             columns={"Beta": "Beta (độ nhạy)"}
                         )
-                        st.dataframe(sim_detail, width="stretch")
+                        st.dataframe(sim_detail, width="stretch", column_config={
+                            c: st.column_config.NumberColumn(format="%.8f")
+                            for c in sim_detail.columns if c not in ("Mã", "Beta (độ nhạy)")
+                        })
                         k1, k2, k3 = st.columns(3)
                         k1.metric("Rủi ro hệ thống", f"{r['systematic']:.8f}")
                         k2.metric("Rủi ro phi hệ thống", f"{r['unsystematic']:.8f}")

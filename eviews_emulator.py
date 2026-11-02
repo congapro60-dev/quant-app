@@ -346,6 +346,26 @@ def eviews_expr_to_series(formula, df):
 
 
 # ==================== BỘ PHÂN TÍCH LỆNH ====================
+# Mặc định của EViews 4: phương trình ADF có hệ số chặn và 4 độ trễ.
+ADF_DEFAULT_LAGS = 4
+ADF_MAX_LAGS = 24
+
+
+def mackinnon_critical_values(nobs):
+    """Giá trị tới hạn MacKinnon (1991) cho ADF có hệ số chặn, như EViews 4.
+
+    Hệ số được kiểm lại với bảng EViews 4 thật: T = 144 cho -3.4767, -2.8815,
+    -2.5773; T = 394 (bài giảng) cho -3.4490, -2.8691, -2.5708.
+    """
+
+    t = float(nobs)
+    return {
+        "1%": -3.4336 - 5.999 / t - 29.25 / t ** 2,
+        "5%": -2.8621 - 2.738 / t - 8.36 / t ** 2,
+        "10%": -2.5671 - 1.438 / t - 4.48 / t ** 2,
+    }
+
+
 def parse_and_execute_command(command, data_df):
     if not isinstance(command, str):
         return {"error": "Lệnh phải là văn bản."}
@@ -435,19 +455,48 @@ def parse_and_execute_command(command, data_df):
         if adfuller is None:
             return {"error": "Thiếu module ADF (statsmodels.tsa)."}
         if len(parts) < 2:
-            return {"error": "Cú pháp: ADF <tên biến>."}
+            return {"error": "Cú pháp: ADF <tên biến> [số trễ, mặc định 4]."}
         col = col_map.get(parts[1].upper())
         if col is None:
             return {"error": f"Không tìm thấy biến '{parts[1]}'."}
+        lags = ADF_DEFAULT_LAGS
+        if len(parts) > 2:
+            if not parts[2].isdigit() or int(parts[2]) > ADF_MAX_LAGS:
+                return {"error": f"Số trễ phải là số nguyên từ 0 đến {ADF_MAX_LAGS}."}
+            lags = int(parts[2])
         series = pd.to_numeric(data_df[col], errors='coerce')
         series = series.replace([np.inf, -np.inf], np.nan).dropna()
         try:
-            stat, pval, usedlag, nobs, crit, _ = adfuller(series, autolag='AIC')
+            # Cùng phương trình với EViews 4: có hệ số chặn, số trễ cố định.
+            stat, pval, usedlag, nobs, _ = adfuller(series, maxlag=lags, autolag=None, regression='c')
+            crit = mackinnon_critical_values(nobs)
             return {"success": True, "adf": {
                 "var": col, "stat": stat, "pvalue": pval, "lags": usedlag,
                 "nobs": nobs, "crit": crit}}
         except Exception as e:
             return {"error": f"Lỗi ADF: {e}"}
+
+    # ---------- Thu hẹp mẫu ----------
+    if cmd == 'SMPL':
+        if len(parts) != 3 or not parts[1].isdigit() or not parts[2].isdigit():
+            return {"error": "Cú pháp: SMPL <từ dòng> <đến dòng>, ví dụ SMPL 1 150."}
+        first, last = int(parts[1]), int(parts[2])
+        if first < 1 or last < first or last > len(data_df):
+            return {"error": f"Khoảng dòng phải nằm trong 1 đến {len(data_df)}."}
+        return {"success": True,
+                "message": f"Đã giữ {last - first + 1} quan sát (dòng {first} đến {last}). "
+                           "Nạp lại tệp để dùng toàn bộ dữ liệu.",
+                "data": data_df.iloc[first - 1:last].reset_index(drop=True)}
+
+    # ---------- Ma trận hiệp phương sai ----------
+    if cmd in ('COV', 'COVAR'):
+        cols = [col_map.get(p.upper()) for p in parts[1:]] if len(parts) > 1 else list(data_df.columns)
+        cols = [c for c in cols if c is not None]
+        if not cols:
+            return {"error": "Không tìm thấy biến để tính hiệp phương sai."}
+        num = data_df[cols].apply(pd.to_numeric, errors='coerce').replace([np.inf, -np.inf], np.nan).dropna()
+        # Bảng Covariance của EViews chia cho n, khác S.D. chia cho n-1.
+        return {"success": True, "cov": num.cov(ddof=0), "nobs": len(num)}
 
     # ---------- Thống kê mô tả ----------
     if cmd in ('STATS', 'DESC', 'DESCRIBE'):
@@ -508,7 +557,7 @@ def parse_and_execute_command(command, data_df):
         data = data.replace([np.inf, -np.inf], np.nan)
         return {"success": True, "plot": {"kind": kind, "cols": cols, "data": data}}
 
-    return {"error": f"Lệnh '{cmd}' chưa hỗ trợ. Các lệnh có: LS, GENR, ADF, STATS, COR, PLOT/SCAT/HIST."}
+    return {"error": f"Lệnh '{cmd}' chưa hỗ trợ. Các lệnh có: LS, GENR, SMPL, ADF, STATS, COR, COV, PLOT/SCAT/HIST."}
 
 
 # ==================== ĐỊNH DẠNG KẾT QUẢ (HTML) ====================
@@ -520,18 +569,18 @@ def _diagnostics_block(results):
 
     # White
     try:
-        wt = het_white(resid, exog)
-        wp = wt[1]
-        wv = "⚠️ CÓ phương sai sai số thay đổi" if wp < 0.05 else "✅ Không có (phương sai đồng nhất)"
-        html += f"<p style='margin:4px 0;'><b>Kiểm định White (PSSS thay đổi):</b> p-value = {wp:.4f} → <b>{wv}</b></p>"
+        lm, lm_p, f_stat, f_p = het_white(resid, exog)
+        wv = "⚠️ CÓ phương sai sai số thay đổi" if f_p < 0.05 else "✅ Không có (phương sai đồng nhất)"
+        html += (f"<p style='margin:4px 0;'><b>Kiểm định White (PSSS thay đổi):</b> "
+                 f"F = {f_stat:.6f}, Prob = {f_p:.6f} | Obs*R² = {lm:.6f}, Prob = {lm_p:.6f} → <b>{wv}</b></p>")
     except Exception:
         pass
     # Breusch-Godfrey
     try:
-        bg = acorr_breusch_godfrey(results, nlags=1)
-        bp = bg[1]
-        bv = "⚠️ CÓ tự tương quan" if bp < 0.05 else "✅ Không có tự tương quan"
-        html += f"<p style='margin:4px 0;'><b>Kiểm định Breusch-Godfrey (tự tương quan):</b> p-value = {bp:.4f} → <b>{bv}</b></p>"
+        lm, lm_p, f_stat, f_p = acorr_breusch_godfrey(results, nlags=1)
+        bv = "⚠️ CÓ tự tương quan" if f_p < 0.05 else "✅ Không có tự tương quan"
+        html += (f"<p style='margin:4px 0;'><b>Kiểm định Breusch-Godfrey bậc 1 (tự tương quan):</b> "
+                 f"F = {f_stat:.6f}, Prob = {f_p:.6f} | Obs*R² = {lm:.6f}, Prob = {lm_p:.6f} → <b>{bv}</b></p>")
     except Exception:
         pass
     # Ramsey RESET
@@ -539,7 +588,8 @@ def _diagnostics_block(results):
         rs = linear_reset(results, power=2, use_f=True)
         rp = float(rs.pvalue)
         rv = "⚠️ Mô hình có thể sai dạng hàm / thiếu biến" if rp < 0.05 else "✅ Dạng hàm phù hợp"
-        html += f"<p style='margin:4px 0;'><b>Kiểm định Ramsey RESET (dạng hàm):</b> p-value = {rp:.4f} → <b>{rv}</b></p>"
+        html += (f"<p style='margin:4px 0;'><b>Kiểm định Ramsey RESET (dạng hàm):</b> "
+                 f"F = {float(rs.fvalue):.6f}, Prob = {rp:.6f} → <b>{rv}</b></p>")
     except Exception:
         pass
     return html
@@ -556,8 +606,9 @@ def _format_ls(res_dict):
     f_stat = results.fvalue
     f_pvalue = results.f_pvalue
     log_likelihood = results.llf
-    aic = results.aic
-    bic = results.bic
+    # EViews báo AIC, Schwarz theo từng quan sát; statsmodels báo tổng.
+    aic = results.aic / nobs
+    bic = results.bic / nobs
     ssr = results.ssr
     se_regression = np.sqrt(ssr / results.df_resid) if results.df_resid > 0 else np.nan
     mean_dep = results.model.endog.mean()
@@ -658,6 +709,10 @@ def format_eviews_output(res_dict):
         df = res_dict["stats"]
         return _wrap("<p><b>Thống kê mô tả (Descriptive Statistics)</b></p>" +
                      df.to_html(float_format=lambda x: f"{x:.6f}", border=0))
+
+    if "cov" in res_dict:
+        return _wrap(f"<p><b>Ma trận hiệp phương sai (Covariance), chia cho n = {res_dict['nobs']} như EViews</b></p>" +
+                     res_dict["cov"].to_html(float_format=lambda x: f"{x:.8f}", border=0))
 
     if "corr" in res_dict:
         df = res_dict["corr"]
