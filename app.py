@@ -30,7 +30,6 @@ from safe_ai_tools import (
     build_explanation_prompt,
     result_for_display,
 )
-from statsmodels.stats.stattools import durbin_watson
 import data_cleaner as dc
 from investment_ui import render_backtest, render_investment_desk, render_paper_portfolio
 import data_status_ui as dstatus
@@ -725,68 +724,6 @@ def render_live_prices():
             c.metric(t, f"{series.iloc[-1]:,.2f}")
 
 
-def interpret_regression_vn(res):
-    m = res.get('results')
-    if m is None:
-        return None
-    dep = res.get('dep_var', 'Y')
-    r2 = float(getattr(m, 'rsquared', float('nan')))
-    r2a = float(getattr(m, 'rsquared_adj', float('nan')))
-    fp = getattr(m, 'f_pvalue', None)
-    params, pvals = m.params, m.pvalues
-    try:
-        dw = float(durbin_watson(m.resid))
-    except Exception:
-        dw = None
-
-    L = ["**1. Mức độ phù hợp của mô hình**"]
-    L.append(f"- R² = **{r2:.4f}** → mô hình giải thích khoảng **{r2*100:.1f}%** biến động của **{dep}** "
-             f"(R² hiệu chỉnh = {r2a:.4f}).")
-    if fp is not None:
-        if fp < 0.05:
-            L.append(f"- Kiểm định F: p = {fp:.4g} < 0.05 → **mô hình có ý nghĩa tổng thể** (ít nhất một biến độc lập thực sự tác động).")
-        else:
-            L.append(f"- Kiểm định F: p = {fp:.4g} ≥ 0.05 → mô hình **chưa có ý nghĩa tổng thể**, nên cân nhắc đổi biến.")
-
-    L.append("**2. Ý nghĩa các hệ số**")
-    for name in params.index:
-        coef, pv = float(params[name]), float(pvals[name])
-        sig = "**có ý nghĩa** (p<0.05)" if pv < 0.05 else "không có ý nghĩa (p≥0.05)"
-        if str(name).lower() in ('const', 'c'):
-            L.append(f"- Hằng số (C): {coef:.4f}, p = {pv:.4g} → {sig}.")
-        else:
-            direction = "đồng biến" if coef > 0 else "nghịch biến"
-            L.append(f"- **{name}**: hệ số = {coef:.4f} ({direction}), p = {pv:.4g} → {sig}. "
-                     f"Khi {name} tăng 1 đơn vị, {dep} thay đổi {coef:+.4f} đơn vị (các yếu tố khác không đổi).")
-
-    L.append("**3. Chẩn đoán mô hình**")
-    if dw is not None:
-        if dw < 1.5:
-            dwt = "có dấu hiệu **tự tương quan dương** (phần dư liên hệ chuỗi)"
-        elif dw > 2.5:
-            dwt = "có dấu hiệu **tự tương quan âm**"
-        else:
-            dwt = "**không có tự tương quan** đáng kể"
-        L.append(f"- Durbin-Watson = {dw:.3f} → {dwt}.")
-    L.append("- Xem thêm Jarque-Bera (chuẩn tắc phần dư) và hệ số phóng đại phương sai (VIF, đa cộng tuyến) ở bảng kết quả phía trên.")
-
-    nonconst = [n for n in params.index if str(n).lower() not in ('const', 'c')]
-    if len(nonconst) == 1:
-        b = float(params[nonconst[0]])
-        if b > 1:
-            cls = "**năng động** (β>1): biến động mạnh hơn thị trường — rủi ro & kỳ vọng cao."
-        elif 0 < b < 1:
-            cls = "**phòng thủ** (0<β<1): biến động yếu hơn thị trường — an toàn hơn."
-        else:
-            cls = "ngược chiều thị trường (β≤0): hiếm gặp, nên kiểm tra lại dữ liệu."
-        L.append(
-            f"**4. Góc nhìn mô hình chỉ số đơn (SIM)** — Beta (độ nhạy) = {b:.3f} "
-            f"→ cổ phiếu thuộc nhóm {cls}"
-        )
-    L.append("\n> ⚠️ Đây là diễn giải học thuật trên dữ liệu quá khứ, không phải khuyến nghị mua/bán.")
-    return "\n".join(L)
-
-
 def render_eviews_plot(plot):
     kind = plot["kind"]
     data = plot["data"].dropna()
@@ -1403,6 +1340,7 @@ if tab4 is not None:
                     "`ADF` (kiểm định nghiệm đơn vị), `STATS` (thống kê mô tả), `COR` (tương quan), "
                     "`PLOT/SCAT/HIST` (đồ thị đường/phân tán/tần suất).")
         from eviews_emulator import parse_and_execute_command, format_eviews_output
+        from eviews_commentary import commentary_for, glossary_markdown
 
         col_ev1, col_ev2 = st.columns([1, 2])
         with col_ev1:
@@ -1562,11 +1500,13 @@ if tab4 is not None:
                             html_output = format_eviews_output(res)
                             st.components.v1.html(html_output, height=460, scrolling=True)
 
-                        narrative = interpret_regression_vn(res)
+                        narrative = commentary_for(res)
                         if narrative:
                             st.markdown("##### 🧠 Diễn giải kết quả (tự động)")
                             st.markdown(narrative)
-                            if deep_ai:
+                            with st.expander("📖 Từ khóa cho người mới"):
+                                st.markdown(glossary_markdown())
+                            if deep_ai and "results" in res:
                                 if ai_config and ai_config.get('api_key'):
                                     m = res['results']
                                     summary = (f"Biến phụ thuộc: {res.get('dep_var')}. "

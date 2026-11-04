@@ -265,3 +265,26 @@ def test_markowitz_tab_can_use_the_excel_sheet_loaded_in_eviews():
     at.checkbox(key="markowitz_excel_short").check().run()
     assert not at.exception, [str(e) for e in at.exception]
     assert [e.value for e in at.error] == []
+
+
+def test_eviews_typed_command_shows_commentary_in_the_app():
+    import pandas as pd
+
+    import eviews_emulator as ev
+
+    df = pd.read_csv(Path(__file__).parent / "fixtures" / "eviews_parity_150.csv")
+    for name in ("VIC", "REE", "STB", "VNINDEX"):
+        df = ev.parse_and_execute_command(f"GENR R_{name} = LOG({name})-LOG({name}(-1))", df)["data"]
+    at = _run(**{lmode.MODE_KEY: lmode.MODE_UNIVERSITY, "eviews_data": df})
+    assert not at.exception, [str(e) for e in at.exception]
+    modes = [r for r in at.radio if r.label == "Cách nhập:"]
+    assert modes, "Tab EViews phải có lựa chọn cách nhập."
+    modes[0].set_value("⌨️ Gõ lệnh").run()
+    at.text_input(key="eviews_cmd").input("LS(H) R_VIC C R_VNINDEX").run()
+    run_buttons = [b for b in at.button if "Chạy lệnh" in b.label]
+    assert run_buttons, "Phải có nút Chạy lệnh."
+    run_buttons[0].click().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    shown = [md.value for md in at.markdown if "Nhận xét: R_VIC theo R_VNINDEX" in md.value]
+    assert shown, "Kết quả LS(H) phải kèm nhận xét chi tiết."
+    assert "β = 0.959152" in shown[0]
