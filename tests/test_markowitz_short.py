@@ -76,3 +76,42 @@ def test_short_sampler_respects_budget_and_bounds():
     assert np.allclose(w.sum(axis=1), 1.0)
     assert (w >= -SHORT_WEIGHT_LIMIT - 1e-9).all()
     assert (w <= SHORT_WEIGHT_LIMIT + 1e-9).all()
+
+
+def _synthetic_returns(mu_annual, seed=0, days=300):
+    rng = np.random.default_rng(seed)
+    noise = rng.normal(size=(days, len(mu_annual))) * 0.01
+    noise = noise - noise.mean(axis=0)
+    daily = np.array(mu_annual, dtype=float) / TRADING_DAYS
+    return pd.DataFrame(noise + daily, columns=["A" + str(i) for i in range(len(mu_annual))])
+
+
+def test_short_selling_beats_cash_when_a_long_short_mix_clears_rf():
+    # Cả ba tài sản dưới lãi suất phi rủi ro 4%, nhưng mua hai mã tốt nhất và bán khống mã xấu nhất cho lợi suất trên 4%.
+    returns = _synthetic_returns([-0.0426, -0.0426, -0.1622])
+    rf = 0.04
+    long_only = markowitz_optimization(returns, risk_free_rate=rf)
+    assert long_only["cash_weight"] == pytest.approx(1.0)
+    short = markowitz_optimization(returns, risk_free_rate=rf, allow_short=True)
+    mean_annual = returns.mean().to_numpy() * TRADING_DAYS
+    weights = np.asarray(short["max_sharpe_weights"])
+    assert short["cash_weight"] == pytest.approx(0.0)
+    assert short["warning"] is None
+    assert weights.sum() == pytest.approx(1.0, abs=1e-9)
+    assert float(weights @ mean_annual) > rf
+    assert (weights >= -SHORT_WEIGHT_LIMIT - 1e-9).all()
+    assert (weights <= SHORT_WEIGHT_LIMIT + 1e-9).all()
+
+
+def test_short_selling_keeps_cash_when_no_mix_clears_rf():
+    returns = _synthetic_returns([-0.2, -0.2, -0.2])
+    short = markowitz_optimization(returns, risk_free_rate=0.04, allow_short=True)
+    assert short["cash_weight"] == pytest.approx(1.0)
+    assert short["warning"] is not None
+
+
+def test_two_assets_cannot_short_under_the_bounds_so_cash_still_applies():
+    # Với hai tài sản và tổng tỷ trọng bằng 1, trần ±100% chỉ cho danh mục chỉ mua.
+    returns = _synthetic_returns([-0.0426, -0.1622])
+    short = markowitz_optimization(returns, risk_free_rate=0.04, allow_short=True)
+    assert short["cash_weight"] == pytest.approx(1.0)

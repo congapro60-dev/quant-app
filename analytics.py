@@ -421,19 +421,11 @@ def markowitz_optimization(
     warning_msg = None
     cash_weight = 0.0
     max_sharpe_result = None
-    if float(np.max(mean_returns)) <= risk_free_rate + 1e-12:
-        max_sharpe_weights = np.zeros(num_assets, dtype=float)
-        cash_weight = 1.0
-        warning_msg = (
-            "Lợi suất kỳ vọng năm hóa của mọi tài sản rủi ro không vượt lãi suất "
-            f"phi rủi ro ({risk_free_rate:.2%}); mô hình giữ 100% ở phương án tiền mặt."
-        )
-        max_sharpe_status = {
-            "success": True,
-            "mode": "cash",
-            "message": "Không tối ưu tài sản rủi ro vì tiền mặt chi phối theo giả định đầu vào.",
-        }
-    else:
+    # Lối tắt "toàn tiền mặt" chỉ đúng khi chỉ được mua. Khi bán khống, một tổ hợp
+    # dài-ngắn vẫn có thể vượt lãi suất phi rủi ro dù mọi tài sản đơn lẻ không vượt.
+    cash_dominates = float(np.max(mean_returns)) <= risk_free_rate + 1e-12
+    use_cash = cash_dominates and not allow_short
+    if not use_cash:
         max_sharpe_result = minimize(
             negative_sharpe_ratio,
             initial_weights,
@@ -451,6 +443,20 @@ def markowitz_optimization(
             raise AnalyticsValidationError(
                 "Tối ưu tỷ số Sharpe tối đa (Max Sharpe) tạo ra hiệu suất không hữu hạn."
             )
+        use_cash = cash_dominates and max_sharpe_perf[1] <= risk_free_rate + 1e-12
+    if use_cash:
+        max_sharpe_weights = np.zeros(num_assets, dtype=float)
+        cash_weight = 1.0
+        warning_msg = (
+            "Lợi suất kỳ vọng năm hóa của mọi tài sản rủi ro không vượt lãi suất "
+            f"phi rủi ro ({risk_free_rate:.2%}); mô hình giữ 100% ở phương án tiền mặt."
+        )
+        max_sharpe_status = {
+            "success": True,
+            "mode": "cash",
+            "message": "Không tối ưu tài sản rủi ro vì tiền mặt chi phối theo giả định đầu vào.",
+        }
+    else:
         max_sharpe_status = {
             "success": True,
             "mode": "risky_portfolio",
