@@ -22,18 +22,19 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **Trọng số âm** (bán khống) được nhận ở công cụ danh mục trong thẻ Ôn thi, cần cho đề có W âm. Trợ lý học tập `safe_ai_tools.py` vẫn từ chối W âm.
 
 - **Web khớp EViews 4:** `eviews_emulator.py` dùng ADF trễ 4 có hệ số chặn, giá trị tới hạn MacKinnon, AIC/SC theo quan sát, thêm `SMPL`, `COV`. `tests/test_eviews_parity.py` khoá theo số đọc từ EViews thật; đổi công thức mà lệch là đỏ.
-- **Sai số chuẩn White `LS(H)`** (05/11, có trong commit đưa lên master cùng ngày): HC1 với p-value theo phân phối t, khớp EViews 4 ở ảnh VIC. F-statistic giữ như EViews. Menu Chọn nhanh có ô "Sai số chuẩn White". Test: `test_ls_h_*` trong `tests/test_eviews_parity.py`.
-- **Markowitz đọc tệp Excel đã nạp ở thẻ EViews** (05/11, có trong commit đưa lên master cùng ngày): chọn nguồn ngay trong tab Markowitz, chọn cột giá, năm hóa 252 phiên. Có tùy chọn **bán khống**, mỗi tỷ trọng trong [−100%; +100%]; mặc định vẫn chỉ mua. Trọng số âm vẽ bằng cột thay vì bánh tròn. Test: `tests/test_markowitz_short.py` và `test_markowitz_tab_can_use_the_excel_sheet_loaded_in_eviews` trong `tests/test_app_smoke.py`.
+- **Sai số chuẩn White `LS(H)`** (commit 7a3696b, 05/11, đã chạy trên production): HC1 với p-value theo phân phối t, khớp EViews 4 ở ảnh VIC (SE 0,001399 và 0,191825; F 44,570762). Menu Chọn nhanh có ô "Sai số chuẩn White". Test: `test_ls_h_*` trong `tests/test_eviews_parity.py`.
+- **Markowitz đọc tệp Excel đã nạp ở thẻ EViews** (commit 7a3696b, 05/11, đã chạy trên production): chọn nguồn ngay trong tab Markowitz, chọn cột giá, năm hóa 252 phiên. Có tùy chọn **bán khống**, mỗi tỷ trọng trong [−100%; +100%]; mặc định vẫn chỉ mua. Trên VIC, REE, STB (150 phiên đầu): chỉ mua, Max Sharpe là VIC 100%; có bán khống, Max Sharpe là VIC 100%, REE 79,04%, STB −79,04%. Trọng số âm vẽ bằng cột thay vì bánh tròn. Test: `tests/test_markowitz_short.py` và `test_markowitz_tab_can_use_the_excel_sheet_loaded_in_eviews` trong `tests/test_app_smoke.py`.
 
 ## 2. Đang dở / đừng đụng
 
-- **Đưa lên master 05/11** (cùng commit với HANDOFF này): nhóm `LS(H)` và Markowitz Excel/bán khống. Production chạy bản này sau khi Reboot. Trạng thái kiểm UI production sau Reboot báo trong chat, chưa ghi vào file này. Các thay đổi chưa commit khác trong repo (`learning_ui.py`, `stats_classroom.py`, hai file test của chúng, `docs/`, `tools/`, `outputs/`) không thuộc nhóm này nên không đưa lên cùng commit.
+- **Đã đưa lên master 05/11** (commit 7a3696b). Production đã chạy code mới, kiểm UI ngày 05/11, không Reboot. Các thay đổi chưa commit khác trong repo (`learning_ui.py`, `stats_classroom.py`, hai file test của chúng, `docs/`, `tools/`, `outputs/`) không thuộc nhóm này, chưa commit và chưa đưa lên.
 - **Trạng thái production 02/11:** thẻ Hướng dẫn, nền sáng, trọng số âm và "Quên mật khẩu?" đều `verified` trên UI production. **Reboot 02/11/2026 18:12:54 (+07), chủ dự án duyệt trong chat**, vì bộ giả lập EViews bản cũ còn trong bộ nhớ. Sau Reboot, ADF, R², AIC/SC, White, BG, RESET của VIC, REE, STB đọc trên production đều khớp EViews.
 - `docs/thiet_ke_onboarding.html` chưa track, cố ý để đó.
 - Luồng bấm nút nộp bài của HS tự đăng ký chưa chạy trọn trên trình duyệt; đã phủ bằng AppTest và smoke Firebase thật ngày 29/10.
 
 ## 3. Cái sắp cắn người sau
 
+- **Streamlit Cloud: app đang ngủ** sẽ dậy với code mới nhất khi có người đánh thức. Đã thấy 05/11: push xong, đánh thức app thì có tính năng mới, không cần Reboot. App đang chạy thì vẫn cần Reboot để nạp module mới.
 - **Java không đọc được đường dẫn tiếng Việt**: `firebase emulators:exec` chạy thẳng trong repo sẽ chết lúc khởi động. Luôn dùng `tools/run_rules_tests.py`.
 - **`pytest` thường tự bỏ qua test Rules** (skip khi thiếu `FIRESTORE_EMULATOR_HOST`). Xanh không có nghĩa Rules đúng. Đổi `firestore.rules` thì phải chạy công cụ trên. Có một lần đỏ không rõ nguyên nhân trong 6 lần chạy ngày 01/11 (log bị ghi đè), chưa tái hiện được.
 - **Streamlit Cloud kéo code mới mà KHÔNG khởi động lại tiến trình; module cũ vẫn trong bộ nhớ.** Module mới đọc hằng số vừa thêm vào module cũ ngay lúc import sẽ làm sập cả trang tới khi Reboot (đã xảy ra 02/11, `dce3183`, sửa bằng `4ec46c0`). Test local không bắt được vì luôn khởi động mới. Hằng số dùng lúc import thì đặt trong module mới.
