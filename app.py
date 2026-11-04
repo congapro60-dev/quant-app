@@ -1212,17 +1212,72 @@ if tab1 is not None:
                 st.plotly_chart(fig, width="stretch")
 
 
+def _allocation_figure(weights_df, palette):
+    # Bánh tròn không biểu diễn được tỷ trọng âm, nên khi có bán khống thì dùng cột.
+    if (weights_df["Tỷ trọng"] < 0).any():
+        fig = px.bar(weights_df, x="Tài sản", y="Tỷ trọng", color="Tài sản",
+                     color_discrete_sequence=palette, text_auto=".2%")
+        fig.update_yaxes(tickformat=".0%")
+        fig.update_layout(showlegend=False)
+        return fig
+    return px.pie(weights_df, values="Tỷ trọng", names="Tài sản", hole=0.45,
+                  color_discrete_sequence=palette)
+
+
+def _excel_markowitz_inputs(eviews_df):
+    # Dựng danh mục từ các cột giá trong tệp Excel đã nạp; trả về None khi chưa đủ điều kiện.
+    columns = {str(c): c for c in eviews_df.columns}
+    candidates = [name for name, col in columns.items()
+                  if pd.api.types.is_numeric_dtype(eviews_df[col])
+                  and not any(tag in name.upper() for tag in ("NGAY", "DATE", "DTYYYY", "TIME"))]
+    if len(candidates) < 2:
+        st.info("Tệp Excel cần ít nhất hai cột số để tối ưu danh mục.")
+        return None
+    default = [name for name in ("VIC", "REE", "STB") if name in candidates] or candidates[:3]
+    assets = st.multiselect("Tài sản (cột giá trong tệp Excel):", candidates, default=default,
+                            key="markowitz_excel_assets")
+    allow_short = st.checkbox("Cho phép bán khống (mỗi tỷ trọng trong khoảng −100% đến +100%)",
+                              key="markowitz_excel_short")
+    st.caption("Giả định mỗi dòng là một phiên giao dịch, năm hóa theo 252 phiên. Lợi suất là logarit của giá.")
+    if len(assets) < 2:
+        st.info("Chọn ít nhất hai tài sản.")
+        return None
+    try:
+        prices = eviews_df[[columns[name] for name in assets]].apply(pd.to_numeric, errors="coerce")
+        returns_df = calculate_returns(prices)
+        opt_res = markowitz_optimization(returns_df, allow_short=allow_short)
+    except Exception as exc:
+        st.error(f"Không tối ưu được danh mục từ tệp Excel: {exc}")
+        return None
+    return opt_res, returns_df, list(opt_res["assets"])
+
+
 # ---------- TAB 2: MARKOWITZ ----------
 if tab2 is not None:
     with tab2:
         render_guide(lmode.FEATURE_MARKOWITZ)
-        if not has_data:
-            st.button("Nạp dữ liệu để tối ưu danh mục", on_click=navigate_to,
-                      args=(lmode.AREA_DATA, "history"), key="markowitz_load")
+        use_excel = False
+        excel_markowitz = None
+        if not st.session_state.eviews_data.empty:
+            markowitz_source = st.radio(
+                "Nguồn dữ liệu cho Markowitz:",
+                ["Dữ liệu thị trường đã phân tích", "Tệp Excel đã nạp ở thẻ EViews"],
+                index=0 if has_data else 1, horizontal=True, key="markowitz_source")
+            use_excel = markowitz_source.startswith("Tệp Excel")
+        if use_excel:
+            excel_markowitz = _excel_markowitz_inputs(st.session_state.eviews_data)
+        markowitz_ready = excel_markowitz is not None if use_excel else has_data
+        if not markowitz_ready:
+            if not use_excel:
+                st.button("Nạp dữ liệu để tối ưu danh mục", on_click=navigate_to,
+                          args=(lmode.AREA_DATA, "history"), key="markowitz_load")
         else:
-            opt_res = st.session_state.opt_res
-            returns_df = st.session_state.returns_df
-            valid_assets = st.session_state.valid_assets
+            if use_excel:
+                opt_res, returns_df, valid_assets = excel_markowitz
+            else:
+                opt_res = st.session_state.opt_res
+                returns_df = st.session_state.returns_df
+                valid_assets = st.session_state.valid_assets
 
             if opt_res.get('warning'):
                 st.warning(f"⚠️ {opt_res['warning']}")
@@ -1232,8 +1287,7 @@ if tab2 is not None:
                 st.subheader("🛡️ Danh mục An toàn nhất")
                 st.caption("Biến động tối thiểu (Min Volatility) — rủi ro thấp nhất")
                 min_vol_df = pd.DataFrame({'Tài sản': opt_res['assets'], 'Tỷ trọng': opt_res['min_vol_weights']})
-                fig_mv = px.pie(min_vol_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
-                                color_discrete_sequence=px.colors.sequential.Teal)
+                fig_mv = _allocation_figure(min_vol_df, px.colors.sequential.Teal)
                 st.plotly_chart(fig_mv, width="stretch")
             with c2:
                 st.subheader("🚀 Danh mục Hiệu quả nhất")
@@ -1243,9 +1297,8 @@ if tab2 is not None:
                     float(opt_res.get('max_sharpe_cash_weight', 0.0))
                 ]
                 max_sharpe_df = pd.DataFrame({'Tài sản': max_sharpe_assets, 'Tỷ trọng': max_sharpe_values})
-                max_sharpe_df = max_sharpe_df[max_sharpe_df['Tỷ trọng'] > 1e-10]
-                fig_ms = px.pie(max_sharpe_df, values='Tỷ trọng', names='Tài sản', hole=0.45,
-                                color_discrete_sequence=px.colors.sequential.Agsunset)
+                max_sharpe_df = max_sharpe_df[max_sharpe_df['Tỷ trọng'].abs() > 1e-10]
+                fig_ms = _allocation_figure(max_sharpe_df, px.colors.sequential.Agsunset)
                 st.plotly_chart(fig_ms, width="stretch")
 
             w_table = pd.DataFrame({
@@ -1428,7 +1481,9 @@ if tab4 is not None:
                         extra = st.multiselect("(Tuỳ chọn) thêm biến độc lập khác:",
                                                [c for c in cols_list if c not in (y, x_market)])
                         xs = [x_market] + [e for e in extra if e != x_market]
-                        command_to_run = f"LS {y} C {' '.join(xs)}"
+                        use_white = st.checkbox("Sai số chuẩn White (lệnh LS(H)), dùng khi nghi có phương sai thay đổi", key="ls_white_menu")
+                        ls_prefix = "LS(H) " if use_white else "LS "
+                        command_to_run = ls_prefix + y + " C " + " ".join(xs)
                     elif op.startswith("Tạo biến"):
                         st.caption("Có thể dùng hàm: LOG() (logarit), D() (sai phân), biến trễ X(-1), @TREND (xu hướng), hoặc điều kiện tạo biến giả (ví dụ: BID>20).")
                         newname = st.text_input("Tên biến mới:", "Z")

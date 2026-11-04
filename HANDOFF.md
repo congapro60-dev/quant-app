@@ -1,6 +1,6 @@
 # HANDOFF — Quant App
 
-**Cập nhật**: 2026-11-02 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
+**Cập nhật**: 2026-11-05 · **Repo**: https://github.com/congapro60-dev/quant-app · **Branch chuẩn**: `master` · **Production**: https://quant-app-nnqcr8uwb6mjyonxod8nzu.streamlit.app
 
 Luật làm việc trong repo: `AGENTS.md` (Reboot phải xin phép, deployed khác verified, nội dung pháp lý phải có nguồn).
 
@@ -22,10 +22,13 @@ App Streamlit dạy tài chính cho học sinh THPT và sinh viên; đích của
 - **Trọng số âm** (bán khống) được nhận ở công cụ danh mục trong thẻ Ôn thi, cần cho đề có W âm. Trợ lý học tập `safe_ai_tools.py` vẫn từ chối W âm.
 
 - **Web khớp EViews 4:** `eviews_emulator.py` dùng ADF trễ 4 có hệ số chặn, giá trị tới hạn MacKinnon, AIC/SC theo quan sát, thêm `SMPL`, `COV`. `tests/test_eviews_parity.py` khoá theo số đọc từ EViews thật; đổi công thức mà lệch là đỏ.
+- **Sai số chuẩn White `LS(H)`** (05/11, có trong commit đưa lên master cùng ngày): HC1 với p-value theo phân phối t, khớp EViews 4 ở ảnh VIC. F-statistic giữ như EViews. Menu Chọn nhanh có ô "Sai số chuẩn White". Test: `test_ls_h_*` trong `tests/test_eviews_parity.py`.
+- **Markowitz đọc tệp Excel đã nạp ở thẻ EViews** (05/11, có trong commit đưa lên master cùng ngày): chọn nguồn ngay trong tab Markowitz, chọn cột giá, năm hóa 252 phiên. Có tùy chọn **bán khống**, mỗi tỷ trọng trong [−100%; +100%]; mặc định vẫn chỉ mua. Trọng số âm vẽ bằng cột thay vì bánh tròn. Test: `tests/test_markowitz_short.py` và `test_markowitz_tab_can_use_the_excel_sheet_loaded_in_eviews` trong `tests/test_app_smoke.py`.
 
 ## 2. Đang dở / đừng đụng
 
-- **Trạng thái production 02/11:** thẻ Hướng dẫn, nền sáng, trọng số âm và "Quên mật khẩu?" đều `verified` trên UI production. Không Reboot; bản mới tự nạp hết.
+- **Đưa lên master 05/11** (cùng commit với HANDOFF này): nhóm `LS(H)` và Markowitz Excel/bán khống. Production chạy bản này sau khi Reboot. Trạng thái kiểm UI production sau Reboot báo trong chat, chưa ghi vào file này. Các thay đổi chưa commit khác trong repo (`learning_ui.py`, `stats_classroom.py`, hai file test của chúng, `docs/`, `tools/`, `outputs/`) không thuộc nhóm này nên không đưa lên cùng commit.
+- **Trạng thái production 02/11:** thẻ Hướng dẫn, nền sáng, trọng số âm và "Quên mật khẩu?" đều `verified` trên UI production. **Reboot 02/11/2026 18:12:54 (+07), chủ dự án duyệt trong chat**, vì bộ giả lập EViews bản cũ còn trong bộ nhớ. Sau Reboot, ADF, R², AIC/SC, White, BG, RESET của VIC, REE, STB đọc trên production đều khớp EViews.
 - `docs/thiet_ke_onboarding.html` chưa track, cố ý để đó.
 - Luồng bấm nút nộp bài của HS tự đăng ký chưa chạy trọn trên trình duyệt; đã phủ bằng AppTest và smoke Firebase thật ngày 29/10.
 

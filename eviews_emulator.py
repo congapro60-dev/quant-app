@@ -378,6 +378,8 @@ def parse_and_execute_command(command, data_df):
         return {"error": "Bảng dữ liệu đang trống hoặc không hợp lệ."}
     if len(data_df) > MAX_ANALYSIS_ROWS or data_df.shape[1] > MAX_ANALYSIS_COLUMNS:
         return {"error": "Bảng dữ liệu vượt giới hạn phân tích tương tác."}
+    # "LS (H) Y C X" và "LS(H) Y C X" là một lệnh, như trong EViews.
+    command = re.sub(r"^(LS|OLS)\s+\(", r"\1(", command, flags=re.IGNORECASE)
     parts = command.split()
     cmd = parts[0].upper()
     try:
@@ -385,8 +387,12 @@ def parse_and_execute_command(command, data_df):
     except ExpressionValidationError as exc:
         return {"error": str(exc)}
 
-    # ---------- LS / OLS ----------
-    if cmd in ('LS', 'OLS'):
+    # ---------- LS / OLS (LS(H): sai số chuẩn White, HC1 như EViews) ----------
+    ls_match = re.fullmatch(r"(LS|OLS)(?:\(([A-Za-z]*)\))?", cmd)
+    if ls_match:
+        ls_options = (ls_match.group(2) or "").upper()
+        if set(ls_options) - {"H"}:
+            return {"error": "Tùy chọn LS chưa hỗ trợ. Hiện chỉ có (H) là sai số chuẩn White, VD: LS(H) Y C X."}
         if len(parts) < 3:
             return {"error": "Lệnh LS cần ≥1 biến phụ thuộc và ≥1 biến độc lập. VD: LS Y C X"}
         dep_in = parts[1].upper()
@@ -423,7 +429,11 @@ def parse_and_execute_command(command, data_df):
             return {"error": "Không đủ số quan sát sau khi loại giá trị thiếu."}
         try:
             results = sm.OLS(y, X).fit()
-            return {"success": True, "results": results, "dep_var": dep_col, "nobs": len(y)}
+            out = {"success": True, "results": results, "dep_var": dep_col, "nobs": len(y)}
+            if "H" in ls_options:
+                # EViews báo White có hiệu chỉnh bậc tự do (HC1), p-value theo phân phối t.
+                out["coef_results"] = sm.OLS(y, X).fit(cov_type="HC1", use_t=True)
+            return out
         except Exception as e:
             return {"error": f"Lỗi khi chạy hồi quy: {e}"}
 
@@ -622,11 +632,15 @@ def _format_ls(res_dict):
     vif_values = ({col_names[i]: variance_inflation_factor(X_for_vif, i) for i in non_const_idx}
                   if len(non_const_idx) >= 2 else {})
 
+    coef_src = res_dict.get("coef_results", results)
+    white_line = ""
+    if "coef_results" in res_dict:
+        white_line = "<p style=\"margin:2px 0;\"><b>White Heteroskedasticity-Consistent Standard Errors &amp; Covariance</b> (HC1, p-value theo phân phối t)</p>"
     coef_df = pd.DataFrame({
         'Hệ số (Coefficient)': results.params,
-        'Sai số chuẩn (Std. Error)': results.bse,
-        'Thống kê t (t-Statistic)': results.tvalues,
-        'Xác suất (Prob.)': results.pvalues})
+        'Sai số chuẩn (Std. Error)': coef_src.bse,
+        'Thống kê t (t-Statistic)': coef_src.tvalues,
+        'Xác suất (Prob.)': coef_src.pvalues})
     if 'const' in coef_df.index:
         coef_df = coef_df.rename(index={'const': 'C'})
 
@@ -635,6 +649,7 @@ def _format_ls(res_dict):
         <p style="margin:2px 0;"><b>Biến phụ thuộc (Dependent Variable):</b> {safe_dep_var}</p>
         <p style="margin:2px 0;"><b>Phương pháp (Method):</b> Bình phương nhỏ nhất (Least Squares)</p>
         <p style="margin:2px 0;"><b>Số quan sát (Included observations):</b> {nobs}</p>
+        {white_line}
         <hr style="border-top: 1px solid #bbb; margin: 10px 0;">
     """
     html += coef_df.to_html(float_format=lambda x: f"{x:.6f}", border=0)

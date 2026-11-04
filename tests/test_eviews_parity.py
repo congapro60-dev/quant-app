@@ -104,3 +104,38 @@ def test_smpl_keeps_the_first_observations(data):
 def test_adf_lag_can_be_chosen_and_is_validated(data):
     assert ev.parse_and_execute_command("ADF R_VIC 2", data)["adf"]["lags"] == 2
     assert "error" in ev.parse_and_execute_command("ADF R_VIC abc", data)
+
+
+# Số đọc từ bảng EViews 4 chạy LS(H) R_VIC C R_VNINDEX (149 quan sát, sai số chuẩn White HC1).
+WHITE_VIC = dict(c_se=0.001399, b_se=0.191825, c_t=0.053435, b_t=5.000138, c_p=0.9575, b_p=0.0)
+
+
+def test_ls_h_white_standard_errors_match_eviews(data):
+    robust = ev.parse_and_execute_command("LS(H) R_VIC C R_VNINDEX", data)["coef_results"]
+    assert robust.bse["const"] == pytest.approx(WHITE_VIC["c_se"], abs=5e-7)
+    assert robust.bse["R_VNINDEX"] == pytest.approx(WHITE_VIC["b_se"], abs=5e-7)
+    assert robust.tvalues["const"] == pytest.approx(WHITE_VIC["c_t"], abs=5e-7)
+    assert robust.tvalues["R_VNINDEX"] == pytest.approx(WHITE_VIC["b_t"], abs=5e-7)
+    assert round(robust.pvalues["const"], 4) == WHITE_VIC["c_p"]
+    assert round(robust.pvalues["R_VNINDEX"], 4) == WHITE_VIC["b_p"]
+
+
+def test_ls_h_keeps_ols_coefficients_and_f_statistic(data):
+    plain = ev.parse_and_execute_command("LS R_VIC C R_VNINDEX", data)
+    white = ev.parse_and_execute_command("LS(H) R_VIC C R_VNINDEX", data)
+    assert "coef_results" not in plain
+    assert list(white["results"].params) == pytest.approx(list(plain["results"].params))
+    assert white["results"].fvalue == pytest.approx(GOLD["VIC"]["f"], abs=1e-5)
+
+
+def test_ls_h_output_names_the_white_covariance(data):
+    text = _text(ev.parse_and_execute_command("LS(H) R_VIC C R_VNINDEX", data))
+    assert "White Heteroskedasticity-Consistent Standard Errors &amp; Covariance" in text
+    assert "0.191825" in text
+
+
+def test_ls_option_accepts_space_and_rejects_unknown_letters(data):
+    spaced = ev.parse_and_execute_command("LS (H) R_VIC C R_VNINDEX", data)
+    attached = ev.parse_and_execute_command("LS(H) R_VIC C R_VNINDEX", data)
+    assert spaced["coef_results"].bse["R_VNINDEX"] == pytest.approx(attached["coef_results"].bse["R_VNINDEX"])
+    assert "error" in ev.parse_and_execute_command("LS(X) R_VIC C R_VNINDEX", data)

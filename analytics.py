@@ -28,6 +28,9 @@ _OPENAI_COMPATIBLE_TIMEOUT = 60.0
 MIN_SIM_OBSERVATIONS = 8
 MIN_PORTFOLIO_OBSERVATIONS = 20
 _WEIGHT_TOLERANCE = 1e-6
+SHORT_WEIGHT_LIMIT = 1.0
+_SHORT_SAMPLING_BATCH = 4000
+_SHORT_SAMPLING_MAX_BATCHES = 200
 
 # Lỗi gọi AI ghi vào log cho chủ app (xem trên dashboard Streamlit Cloud);
 # giao diện chỉ nhận mã lỗi ổn định, không nhận chi tiết kỹ thuật.
@@ -278,7 +281,7 @@ def _regularize_covariance(cov_matrix, strength):
     return regularized, adjustment
 
 
-def _validated_solver_weights(result, num_assets, label):
+def _validated_solver_weights(result, num_assets, label, lower=0.0, upper=1.0):
     if result is None or not bool(getattr(result, "success", False)):
         message = getattr(result, "message", "không có phản hồi từ bộ giải")
         raise AnalyticsValidationError(
@@ -287,15 +290,37 @@ def _validated_solver_weights(result, num_assets, label):
     weights = np.asarray(getattr(result, "x", []), dtype=float).reshape(-1)
     if weights.shape != (num_assets,) or not np.isfinite(weights).all():
         raise AnalyticsValidationError(f"{label} trả về vector trọng số không hợp lệ.")
-    if np.any(weights < -_WEIGHT_TOLERANCE) or np.any(weights > 1 + _WEIGHT_TOLERANCE):
-        raise AnalyticsValidationError(f"{label} trả về trọng số ngoài miền [0, 1].")
+    if np.any(weights < lower - _WEIGHT_TOLERANCE) or np.any(weights > upper + _WEIGHT_TOLERANCE):
+        raise AnalyticsValidationError(f"{label} trả về trọng số ngoài miền [{lower:g}, {upper:g}].")
     total = float(weights.sum())
     if abs(total - 1.0) > _WEIGHT_TOLERANCE:
         raise AnalyticsValidationError(f"{label} trả về tổng trọng số {total:.8f}, khác 1.")
 
-    weights = np.clip(weights, 0.0, 1.0)
+    weights = np.clip(weights, lower, upper)
     weights /= weights.sum()
     return weights
+
+
+def _sample_short_portfolios(rng, num_assets, count, lower, upper):
+    # Rút danh mục mô phỏng có tổng tỷ trọng bằng 1, mỗi tỷ trọng nằm trong [lower, upper].
+    accepted = []
+    found = 0
+    for _ in range(_SHORT_SAMPLING_MAX_BATCHES):
+        draws = rng.uniform(lower, upper, size=(_SHORT_SAMPLING_BATCH, num_assets))
+        draws += (1.0 - draws.sum(axis=1, keepdims=True)) / num_assets
+        inside = np.all(
+            (draws >= lower - _WEIGHT_TOLERANCE) & (draws <= upper + _WEIGHT_TOLERANCE), axis=1
+        )
+        accepted.append(draws[inside])
+        found += int(inside.sum())
+        if found >= count:
+            break
+    if found < count:
+        raise AnalyticsValidationError(
+            "Không đủ danh mục mô phỏng hợp lệ khi cho phép bán khống; hãy giảm số tài sản "
+            "hoặc số danh mục mô phỏng."
+        )
+    return np.vstack(accepted)[:count]
 
 
 def markowitz_optimization(
@@ -306,6 +331,7 @@ def markowitz_optimization(
     random_seed=DEFAULT_FRONTIER_SEED,
     min_observations=MIN_PORTFOLIO_OBSERVATIONS,
     covariance_regularization=1e-8,
+    allow_short=False,
 ):
     """Optimize a long-only risky portfolio and expose cash as a separate option.
 
@@ -367,7 +393,10 @@ def markowitz_optimization(
         return -((expected_return - risk_free_rate) / volatility)
 
     constraints = ({"type": "eq", "fun": lambda x: np.sum(x) - 1.0},)
-    bounds = tuple((0.0, 1.0) for _ in range(num_assets))
+    weight_lower, weight_upper = (
+        (-SHORT_WEIGHT_LIMIT, SHORT_WEIGHT_LIMIT) if allow_short else (0.0, 1.0)
+    )
+    bounds = tuple((weight_lower, weight_upper) for _ in range(num_assets))
     initial_weights = np.full(num_assets, 1.0 / num_assets, dtype=float)
     solver_options = {"maxiter": 2_000, "ftol": 1e-12}
 
@@ -380,7 +409,8 @@ def markowitz_optimization(
         options=solver_options,
     )
     min_vol_weights = _validated_solver_weights(
-        min_vol_result, num_assets, "Tối ưu biến động tối thiểu (Min Volatility)"
+        min_vol_result, num_assets, "Tối ưu biến động tối thiểu (Min Volatility)",
+        weight_lower, weight_upper,
     )
     min_vol_perf = performance(min_vol_weights)
     if not np.isfinite(min_vol_perf).all():
@@ -413,7 +443,8 @@ def markowitz_optimization(
             options=solver_options,
         )
         max_sharpe_weights = _validated_solver_weights(
-            max_sharpe_result, num_assets, "Tối ưu tỷ số Sharpe tối đa (Max Sharpe)"
+            max_sharpe_result, num_assets, "Tối ưu tỷ số Sharpe tối đa (Max Sharpe)",
+            weight_lower, weight_upper,
         )
         max_sharpe_perf = performance(max_sharpe_weights)
         if not np.isfinite(max_sharpe_perf).all():
@@ -429,6 +460,10 @@ def markowitz_optimization(
     rng = np.random.default_rng(int(random_seed))
     if num_assets == 1:
         frontier_weights = np.ones((num_portfolios, 1), dtype=float)
+    elif allow_short:
+        frontier_weights = _sample_short_portfolios(
+            rng, num_assets, num_portfolios, weight_lower, weight_upper
+        )
     else:
         frontier_weights = rng.dirichlet(np.ones(num_assets), size=num_portfolios)
     frontier_returns = frontier_weights @ mean_returns
@@ -475,6 +510,8 @@ def markowitz_optimization(
             "max_sharpe": max_sharpe_status,
         },
         "frontier_seed": int(random_seed),
+        "allow_short": bool(allow_short),
+        "weight_bounds": (float(weight_lower), float(weight_upper)),
     }
 
 

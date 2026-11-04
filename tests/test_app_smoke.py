@@ -249,3 +249,19 @@ def test_offline_sample_button_populates_research_state():
     assert not at.session_state["prices_df"].empty
     assert at.session_state["sim_results_list"]
     assert at.session_state["opt_res"]
+
+
+def test_markowitz_tab_can_use_the_excel_sheet_loaded_in_eviews():
+    import pandas as pd
+
+    data = pd.read_csv(Path(__file__).parent / "fixtures" / "eviews_parity_150.csv")
+    at = _run(**{lmode.MODE_KEY: lmode.MODE_UNIVERSITY, "eviews_data": data})
+    assert not at.exception, [str(e) for e in at.exception]
+    sources = [r for r in at.radio if r.key == "markowitz_source"]
+    assert sources, "Tab Markowitz phải cho chọn nguồn khi đã nạp tệp Excel."
+    assert sources[0].value == "Tệp Excel đã nạp ở thẻ EViews"
+    assert [e.value for e in at.error] == []
+
+    at.checkbox(key="markowitz_excel_short").check().run()
+    assert not at.exception, [str(e) for e in at.exception]
+    assert [e.value for e in at.error] == []
